@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
 	"github.com/0funct0ry/xwebs/internal/build"
+	"github.com/spf13/cobra"
 )
 
 var (

@@ -1,5 +1,7 @@
 # xwebs
 
+[![CI](https://github.com/0funct0ry/xwebs/actions/workflows/ci.yml/badge.svg)](https://github.com/0funct0ry/xwebs/actions/workflows/ci.yml)
+
 A CLI tool in Go for WebSocket-based development with shell integration, Go templates, and an optional React web UI.
 
 ## Why xwebs?
@@ -232,6 +234,17 @@ make install
 
 
 
+
+## CI Pipeline
+
+The project uses GitHub Actions for Continuous Integration. Every push and pull request triggers a workflow that:
+
+1. **Tests** across multiple Go versions (1.22.x, 1.23.x).
+2. **Lints** the codebase using `golangci-lint`.
+3. **Builds** the binary to ensure compilation succeeds.
+4. **Uploads** the built binary as a workflow artifact for validation.
+
+You can view the latest CI status [here](https://github.com/0funct0ry/xwebs/actions).
 
 ## License
 

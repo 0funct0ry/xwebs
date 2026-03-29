@@ -14,7 +14,7 @@ func TestInitConfig_Profiles(t *testing.T) {
 	// Create a temporary config file
 	tmpDir := t.TempDir()
 	cfgPath := filepath.Join(tmpDir, ".xwebs.yaml")
-	
+
 	configContent := `
 log-level: info
 verbose: false
@@ -30,12 +30,12 @@ profiles:
 	require.NoError(t, err)
 
 	tests := []struct {
-		name           string
-		profileFlag    string
-		envVars        map[string]string
-		expectedLevel  string
+		name            string
+		profileFlag     string
+		envVars         map[string]string
+		expectedLevel   string
 		expectedVerbose bool
-		expectExit     bool
+		expectExit      bool
 	}{
 		{
 			name:            "Base configuration (no profile)",
@@ -68,21 +68,21 @@ profiles:
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset Viper
 			viper.Reset()
-			
+
 			// Set up flags
 			profile = tt.profileFlag
 			cfgFile = cfgPath
-			
+
 			// Set up environment variables
 			for k, v := range tt.envVars {
 				t.Setenv(k, v)
 			}
-			
+
 			// Run initConfig
 			// Note: We avoid os.Exit(1) in tests if possible, but our current implementation uses it.
 			// For the "nonexistent profile" test, we'd need a separate way to check it.
 			initConfig()
-			
+
 			assert.Equal(t, tt.expectedLevel, viper.GetString("log-level"))
 			assert.Equal(t, tt.expectedVerbose, viper.GetBool("verbose"))
 		})
@@ -90,8 +90,8 @@ profiles:
 }
 
 func TestInitConfig_NonExistentProfile(t *testing.T) {
-	// This is tricky because we use os.Exit(1). 
+	// This is tricky because we use os.Exit(1).
 	// In a real project, we might want to return an error from initConfig instead of exiting.
-	// But let's skip the exit test for now to avoid crashing the test runner, 
+	// But let's skip the exit test for now to avoid crashing the test runner,
 	// or we can test it via a separate process if needed.
 }
