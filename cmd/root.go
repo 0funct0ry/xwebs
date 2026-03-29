@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -25,7 +27,7 @@ var validLogFormats = []string{"text", "json"}
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file path (default is .xwebs.yaml in current directory)")
+	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file path (default searches ~/.xwebs.yaml then .xwebs.yaml)")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable verbose output")
 	rootCmd.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "suppress all output except errors")
 	rootCmd.PersistentFlags().StringVar(&color, "color", "auto", "color output mode: auto, on, off")
@@ -44,16 +46,28 @@ func initConfig() {
 	if cfgFile != "" {
 		viper.SetConfigFile(cfgFile)
 	} else {
+		home, _ := os.UserHomeDir()
+
 		viper.AddConfigPath(".")
-		viper.SetConfigType("yaml")
+		viper.AddConfigPath(home)
 		viper.SetConfigName(".xwebs")
+		viper.SetConfigType("yaml")
 	}
 
 	viper.SetEnvPrefix("XWEBS")
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
 
-	_ = viper.ReadInConfig()
+	if err := viper.ReadInConfig(); err != nil {
+		var notFound viper.ConfigFileNotFoundError
+		if !errors.As(err, &notFound) {
+			fmt.Fprintf(os.Stderr, "Error reading config file: %v\n", err)
+		}
+	}
+
+	if viper.ConfigFileUsed() != "" {
+		fmt.Fprintf(os.Stderr, "Using config file: %s\n", viper.ConfigFileUsed())
+	}
 
 	viper.BindPFlag("config", rootCmd.PersistentFlags().Lookup("config"))
 	viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose"))

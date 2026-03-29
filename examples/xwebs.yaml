@@ -1,0 +1,6 @@
+verbose: false
+quiet: false
+color: auto
+log-level: info
+log-format: text
+profile: ""
