@@ -206,13 +206,28 @@ See the `examples/` directory for sample configuration files and usage examples.
 
 ## Development
 
-### Building
+The project includes a `Makefile` with standard development targets:
 
+- `make` - Show help and available targets
+- `make build` - Build the `xwebs` binary for the current platform
+- `make build-prod` - Build optimized binary with production flags
+- `make build-all` - Cross-compile for Linux, Darwin, and Windows
+- `make test` - Run all tests with verbose output
+- `make lint` - Run `golangci-lint` (falls back to `go vet`)
+- `make install` - Install the binary to `$GOPATH/bin`
+- `make clean` - Remove build artifacts
+- `make ci` - Run `fmt`, `vet`, `test`, and `build` in sequence
+
+Usage:
 ```bash
-make build        # Build the binary
-make test         # Run tests
-make lint         # Run linters
-make install      # Install to $GOPATH/bin
+# Build the project
+make build
+
+# Run tests
+make test
+
+# Install globally
+make install
 ```
 
 

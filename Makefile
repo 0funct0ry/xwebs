@@ -25,15 +25,18 @@ UI_DIST = ui/dist
 .PHONY: all
 all: build
 
+# Show help by default when running 'make'
+.DEFAULT_GOAL := help
+
 # Build the binary for the current platform
 .PHONY: build
 build:
-	$(GO) build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME) .
+	$(GO) build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o $(BINARY_NAME) .
 
 # Build for production (with ldflags)
 .PHONY: build-prod
 build-prod:
-	$(GO) build $(GOFLAGS) -ldflags="-s -w $(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME) .
+	$(GO) build $(GOFLAGS) -ldflags="-s -w $(LDFLAGS)" -o $(BINARY_NAME) .
 
 # Build for all platforms
 .PHONY: build-all
@@ -47,6 +50,8 @@ build-all:
 .PHONY: clean
 clean:
 	rm -rf $(BIN_DIR)
+	rm -f $(BINARY_NAME)
+	rm -f $(BINARY_NAME).exe
 
 # Install the binary to $GOPATH/bin
 .PHONY: install
@@ -72,7 +77,7 @@ vet:
 .PHONY: lint
 lint:
 	@which golangci-lint > /dev/null 2>&1 || (echo "golangci-lint not found, running go vet instead..." && $(GO) vet ./...)
-	@which golangci-lint > /dev/null 2>&1 && golangci-lint run ./... || true
+	@which golangci-lint > /dev/null 2>&1 && golangci-lint run ./...
 
 # Run tests
 .PHONY: test

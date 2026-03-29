@@ -35,7 +35,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&logFormat, "log-format", "text", "log format: text, json")
 	rootCmd.PersistentFlags().StringVar(&profile, "profile", "", "profile name for configuration")
 
-	rootCmd.PersistentFlags().MarkDeprecated("toggle", "this flag is no longer used")
+	_ = rootCmd.PersistentFlags().MarkDeprecated("toggle", "this flag is no longer used")
 
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
 		return validateFlags()
@@ -85,13 +85,13 @@ func initConfig() {
 	}
 
 	// Bind flags to Viper
-	viper.BindPFlag("config", rootCmd.PersistentFlags().Lookup("config"))
-	viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose"))
-	viper.BindPFlag("quiet", rootCmd.PersistentFlags().Lookup("quiet"))
-	viper.BindPFlag("color", rootCmd.PersistentFlags().Lookup("color"))
-	viper.BindPFlag("log-level", rootCmd.PersistentFlags().Lookup("log-level"))
-	viper.BindPFlag("log-format", rootCmd.PersistentFlags().Lookup("log-format"))
-	viper.BindPFlag("profile", rootCmd.PersistentFlags().Lookup("profile"))
+	_ = viper.BindPFlag("config", rootCmd.PersistentFlags().Lookup("config"))
+	_ = viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose"))
+	_ = viper.BindPFlag("quiet", rootCmd.PersistentFlags().Lookup("quiet"))
+	_ = viper.BindPFlag("color", rootCmd.PersistentFlags().Lookup("color"))
+	_ = viper.BindPFlag("log-level", rootCmd.PersistentFlags().Lookup("log-level"))
+	_ = viper.BindPFlag("log-format", rootCmd.PersistentFlags().Lookup("log-format"))
+	_ = viper.BindPFlag("profile", rootCmd.PersistentFlags().Lookup("profile"))
 
 	// Sync global variables from Viper and update flag defaults for help text
 	syncFlag := func(name string, ptr interface{}) {
@@ -172,7 +172,7 @@ For more information, visit: https://github.com/0funct0ry/xwebs`,
 			}
 			fmt.Fprintf(os.Stderr, "\n")
 		}
-		cmd.Help()
+		_ = cmd.Help()
 	},
 }
 
