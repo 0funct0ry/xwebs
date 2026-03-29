@@ -1,8 +1,10 @@
 # xwebs
 
 [![CI](https://github.com/0funct0ry/xwebs/actions/workflows/ci.yml/badge.svg)](https://github.com/0funct0ry/xwebs/actions/workflows/ci.yml)
+[![Go Version](https://img.shields.io/badge/Go-1.23.0-blue.svg)](https://go.dev/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A CLI tool in Go for WebSocket-based development with shell integration, Go templates, and an optional React web UI.
+A CLI tool for WebSocket-based development with shell integration, Go templates, and an optional React web UI.
 
 ## Why xwebs?
 
@@ -12,49 +14,86 @@ Every WebSocket tool does one thing: connect and send messages. That's the equiv
 
 ## Features
 
-- **Client Mode** — Connect to WebSocket servers, send/receive messages, automate interactions
-- **Server Mode** — Spin up WebSocket handlers, serve a web UI, expose metrics
-- **Relay Mode** — Man-in-the-middle inspection and transformation
-- **Broadcast Mode** — Pub/sub fan-out for multi-client testing
-- **Mock Mode** — Scenario-driven fake servers for integration tests
-- **Bench Mode** — Load testing with concurrent connections and rate control
-- **Replay Mode** — Record and replay sessions deterministically
-- **Interactive REPL** — Tab completion, syntax highlighting, command history
-- **Go Templates** — Dynamic message payloads, handler configs, and expressions
-- **Shell Integration** — Execute shell commands in response to WebSocket events
+### Available Now (v0.1.0-alpha)
+- **CLI Foundation** — Robust command structure with [Cobra](https://github.com/spf13/cobra) and [Viper](https://github.com/spf13/viper)
+- **Configuration Profiles** — Switch between named settings (e.g., `--profile debug`)
+- **Aliases & Bookmarks** — Map short names to long WebSocket URLs and headers
+- **Shell Completion** — Native completion for Bash, Zsh, Fish, and PowerShell
+- **Version Info** — Detailed build information with `xwebs version`
+- **Makefile Integration** — Standardized `build`, `test`, `lint`, and `install` targets
+- **CI/CD** — Automated testing and building via GitHub Actions
+
+### On the Roadmap (Planned)
+- **Client Mode** — Full interactive REPL for WebSocket communication
+- **WebSocket Engine** — TLS support, proxies, auto-reconnect, and frame handling
+- **Template Engine** — Rich Go template FuncMap with `jq`, `base64`, `crypto`, and more
+- **Server Mode** — WebSocket server with handler dispatch and administration REPL
+- **Handler Pipeline** — Bind message patterns to shell commands and actions
+- **Relay & Broadcast** — MITM proxy and pub/sub fan-out modes
+- **Mock & Replay** — Scenario-driven testing and session recording
+- **Web UI** — React-based dashboard for visual message inspection and Compose
 
 ## Installation
 
+### Via Go Install
+
+If you have Go installed, you can install the latest version directly:
+
+```bash
+go install github.com/0funct0ry/xwebs@latest
+```
+
+### Binary Downloads (Planned)
+
+In the future, pre-built binaries for Linux, macOS, and Windows will be available on the [Releases](https://github.com/0funct0ry/xwebs/releases) page.
+
 ### From Source
+
+For development or to build the latest version from source:
 
 ```bash
 git clone https://github.com/0funct0ry/xwebs.git
 cd xwebs
-go install
+make build
+# To install locally to $GOPATH/bin
+make install
 ```
 
-### Build from Source
+### Build for Multiple Platforms
 
 ```bash
-# Build for current platform
-make build
-
-# Cross-compile for multiple platforms
 make build-all
 ```
 
 ## Quick Start
 
-### Connect to a WebSocket server
+### Check Version
+
+Verify your installation and see build details:
 
 ```bash
+xwebs version
+```
+
+### Resolve Connection Details
+
+While the full interactive client is coming in EPIC 04, you can currently use `connect` to resolve aliases and bookmarks from your configuration:
+
+```bash
+# Resolve a bookmark
+xwebs connect staging
+
+# Resolve a raw URL
 xwebs connect wss://echo.websocket.org
 ```
 
-### Start a WebSocket server
+### Generate Completion
+
+Enable shell completion for a better CLI experience:
 
 ```bash
-xwebs serve --port 8080
+# Example for Zsh (add to ~/.zshrc)
+source <(xwebs completion zsh)
 ```
 
 ### Use configuration file
