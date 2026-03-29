@@ -116,14 +116,39 @@ xwebs searches for configuration files in the following order (first found wins)
 | `--log-format` | `XWEBS_LOG_FORMAT`   |
 | `--profile`    | `XWEBS_PROFILE`      |
 
+### Named Profiles
+
+Profiles allow you to group settings and apply them as an overlay to the base configuration. Use the `--profile` flag to specify a profile defined in your config file.
+
+Example configuration with profiles:
+
+```yaml
+log-level: info
+verbose: false
+
+profiles:
+  debug:
+    log-level: debug
+    verbose: true
+  prod:
+    log-level: error
+    verbose: false
+```
+
+Usage:
+```bash
+xwebs --profile debug
+```
+
 ### Precedence
 
 Configuration values are applied in the following order (later takes precedence):
 
 1. Default values
-2. Config file (`~/.xwebs.yaml` or `.xwebs.yaml`)
-3. Environment variables (`XWEBS_*`)
-4. Command-line flags
+2. Config file base values (`~/.xwebs.yaml` or `.xwebs.yaml`)
+3. **Named Profile values** (if `--profile` is specified)
+4. Environment variables (`XWEBS_*`)
+5. Command-line flags
 
 ## Examples
 

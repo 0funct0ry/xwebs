@@ -65,10 +65,26 @@ func initConfig() {
 		}
 	}
 
+	// Apply named profile if specified
+	if profile != "" {
+		profileKey := fmt.Sprintf("profiles.%s", profile)
+		if !viper.IsSet(profileKey) {
+			fmt.Fprintf(os.Stderr, "Error: profile '%s' not found in configuration\n", profile)
+			os.Exit(1)
+		}
+
+		profileConfig := viper.GetStringMap(profileKey)
+		if err := viper.MergeConfigMap(profileConfig); err != nil {
+			fmt.Fprintf(os.Stderr, "Error merging profile '%s': %v\n", profile, err)
+			os.Exit(1)
+		}
+	}
+
 	if viper.ConfigFileUsed() != "" {
 		fmt.Fprintf(os.Stderr, "Using config file: %s\n", viper.ConfigFileUsed())
 	}
 
+	// Bind flags to Viper
 	viper.BindPFlag("config", rootCmd.PersistentFlags().Lookup("config"))
 	viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose"))
 	viper.BindPFlag("quiet", rootCmd.PersistentFlags().Lookup("quiet"))
@@ -76,6 +92,32 @@ func initConfig() {
 	viper.BindPFlag("log-level", rootCmd.PersistentFlags().Lookup("log-level"))
 	viper.BindPFlag("log-format", rootCmd.PersistentFlags().Lookup("log-format"))
 	viper.BindPFlag("profile", rootCmd.PersistentFlags().Lookup("profile"))
+
+	// Sync global variables from Viper and update flag defaults for help text
+	syncFlag := func(name string, ptr interface{}) {
+		f := rootCmd.PersistentFlags().Lookup(name)
+		if f == nil {
+			return
+		}
+		switch v := ptr.(type) {
+		case *string:
+			*v = viper.GetString(name)
+			f.DefValue = *v
+		case *bool:
+			*v = viper.GetBool(name)
+			if *v {
+				f.DefValue = "true"
+			} else {
+				f.DefValue = "false"
+			}
+		}
+	}
+
+	syncFlag("verbose", &verbose)
+	syncFlag("quiet", &quiet)
+	syncFlag("color", &color)
+	syncFlag("log-level", &logLevel)
+	syncFlag("log-format", &logFormat)
 }
 
 func validateFlags() error {
@@ -118,6 +160,18 @@ For more information, visit: https://github.com/0funct0ry/xwebs`,
 	SilenceErrors:         false,
 	DisableFlagsInUseLine: false,
 	Run: func(cmd *cobra.Command, args []string) {
+		if profile != "" || verbose || quiet || logLevel != "info" {
+			fmt.Fprintf(os.Stderr, "Active Configuration:\n")
+			if profile != "" {
+				fmt.Fprintf(os.Stderr, "  - Profile:    %s\n", profile)
+			}
+			fmt.Fprintf(os.Stderr, "  - Log Level:  %s\n", logLevel)
+			fmt.Fprintf(os.Stderr, "  - Verbose:    %v\n", verbose)
+			if quiet {
+				fmt.Fprintf(os.Stderr, "  - Quiet:      %v\n", quiet)
+			}
+			fmt.Fprintf(os.Stderr, "\n")
+		}
 		cmd.Help()
 	},
 }
