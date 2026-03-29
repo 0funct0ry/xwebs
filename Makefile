@@ -10,7 +10,12 @@ BIN_DIR = bin
 # Go build variables
 GO = go
 GOFLAGS = -v
-LDFLAGS =
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+BUILD_DATE ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+BUILD_PKG = github.com/0funct0ry/xwebs/internal/build
+LDFLAGS = -X $(BUILD_PKG).Version=$(VERSION) -X $(BUILD_PKG).Commit=$(COMMIT) -X $(BUILD_PKG).BuildDate=$(BUILD_DATE)
 
 # Directories
 UI_DIR = ui
@@ -23,20 +28,20 @@ all: build
 # Build the binary for the current platform
 .PHONY: build
 build:
-	$(GO) build $(GOFLAGS) -o $(BIN_DIR)/$(BINARY_NAME) .
+	$(GO) build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME) .
 
 # Build for production (with ldflags)
 .PHONY: build-prod
 build-prod:
-	$(GO) build -ldflags="-s -w" -o $(BIN_DIR)/$(BINARY_NAME) .
+	$(GO) build $(GOFLAGS) -ldflags="-s -w $(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME) .
 
 # Build for all platforms
 .PHONY: build-all
 build-all:
-	GOOS=linux GOARCH=amd64 $(GO) build -o $(BIN_DIR)/$(BINARY_NAME)-linux-amd64 .
-	GOOS=darwin GOARCH=amd64 $(GO) build -o $(BIN_DIR)/$(BINARY_NAME)-darwin-amd64 .
-	GOOS=darwin GOARCH=arm64 $(GO) build -o $(BIN_DIR)/$(BINARY_NAME)-darwin-arm64 .
-	GOOS=windows GOARCH=amd64 $(GO) build -o $(BIN_DIR)/$(BINARY_NAME).exe .
+	GOOS=linux GOARCH=amd64 $(GO) build -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME)-linux-amd64 .
+	GOOS=darwin GOARCH=amd64 $(GO) build -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME)-darwin-amd64 .
+	GOOS=darwin GOARCH=arm64 $(GO) build -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME)-darwin-arm64 .
+	GOOS=windows GOARCH=amd64 $(GO) build -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME).exe .
 
 # Clean build artifacts
 .PHONY: clean

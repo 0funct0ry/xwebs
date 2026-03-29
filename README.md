@@ -171,8 +171,33 @@ bookmarks:
 
 Usage:
 ```bash
-xwebs connect echo
 xwebs connect staging
+```
+
+### Build Information
+
+```bash
+xwebs version
+```
+
+Displays the version, git commit hash, build date, and Go version.
+
+### Shell Completion
+
+Generate shell completion scripts for Bash, Zsh, Fish, or PowerShell.
+
+```bash
+# Bash
+source <(xwebs completion bash)
+
+# Zsh
+xwebs completion zsh > "${fpath[1]}/_xwebs"
+
+# Fish
+xwebs completion fish > ~/.config/fish/completions/xwebs.fish
+
+# PowerShell
+xwebs completion powershell | Out-String | Invoke-Expression
 ```
 
 ## Examples
