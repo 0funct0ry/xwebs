@@ -34,3 +34,4 @@ internal-docs/
 xwebs
 bin/
 AGENTS.md
+.xwebs.yaml

@@ -150,6 +150,31 @@ Configuration values are applied in the following order (later takes precedence)
 4. Environment variables (`XWEBS_*`)
 5. Command-line flags
 
+### Aliases and Bookmarks
+
+Aliases and bookmarks allow you to define short names for frequently used WebSocket endpoints. Bookmarks also support pre-configured HTTP headers.
+
+Example configuration:
+
+```yaml
+aliases:
+  echo: "wss://echo.websocket.org"
+  local: "ws://localhost:8080"
+
+bookmarks:
+  staging:
+    url: "wss://api.staging.example.com"
+    headers:
+      X-API-Key: "secret-abc-123"
+      Authorization: "Bearer your-token-here"
+```
+
+Usage:
+```bash
+xwebs connect echo
+xwebs connect staging
+```
+
 ## Examples
 
 See the `examples/` directory for sample configuration files and usage examples.

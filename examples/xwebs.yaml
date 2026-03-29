@@ -4,3 +4,16 @@ color: auto
 log-level: info
 log-format: text
 profile: ""
+
+# Aliases: Simple URL mappings
+aliases:
+  echo: "wss://echo.websocket.org"
+  local: "ws://localhost:8080"
+
+# Bookmarks: URL with optional headers
+bookmarks:
+  staging:
+    url: "wss://api.staging.example.com"
+    headers:
+      X-API-Key: "secret-abc-123"
+      Authorization: "Bearer your-token-here"
