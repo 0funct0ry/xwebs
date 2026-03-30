@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"net/http"
-	"sort"
 	"time"
 
 	"github.com/0funct0ry/xwebs/internal/config"
@@ -12,13 +11,12 @@ import (
 )
 
 var (
-	subprotocols []string
-	insecure     bool
-	certFile     string
-	keyFile      string
-	caFile       string
-	pingInterval time.Duration
-	pongWait     time.Duration
+	pingInterval      time.Duration
+	pongWait          time.Duration
+	reconnect         bool
+	reconnectBackoff  time.Duration
+	reconnectMax      time.Duration
+	reconnectAttempts int
 )
 
 var connectCmd = &cobra.Command{
@@ -61,24 +59,23 @@ Example:
 		if cmd.Flags().Changed("pong-wait") {
 			details.PongWait = pongWait
 		}
-
-		fmt.Printf("Connecting to: %s\n", details.URL)
-		if details.Proxy != "" {
-			fmt.Printf("Proxy: %s\n", details.Proxy)
+		if cmd.Flags().Changed("reconnect") {
+			details.Reconnect = reconnect
 		}
+		if cmd.Flags().Changed("reconnect-backoff") {
+			details.ReconnectBackoff = reconnectBackoff
+		}
+		if cmd.Flags().Changed("reconnect-max") {
+			details.ReconnectMax = reconnectMax
+		}
+		if cmd.Flags().Changed("reconnect-attempts") {
+			details.ReconnectAttempts = reconnectAttempts
+		}
+
 		header := make(http.Header)
 		if len(details.Headers) > 0 {
-			fmt.Println("Headers:")
-			// Sort headers for deterministic output
-			keys := make([]string, 0, len(details.Headers))
-			for k := range details.Headers {
-				keys = append(keys, k)
-			}
-			sort.Strings(keys)
-			for _, k := range keys {
-				v := details.Headers[k]
+			for k, v := range details.Headers {
 				header.Add(k, v)
-				fmt.Printf("  %s: %s\n", k, v)
 			}
 		}
 
@@ -89,12 +86,15 @@ Example:
 			ws.WithPingInterval(details.PingInterval),
 			ws.WithPongWait(details.PongWait),
 			ws.WithVerbose(verbose),
+			ws.WithReconnect(details.Reconnect),
+			ws.WithReconnectBackoff(details.ReconnectBackoff),
+			ws.WithReconnectMax(details.ReconnectMax),
+			ws.WithReconnectAttempts(details.ReconnectAttempts),
 		}
 
 		if details.Proxy != "" {
 			opts = append(opts, ws.WithProxy(details.Proxy))
 		}
-
 		if details.CA != "" {
 			opts = append(opts, ws.WithCACert(details.CA))
 		}
@@ -102,32 +102,73 @@ Example:
 			opts = append(opts, ws.WithClientCert(details.Cert, details.Key))
 		}
 
-		conn, err := ws.Dial(cmd.Context(), details.URL, opts...)
-		if err != nil {
-			return fmt.Errorf("connection failed: %w", err)
-		}
-		defer conn.Close()
-
-		fmt.Println("Handshake successful!")
-		if conn.NegotiatedSubprotocol != "" {
-			fmt.Printf("Negotiated Subprotocol: %s\n", conn.NegotiatedSubprotocol)
-		}
-
-		fmt.Println("\n(Full interactive session logic will be implemented in EPIC 04)")
-		fmt.Println("Press Ctrl+C to disconnect...")
-
-		// Wait for connection to close or context to be cancelled
-		select {
-		case <-conn.Done():
-			if err := conn.Err(); err != nil {
-				fmt.Printf("\nConnection closed with error: %v\n", err)
-			} else {
-				fmt.Println("\nConnection closed by server.")
+		reconnectCount := 0
+		for {
+			fmt.Printf("Connecting to: %s\n", details.URL)
+			if details.Proxy != "" && reconnectCount == 0 {
+				fmt.Printf("Proxy: %s\n", details.Proxy)
 			}
-		case <-cmd.Context().Done():
-			fmt.Println("\nDisconnecting...")
-		}
 
+			conn, err := ws.Dial(cmd.Context(), details.URL, opts...)
+			if err != nil {
+				if !details.Reconnect {
+					return fmt.Errorf("connection failed: %w", err)
+				}
+
+				if details.ReconnectAttempts > 0 && reconnectCount >= details.ReconnectAttempts {
+					return fmt.Errorf("connection failed after %d attempts: %w", reconnectCount, err)
+				}
+
+				backoff := ws.ExponentialBackoff(details.ReconnectBackoff, details.ReconnectMax, reconnectCount)
+				fmt.Printf("Connection failed: %v. Retrying in %v... (attempt %d)\n", err, backoff, reconnectCount+1)
+
+				select {
+				case <-time.After(backoff):
+					reconnectCount++
+					continue
+				case <-cmd.Context().Done():
+					return nil
+				}
+			}
+
+			reconnectCount = 0 // Reset on successful connection
+			fmt.Println("Handshake successful!")
+			if conn.NegotiatedSubprotocol != "" {
+				fmt.Printf("Negotiated Subprotocol: %s\n", conn.NegotiatedSubprotocol)
+			}
+
+			fmt.Println("\n(Full interactive session logic will be implemented in EPIC 04)")
+			fmt.Println("Press Ctrl+C to disconnect...")
+
+			// Wait for connection to close or context to be cancelled
+			var closedUnexpectedly bool
+			select {
+			case <-conn.Done():
+				if err := conn.Err(); err != nil {
+					fmt.Printf("\nConnection lost: %v\n", err)
+					closedUnexpectedly = true
+				} else {
+					fmt.Println("\nConnection closed by server.")
+					closedUnexpectedly = false
+				}
+			case <-cmd.Context().Done():
+				fmt.Println("\nDisconnecting...")
+				conn.Close()
+				return nil
+			}
+
+			if details.Reconnect && closedUnexpectedly {
+				backoff := ws.ExponentialBackoff(details.ReconnectBackoff, details.ReconnectMax, 0)
+				fmt.Printf("Attempting to reconnect in %v...\n", backoff)
+				select {
+				case <-time.After(backoff):
+					continue
+				case <-cmd.Context().Done():
+					return nil
+				}
+			}
+			break
+		}
 		return nil
 	},
 }
@@ -140,5 +181,17 @@ func init() {
 	connectCmd.Flags().StringVar(&caFile, "ca", "", "path to custom CA certificate file")
 	connectCmd.Flags().DurationVar(&pingInterval, "ping-interval", 30*time.Second, "interval for automatic ping messages (0 to disable)")
 	connectCmd.Flags().DurationVar(&pongWait, "pong-wait", 60*time.Second, "wait time for a pong response")
+	connectCmd.Flags().BoolVar(&reconnect, "reconnect", false, "enable automatic reconnection")
+	connectCmd.Flags().DurationVar(&reconnectBackoff, "reconnect-backoff", 1*time.Second, "initial backoff duration for reconnection")
+	connectCmd.Flags().DurationVar(&reconnectMax, "reconnect-max", 30*time.Second, "maximum backoff duration for reconnection")
+	connectCmd.Flags().IntVar(&reconnectAttempts, "reconnect-attempts", 0, "maximum number of reconnection attempts (0 for unlimited)")
 	rootCmd.AddCommand(connectCmd)
 }
+
+var (
+	subprotocols []string
+	insecure     bool
+	certFile     string
+	keyFile      string
+	caFile       string
+)

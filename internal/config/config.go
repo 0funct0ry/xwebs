@@ -17,8 +17,12 @@ type Bookmark struct {
 	Cert     string            `mapstructure:"cert"`
 	Key      string            `mapstructure:"key"`
 	Proxy    string            `mapstructure:"proxy"`
-	PingInterval time.Duration `mapstructure:"ping-interval"`
-	PongWait     time.Duration `mapstructure:"pong-wait"`
+	PingInterval      time.Duration `mapstructure:"ping-interval"`
+	PongWait          time.Duration `mapstructure:"pong-wait"`
+	Reconnect         bool          `mapstructure:"reconnect"`
+	ReconnectBackoff  time.Duration `mapstructure:"reconnect-backoff"`
+	ReconnectMax      time.Duration `mapstructure:"reconnect-max"`
+	ReconnectAttempts int           `mapstructure:"reconnect-attempts"`
 }
 
 // AppConfig represents the root configuration structure for aliases and bookmarks.
@@ -36,8 +40,12 @@ type ConnDetails struct {
 	Cert     string
 	Key      string
 	Proxy    string
-	PingInterval time.Duration
-	PongWait     time.Duration
+	PingInterval      time.Duration
+	PongWait          time.Duration
+	Reconnect         bool
+	ReconnectBackoff  time.Duration
+	ReconnectMax      time.Duration
+	ReconnectAttempts int
 }
 
 // ResolveConnDetails resolves a short name or a direct URL into the full WebSocket URL and any associated headers.
@@ -64,7 +72,7 @@ func ResolveConnDetails(nameOrUrl string) (ConnDetails, error) {
 	// 4. Try resolving as a bookmark
 	if bookmark, ok := cfg.Bookmarks[nameOrUrl]; ok {
 		if bookmark.URL == "" {
-			return ConnDetails{}, fmt.Errorf("bookmark '%s' has no URL", nameOrUrl)
+			return ConnDetails{}, fmt.Errorf("bookmark %q has no URL", nameOrUrl)
 		}
 		return ConnDetails(bookmark), nil
 	}

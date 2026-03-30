@@ -149,6 +149,30 @@ bookmarks:
     proxy: "http://squid.corp.local:3128"
 ```
 
+### Reconnection Configuration
+
+`xwebs` can automatically reconnect to the server if the connection is lost unexpectedly. Reconnection uses an exponential backoff strategy to avoid overwhelming the server.
+
+```bash
+# Enable reconnection with default parameters (1s initial backoff, 30s max, unlimited attempts)
+xwebs connect wss://api.example.com --reconnect
+
+# Custom backoff and limit to 10 attempts
+xwebs connect wss://api.example.com --reconnect --reconnect-backoff 2s --reconnect-max 60s --reconnect-attempts 10
+```
+
+Reconnection settings can be defined in bookmarks:
+
+```yaml
+bookmarks:
+  unstable-server:
+    url: "wss://unstable.example.com"
+    reconnect: true
+    reconnect-backoff: 1s
+    reconnect-max: 30s
+    reconnect-attempts: 5
+```
+
 Currently, `connect` establishes the connection and reports handshake details. Full interactive REPL support is coming in EPIC 04.
 
 ### Generate Completion

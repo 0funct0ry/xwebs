@@ -17,9 +17,13 @@ type DialOptions struct {
 	ProxyURL        string
 	ReadBufferSize  int
 	WriteBufferSize int
-	PingInterval    time.Duration
-	PongWait        time.Duration
-	Verbose         bool
+	PingInterval       time.Duration
+	PongWait           time.Duration
+	Reconnect          bool
+	ReconnectBackoff   time.Duration
+	ReconnectMax       time.Duration
+	ReconnectAttempts  int
+	Verbose            bool
 }
 
 // DialOption is a functional option for the Dial function.
@@ -107,5 +111,33 @@ func WithPongWait(wait time.Duration) DialOption {
 func WithVerbose(verbose bool) DialOption {
 	return func(o *DialOptions) {
 		o.Verbose = verbose
+	}
+}
+
+// WithReconnect enables automatic reconnection.
+func WithReconnect(reconnect bool) DialOption {
+	return func(o *DialOptions) {
+		o.Reconnect = reconnect
+	}
+}
+
+// WithReconnectBackoff sets the initial backoff duration for reconnection.
+func WithReconnectBackoff(backoff time.Duration) DialOption {
+	return func(o *DialOptions) {
+		o.ReconnectBackoff = backoff
+	}
+}
+
+// WithReconnectMax sets the maximum backoff duration for reconnection.
+func WithReconnectMax(max time.Duration) DialOption {
+	return func(o *DialOptions) {
+		o.ReconnectMax = max
+	}
+}
+
+// WithReconnectAttempts sets the maximum number of reconnection attempts.
+func WithReconnectAttempts(attempts int) DialOption {
+	return func(o *DialOptions) {
+		o.ReconnectAttempts = attempts
 	}
 }
