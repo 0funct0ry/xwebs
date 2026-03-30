@@ -25,6 +25,7 @@ type DialOptions struct {
 	ReconnectAttempts  int
 	Verbose            bool
 	MaxMessageSize     int64
+	Compress           bool
 }
 
 // DialOption is a functional option for the Dial function.
@@ -147,5 +148,12 @@ func WithReconnectAttempts(attempts int) DialOption {
 func WithMaxMessageSize(size int64) DialOption {
 	return func(o *DialOptions) {
 		o.MaxMessageSize = size
+	}
+}
+
+// WithCompression enables per-message-deflate compression.
+func WithCompression(compress bool) DialOption {
+	return func(o *DialOptions) {
+		o.Compress = compress
 	}
 }

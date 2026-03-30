@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -50,6 +51,7 @@ type Connection struct {
 	_pongWait      time.Duration
 	_verbose       bool
 	_maxMessageSize int64
+	_compressionRequested bool
 }
 
 // Start launches the read and write loops for the connection.
@@ -88,6 +90,25 @@ func (c *Connection) Err() error {
 // Done returns a channel that is closed when the connection is closed.
 func (c *Connection) Done() <-chan struct{} {
 	return c._done
+}
+
+// IsCompressionEnabled returns true if per-message-deflate compression was negotiated.
+func (c *Connection) IsCompressionEnabled() bool {
+	if c.HandshakeResponse == nil {
+		return false
+	}
+	// Check all values of the Sec-WebSocket-Extensions header
+	for _, ext := range c.HandshakeResponse.Header.Values("Sec-WebSocket-Extensions") {
+		if strings.Contains(strings.ToLower(ext), "permessage-deflate") {
+			return true
+		}
+	}
+	return false
+}
+
+// CompressionRequested returns true if compression was requested during handshake.
+func (c *Connection) CompressionRequested() bool {
+	return c._compressionRequested
 }
 
 // Read returns the channel for incoming messages.
@@ -263,7 +284,7 @@ func NewConnection(conn *websocket.Conn, url string, resp *http.Response, opts *
 	}
 
 	conn.SetReadLimit(opts.MaxMessageSize)
-	return &Connection{
+	c := &Connection{
 		Conn:                  conn,
 		URL:                   url,
 		NegotiatedSubprotocol: conn.Subprotocol(),
@@ -275,5 +296,18 @@ func NewConnection(conn *websocket.Conn, url string, resp *http.Response, opts *
 		_pongWait:             opts.PongWait,
 		_verbose:              opts.Verbose,
 		_maxMessageSize:       opts.MaxMessageSize,
+		_compressionRequested: opts.Compress,
 	}
+
+	if c.IsCompressionEnabled() {
+		conn.EnableWriteCompression(true)
+	}
+
+	if opts.Verbose && resp != nil {
+		if ext := resp.Header.Values("Sec-WebSocket-Extensions"); len(ext) > 0 {
+			fmt.Fprintf(os.Stderr, "  [ws] extensions negotiated: %s\n", strings.Join(ext, ", "))
+		}
+	}
+
+	return c
 }

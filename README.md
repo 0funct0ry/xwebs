@@ -188,6 +188,24 @@ bookmarks:
   limited-service:
     url: "wss://api.example.com"
     max-message-size: 65536 # 64KB
+
+### Compression Configuration
+
+`xwebs` supports per-message-deflate compression (`RFC 7692`) to reduce bandwidth usage for large message payloads.
+
+```bash
+# Enable compression for the connection
+xwebs connect wss://echo.websocket.org --compress
+```
+
+Compression settings can also be defined in bookmarks:
+
+```yaml
+bookmarks:
+  compressed-service:
+    url: "wss://api.example.com"
+    compress: true
+```
 ```
 
 ### Frame Handling
@@ -199,7 +217,7 @@ xwebs connect wss://echo.websocket.org --verbose
 # [ws] sending text message to wss://echo.websocket.org (5 bytes)
 # [ws] received text message from wss://echo.websocket.org (5 bytes)
 ```
-```
+
 
 Currently, `connect` establishes the connection and reports handshake details. Full interactive REPL support is coming in EPIC 04.
 

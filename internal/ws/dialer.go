@@ -76,8 +76,9 @@ func Dial(ctx context.Context, urlStr string, opts ...DialOption) (*Connection, 
 	}
 
 	dialer := websocket.Dialer{
-		Subprotocols:    dOpts.Subprotocols,
-		TLSClientConfig: dOpts.TLSConfig,
+		Subprotocols:      dOpts.Subprotocols,
+		TLSClientConfig:   dOpts.TLSConfig,
+		EnableCompression: dOpts.Compress,
 	}
 
 	if dOpts.ProxyURL != "" {

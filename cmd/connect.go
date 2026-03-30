@@ -18,6 +18,7 @@ var (
 	reconnectMax      time.Duration
 	reconnectAttempts int
 	maxMessageSize    int64
+	compress          bool
 )
 
 var connectCmd = &cobra.Command{
@@ -75,6 +76,9 @@ Example:
 		if cmd.Flags().Changed("max-message-size") {
 			details.MaxMessageSize = maxMessageSize
 		}
+		if cmd.Flags().Changed("compress") {
+			details.Compress = compress
+		}
 
 		header := make(http.Header)
 		if len(details.Headers) > 0 {
@@ -95,6 +99,7 @@ Example:
 			ws.WithReconnectMax(details.ReconnectMax),
 			ws.WithReconnectAttempts(details.ReconnectAttempts),
 			ws.WithMaxMessageSize(details.MaxMessageSize),
+			ws.WithCompression(details.Compress),
 		}
 
 		if details.Proxy != "" {
@@ -140,6 +145,11 @@ Example:
 			fmt.Println("Handshake successful!")
 			if conn.NegotiatedSubprotocol != "" {
 				fmt.Printf("Negotiated Subprotocol: %s\n", conn.NegotiatedSubprotocol)
+			}
+			if conn.IsCompressionEnabled() {
+				fmt.Println("Compression: enabled (permessage-deflate)")
+			} else if conn.CompressionRequested() {
+				fmt.Println("Compression: requested but not negotiated by server")
 			}
 
 			fmt.Println("\n(Full interactive session logic will be implemented in EPIC 04)")
@@ -191,6 +201,7 @@ func init() {
 	connectCmd.Flags().DurationVar(&reconnectMax, "reconnect-max", 30*time.Second, "maximum backoff duration for reconnection")
 	connectCmd.Flags().IntVar(&reconnectAttempts, "reconnect-attempts", 0, "maximum number of reconnection attempts (0 for unlimited)")
 	connectCmd.Flags().Int64Var(&maxMessageSize, "max-message-size", 0, "maximum message size in bytes (0 for unlimited)")
+	connectCmd.Flags().BoolVar(&compress, "compress", false, "enable per-message-deflate compression")
 	rootCmd.AddCommand(connectCmd)
 }
 

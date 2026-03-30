@@ -44,6 +44,17 @@ func subprotocolHandler(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close()
 }
 
+func compressionHandler(w http.ResponseWriter, r *http.Request) {
+	upgraderWithComp := websocket.Upgrader{
+		EnableCompression: true,
+	}
+	conn, err := upgraderWithComp.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+}
+
 func TestDial(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(echoHandler))
 	defer s.Close()
@@ -112,6 +123,29 @@ func TestDialWithSubprotocols(t *testing.T) {
 		conn, err := Dial(ctx, u, WithSubprotocols("v1.xwebs"))
 		require.NoError(t, err)
 		assert.Equal(t, "v1.xwebs", conn.NegotiatedSubprotocol)
+		defer conn.Close()
+	})
+}
+
+func TestDialWithCompression(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(compressionHandler))
+	defer s.Close()
+
+	u := "ws" + strings.TrimPrefix(s.URL, "http")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	t.Run("Negotiate Compression", func(t *testing.T) {
+		conn, err := Dial(ctx, u, WithCompression(true))
+		require.NoError(t, err)
+		assert.True(t, conn.IsCompressionEnabled())
+		defer conn.Close()
+	})
+
+	t.Run("Disable Compression", func(t *testing.T) {
+		conn, err := Dial(ctx, u, WithCompression(false))
+		require.NoError(t, err)
+		assert.False(t, conn.IsCompressionEnabled())
 		defer conn.Close()
 	})
 }
