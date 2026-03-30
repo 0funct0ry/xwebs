@@ -15,6 +15,7 @@ type Bookmark struct {
 	CA       string            `mapstructure:"ca"`
 	Cert     string            `mapstructure:"cert"`
 	Key      string            `mapstructure:"key"`
+	Proxy    string            `mapstructure:"proxy"`
 }
 
 // AppConfig represents the root configuration structure for aliases and bookmarks.
@@ -31,6 +32,7 @@ type ConnDetails struct {
 	CA       string
 	Cert     string
 	Key      string
+	Proxy    string
 }
 
 // ResolveConnDetails resolves a short name or a direct URL into the full WebSocket URL and any associated headers.

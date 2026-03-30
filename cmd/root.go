@@ -18,6 +18,7 @@ var (
 	logLevel  string
 	logFormat string
 	profile   string
+	proxy     string
 )
 
 var validLogLevels = []string{"debug", "info", "warn", "error"}
@@ -34,6 +35,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "info", "logging level: debug, info, warn, error")
 	rootCmd.PersistentFlags().StringVar(&logFormat, "log-format", "text", "log format: text, json")
 	rootCmd.PersistentFlags().StringVar(&profile, "profile", "", "profile name for configuration")
+	rootCmd.PersistentFlags().StringVar(&proxy, "proxy", "", "proxy URL (http, https, socks5)")
 
 	_ = rootCmd.PersistentFlags().MarkDeprecated("toggle", "this flag is no longer used")
 
@@ -92,6 +94,7 @@ func initConfig() {
 	_ = viper.BindPFlag("log-level", rootCmd.PersistentFlags().Lookup("log-level"))
 	_ = viper.BindPFlag("log-format", rootCmd.PersistentFlags().Lookup("log-format"))
 	_ = viper.BindPFlag("profile", rootCmd.PersistentFlags().Lookup("profile"))
+	_ = viper.BindPFlag("proxy", rootCmd.PersistentFlags().Lookup("proxy"))
 
 	// Sync global variables from Viper and update flag defaults for help text
 	syncFlag := func(name string, ptr interface{}) {
@@ -118,6 +121,7 @@ func initConfig() {
 	syncFlag("color", &color)
 	syncFlag("log-level", &logLevel)
 	syncFlag("log-format", &logFormat)
+	syncFlag("proxy", &proxy)
 }
 
 func validateFlags() error {
@@ -169,6 +173,9 @@ For more information, visit: https://github.com/0funct0ry/xwebs`,
 			fmt.Fprintf(os.Stderr, "  - Verbose:    %v\n", verbose)
 			if quiet {
 				fmt.Fprintf(os.Stderr, "  - Quiet:      %v\n", quiet)
+			}
+			if proxy != "" {
+				fmt.Fprintf(os.Stderr, "  - Proxy:      %s\n", proxy)
 			}
 			fmt.Fprintf(os.Stderr, "\n")
 		}

@@ -49,8 +49,14 @@ Example:
 		if cmd.Flags().Changed("ca") {
 			details.CA = caFile
 		}
+		if cmd.Flags().Changed("proxy") {
+			details.Proxy = proxy
+		}
 
 		fmt.Printf("Connecting to: %s\n", details.URL)
+		if details.Proxy != "" {
+			fmt.Printf("Proxy: %s\n", details.Proxy)
+		}
 		header := make(http.Header)
 		if len(details.Headers) > 0 {
 			fmt.Println("Headers:")
@@ -71,6 +77,10 @@ Example:
 			ws.WithHeaders(header),
 			ws.WithSubprotocols(subprotocols...),
 			ws.WithInsecureSkipVerify(details.Insecure),
+		}
+
+		if details.Proxy != "" {
+			opts = append(opts, ws.WithProxy(details.Proxy))
 		}
 
 		if details.CA != "" {

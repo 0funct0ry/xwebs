@@ -53,6 +53,18 @@ func TestResolveConnDetails(t *testing.T) {
 	assert.Equal(t, "client.crt", details.Cert)
 	assert.Equal(t, "client.key", details.Key)
 
+	// 3.1 Proxy support in bookmarks
+	viper.Set("bookmarks", map[string]interface{}{
+		"proxied": map[string]interface{}{
+			"url":   "ws://example.com",
+			"proxy": "socks5://localhost:1080",
+		},
+	})
+	details, err = ResolveConnDetails("proxied")
+	assert.NoError(t, err)
+	assert.Equal(t, "ws://example.com", details.URL)
+	assert.Equal(t, "socks5://localhost:1080", details.Proxy)
+
 	// 4. Undefined alias
 	_, err = ResolveConnDetails("unknown")
 	assert.Error(t, err)

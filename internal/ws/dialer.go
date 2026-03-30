@@ -5,12 +5,14 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 
 	"github.com/gorilla/websocket"
+	"golang.org/x/net/proxy"
 )
 
 // DefaultDialer is the default WebSocket dialer.
@@ -76,6 +78,31 @@ func Dial(ctx context.Context, urlStr string, opts ...DialOption) (*Connection, 
 	dialer := websocket.Dialer{
 		Subprotocols:    dOpts.Subprotocols,
 		TLSClientConfig: dOpts.TLSConfig,
+	}
+
+	if dOpts.ProxyURL != "" {
+		proxyURL, err := url.Parse(dOpts.ProxyURL)
+		if err != nil {
+			return nil, fmt.Errorf("parsing proxy URL %q: %w", dOpts.ProxyURL, err)
+		}
+
+		switch proxyURL.Scheme {
+		case "http", "https":
+			dialer.Proxy = http.ProxyURL(proxyURL)
+		case "socks5":
+			pDialer, err := proxy.FromURL(proxyURL, proxy.Direct)
+			if err != nil {
+				return nil, fmt.Errorf("creating SOCKS5 dialer: %w", err)
+			}
+			dialer.NetDialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+				if cd, ok := pDialer.(proxy.ContextDialer); ok {
+					return cd.DialContext(ctx, network, addr)
+				}
+				return pDialer.Dial(network, addr)
+			}
+		default:
+			return nil, fmt.Errorf("unsupported proxy scheme %q", proxyURL.Scheme)
+		}
 	}
 
 	conn, resp, err := dialer.DialContext(ctx, urlStr, dOpts.Headers)

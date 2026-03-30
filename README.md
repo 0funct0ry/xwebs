@@ -15,7 +15,7 @@ Every WebSocket tool does one thing: connect and send messages. That's the equiv
 ## Features
 
 ### Available Now (v0.1.0-alpha)
-- **WebSocket Engine** — Full TLS support with custom CAs, mTLS, and insecure mode
+- **WebSocket Engine** — Proxy support (HTTP/SOCKS5), full TLS support with custom CAs, mTLS, and insecure mode
 - **Configuration Profiles** — Switch between named settings (e.g., `--profile debug`)
 - **Aliases & Bookmarks** — Map short names to long WebSocket URLs, headers, and TLS settings
 - **Shell Completion** — Native completion for Bash, Zsh, Fish, and PowerShell
@@ -102,6 +102,29 @@ xwebs connect wss://api.internal.com --ca ./internal-ca.crt
 # Mutual TLS (mTLS) with client certificate and key
 xwebs connect wss://secure.gateway.com --cert ./client.crt --key ./client.key
 ```
+
+### Proxy Configuration
+
+`xwebs` supports routing WebSocket connections through HTTP CONNECT and SOCKS5 proxies.
+
+```bash
+# HTTP Proxy
+xwebs connect ws://echo.websocket.org --proxy http://localhost:8080
+
+# SOCKS5 Proxy
+xwebs connect ws://echo.websocket.org --proxy socks5://localhost:1080
+
+# Proxy with authentication
+xwebs connect ws://echo.websocket.org --proxy socks5://user:password@proxy.internal:1080
+```
+
+Proxy settings can also be defined in bookmarks:
+
+```yaml
+bookmarks:
+  internal-proxy:
+    url: "wss://api.internal.com"
+    proxy: "http://squid.corp.local:3128"
 ```
 
 Currently, `connect` establishes the connection and reports handshake details. Full interactive REPL support is coming in EPIC 04.
@@ -149,6 +172,7 @@ Global Flags:
   -c, --config string      config file path (default searches ~/.xwebs.yaml then .xwebs.yaml)
   -v, --verbose            enable verbose output
   -q, --quiet              suppress all output except errors
+      --proxy string       proxy URL (http, https, socks5)
       --color string      color output mode: auto, on, off (default "auto")
       --log-level string   logging level: debug, info, warn, error (default "info")
       --log-format string  log format: text, json (default "text")

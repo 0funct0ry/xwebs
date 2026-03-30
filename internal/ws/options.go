@@ -13,6 +13,7 @@ type DialOptions struct {
 	CACert       string
 	ClientCert   string
 	ClientKey    string
+	ProxyURL     string
 }
 
 // DialOption is a functional option for the Dial function.
@@ -59,5 +60,12 @@ func WithClientCert(certPath, keyPath string) DialOption {
 	return func(o *DialOptions) {
 		o.ClientCert = certPath
 		o.ClientKey = keyPath
+	}
+}
+
+// WithProxy sets the proxy URL for the connection.
+func WithProxy(proxyURL string) DialOption {
+	return func(o *DialOptions) {
+		o.ProxyURL = proxyURL
 	}
 }
