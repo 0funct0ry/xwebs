@@ -2,9 +2,12 @@ package ws
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/gorilla/websocket"
@@ -40,8 +43,38 @@ func Dial(ctx context.Context, urlStr string, opts ...DialOption) (*Connection, 
 		return nil, fmt.Errorf("invalid scheme %q; only ws:// and wss:// are supported", u.Scheme)
 	}
 
+	if u.Scheme == "wss" {
+		if dOpts.TLSConfig == nil {
+			dOpts.TLSConfig = &tls.Config{}
+		}
+
+		// Load custom CA if provided
+		if dOpts.CACert != "" {
+			caCert, err := os.ReadFile(dOpts.CACert)
+			if err != nil {
+				return nil, fmt.Errorf("reading CA certificate %q: %w", dOpts.CACert, err)
+			}
+			caCertPool := x509.NewCertPool()
+			if !caCertPool.AppendCertsFromPEM(caCert) {
+				return nil, fmt.Errorf("failed to parse CA certificate %q: invalid PEM", dOpts.CACert)
+			}
+			dOpts.TLSConfig.RootCAs = caCertPool
+		}
+
+		// Load client certificates if provided
+		if dOpts.ClientCert != "" && dOpts.ClientKey != "" {
+			cert, err := tls.LoadX509KeyPair(dOpts.ClientCert, dOpts.ClientKey)
+			if err != nil {
+				return nil, fmt.Errorf("loading client key pair: %w", err)
+			}
+			dOpts.TLSConfig.Certificates = []tls.Certificate{cert}
+		} else if dOpts.ClientCert != "" || dOpts.ClientKey != "" {
+			return nil, fmt.Errorf("both client certificate and key must be provided for mTLS")
+		}
+	}
+
 	dialer := websocket.Dialer{
-		Subprotocols:     dOpts.Subprotocols,
+		Subprotocols:    dOpts.Subprotocols,
 		TLSClientConfig: dOpts.TLSConfig,
 	}
 
@@ -49,6 +82,10 @@ func Dial(ctx context.Context, urlStr string, opts ...DialOption) (*Connection, 
 	if err != nil {
 		if resp != nil {
 			return nil, fmt.Errorf("websocket handshake failed with status %d: %w", resp.StatusCode, err)
+		}
+		// Wrap TLS errors for better clarity
+		if strings.Contains(err.Error(), "certificate") || strings.Contains(err.Error(), "tls:") {
+			return nil, fmt.Errorf("TLS verification failed: %w", err)
 		}
 		return nil, fmt.Errorf("failed to dial %q: %w", urlStr, err)
 	}

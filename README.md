@@ -15,9 +15,9 @@ Every WebSocket tool does one thing: connect and send messages. That's the equiv
 ## Features
 
 ### Available Now (v0.1.0-alpha)
-- **CLI Foundation** — Robust command structure with [Cobra](https://github.com/spf13/cobra) and [Viper](https://github.com/spf13/viper)
+- **WebSocket Engine** — Full TLS support with custom CAs, mTLS, and insecure mode
 - **Configuration Profiles** — Switch between named settings (e.g., `--profile debug`)
-- **Aliases & Bookmarks** — Map short names to long WebSocket URLs and headers
+- **Aliases & Bookmarks** — Map short names to long WebSocket URLs, headers, and TLS settings
 - **Shell Completion** — Native completion for Bash, Zsh, Fish, and PowerShell
 - **Version Info** — Detailed build information with `xwebs version`
 - **Makefile Integration** — Standardized `build`, `test`, `lint`, and `install` targets
@@ -25,7 +25,6 @@ Every WebSocket tool does one thing: connect and send messages. That's the equiv
 
 ### On the Roadmap (Planned)
 - **Client Mode** — Full interactive REPL for WebSocket communication
-- **WebSocket Engine** — TLS support, proxies, auto-reconnect, and frame handling
 - **Template Engine** — Rich Go template FuncMap with `jq`, `base64`, `crypto`, and more
 - **Server Mode** — WebSocket server with handler dispatch and administration REPL
 - **Handler Pipeline** — Bind message patterns to shell commands and actions
@@ -89,8 +88,20 @@ xwebs connect wss://echo.websocket.org --subprotocol v1.xwebs,mqtt
 # Using an alias/bookmark (defined in config)
 xwebs connect staging
 
-# Skipping TLS verification (for local development)
-xwebs connect wss://localhost:8080 --insecure
+### TLS Configuration
+
+`xwebs` provides full support for secure WebSocket connections (`wss://`).
+
+```bash
+# Skip TLS verification (useful for local development with self-signed certs)
+xwebs connect wss://localhost:8443 --insecure
+
+# Use a custom CA certificate to validate the server
+xwebs connect wss://api.internal.com --ca ./internal-ca.crt
+
+# Mutual TLS (mTLS) with client certificate and key
+xwebs connect wss://secure.gateway.com --cert ./client.crt --key ./client.key
+```
 ```
 
 Currently, `connect` establishes the connection and reports handshake details. Full interactive REPL support is coming in EPIC 04.
@@ -216,6 +227,12 @@ bookmarks:
     headers:
       X-API-Key: "secret-abc-123"
       Authorization: "Bearer your-token-here"
+  secure-prod:
+    url: "wss://api.prod.example.com"
+    insecure: false
+    ca: "/path/to/ca.crt"
+    cert: "/path/to/client.crt"
+    key: "/path/to/client.key"
 ```
 
 Usage:

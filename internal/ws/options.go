@@ -10,6 +10,9 @@ type DialOptions struct {
 	Headers      http.Header
 	Subprotocols []string
 	TLSConfig    *tls.Config
+	CACert       string
+	ClientCert   string
+	ClientKey    string
 }
 
 // DialOption is a functional option for the Dial function.
@@ -41,5 +44,20 @@ func WithInsecureSkipVerify(insecure bool) DialOption {
 			o.TLSConfig = &tls.Config{}
 		}
 		o.TLSConfig.InsecureSkipVerify = insecure
+	}
+}
+
+// WithCACert sets the CA certificate for server verification.
+func WithCACert(caPath string) DialOption {
+	return func(o *DialOptions) {
+		o.CACert = caPath
+	}
+}
+
+// WithClientCert sets the client certificate and key for mTLS.
+func WithClientCert(certPath, keyPath string) DialOption {
+	return func(o *DialOptions) {
+		o.ClientCert = certPath
+		o.ClientKey = keyPath
 	}
 }

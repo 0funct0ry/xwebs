@@ -12,41 +12,49 @@ func TestResolveConnDetails(t *testing.T) {
 	viper.Reset()
 
 	// 1. Direct URL (no config needed)
-	url, headers, err := ResolveConnDetails("ws://example.com")
+	details, err := ResolveConnDetails("ws://example.com")
 	assert.NoError(t, err)
-	assert.Equal(t, "ws://example.com", url)
-	assert.Nil(t, headers)
+	assert.Equal(t, "ws://example.com", details.URL)
+	assert.Nil(t, details.Headers)
 
-	url, headers, err = ResolveConnDetails("wss://example.com")
+	details, err = ResolveConnDetails("wss://example.com")
 	assert.NoError(t, err)
-	assert.Equal(t, "wss://example.com", url)
-	assert.Nil(t, headers)
+	assert.Equal(t, "wss://example.com", details.URL)
+	assert.Nil(t, details.Headers)
 
 	// 2. Alias resolution
 	viper.Set("aliases", map[string]string{
 		"prod": "wss://api.prod.com",
 	})
-	url, headers, err = ResolveConnDetails("prod")
+	details, err = ResolveConnDetails("prod")
 	assert.NoError(t, err)
-	assert.Equal(t, "wss://api.prod.com", url)
-	assert.Nil(t, headers)
+	assert.Equal(t, "wss://api.prod.com", details.URL)
+	assert.Nil(t, details.Headers)
 
-	// 3. Bookmark resolution with headers
+	// 3. Bookmark resolution with headers and TLS
 	viper.Set("bookmarks", map[string]interface{}{
 		"staging": map[string]interface{}{
 			"url": "wss://api.staging.com",
 			"headers": map[string]string{
 				"X-API-Key": "test-key",
 			},
+			"insecure": true,
+			"ca":       "ca.crt",
+			"cert":     "client.crt",
+			"key":      "client.key",
 		},
 	})
-	url, headers, err = ResolveConnDetails("staging")
+	details, err = ResolveConnDetails("staging")
 	assert.NoError(t, err)
-	assert.Equal(t, "wss://api.staging.com", url)
-	assert.Equal(t, "test-key", headers["X-API-Key"])
+	assert.Equal(t, "wss://api.staging.com", details.URL)
+	assert.Equal(t, "test-key", details.Headers["X-API-Key"])
+	assert.True(t, details.Insecure)
+	assert.Equal(t, "ca.crt", details.CA)
+	assert.Equal(t, "client.crt", details.Cert)
+	assert.Equal(t, "client.key", details.Key)
 
 	// 4. Undefined alias
-	_, _, err = ResolveConnDetails("unknown")
+	_, err = ResolveConnDetails("unknown")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "undefined alias or bookmark")
 
@@ -56,12 +64,12 @@ func TestResolveConnDetails(t *testing.T) {
 			"headers": map[string]string{"foo": "bar"},
 		},
 	})
-	_, _, err = ResolveConnDetails("invalid")
+	_, err = ResolveConnDetails("invalid")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no URL")
 
 	// 6. Invalid scheme in URL
-	_, _, err = ResolveConnDetails("http://google.com")
+	_, err = ResolveConnDetails("http://google.com")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid WebSocket scheme")
 }

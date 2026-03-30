@@ -35,3 +35,4 @@ xwebs
 bin/
 AGENTS.md
 .xwebs.yaml
+certs/

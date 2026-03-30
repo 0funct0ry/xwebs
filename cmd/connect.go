@@ -13,6 +13,9 @@ import (
 var (
 	subprotocols []string
 	insecure     bool
+	certFile     string
+	keyFile      string
+	caFile       string
 )
 
 var connectCmd = &cobra.Command{
@@ -23,38 +26,61 @@ or a short alias/bookmark defined in your configuration file.
 
 Example:
   xwebs connect prod
-  xwebs connect wss://echo.websocket.org --subprotocol v1.xwebs`,
+  xwebs connect wss://echo.websocket.org --subprotocol v1.xwebs
+  xwebs connect secure-server --cert client.crt --key client.key --ca ca.crt`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		target := args[0]
-		url, headers, err := config.ResolveConnDetails(target)
+		details, err := config.ResolveConnDetails(target)
 		if err != nil {
 			return err
 		}
 
-		fmt.Printf("Connecting to: %s\n", url)
+		// Flags override configuration
+		if cmd.Flags().Changed("insecure") {
+			details.Insecure = insecure
+		}
+		if cmd.Flags().Changed("cert") {
+			details.Cert = certFile
+		}
+		if cmd.Flags().Changed("key") {
+			details.Key = keyFile
+		}
+		if cmd.Flags().Changed("ca") {
+			details.CA = caFile
+		}
+
+		fmt.Printf("Connecting to: %s\n", details.URL)
 		header := make(http.Header)
-		if len(headers) > 0 {
+		if len(details.Headers) > 0 {
 			fmt.Println("Headers:")
 			// Sort headers for deterministic output
-			keys := make([]string, 0, len(headers))
-			for k, v := range headers {
+			keys := make([]string, 0, len(details.Headers))
+			for k := range details.Headers {
 				keys = append(keys, k)
-				header.Add(k, v)
 			}
 			sort.Strings(keys)
 			for _, k := range keys {
-				fmt.Printf("  %s: %s\n", k, headers[k])
+				v := details.Headers[k]
+				header.Add(k, v)
+				fmt.Printf("  %s: %s\n", k, v)
 			}
 		}
 
 		opts := []ws.DialOption{
 			ws.WithHeaders(header),
 			ws.WithSubprotocols(subprotocols...),
-			ws.WithInsecureSkipVerify(insecure),
+			ws.WithInsecureSkipVerify(details.Insecure),
 		}
 
-		conn, err := ws.Dial(cmd.Context(), url, opts...)
+		if details.CA != "" {
+			opts = append(opts, ws.WithCACert(details.CA))
+		}
+		if details.Cert != "" || details.Key != "" {
+			opts = append(opts, ws.WithClientCert(details.Cert, details.Key))
+		}
+
+		conn, err := ws.Dial(cmd.Context(), details.URL, opts...)
 		if err != nil {
 			return fmt.Errorf("connection failed: %w", err)
 		}
@@ -73,5 +99,8 @@ Example:
 func init() {
 	connectCmd.Flags().StringSliceVarP(&subprotocols, "subprotocol", "s", []string{}, "suggested subprotocols for negotiation")
 	connectCmd.Flags().BoolVarP(&insecure, "insecure", "k", false, "skip TLS certificate verification")
+	connectCmd.Flags().StringVar(&certFile, "cert", "", "path to client certificate file (mTLS)")
+	connectCmd.Flags().StringVar(&keyFile, "key", "", "path to client key file (mTLS)")
+	connectCmd.Flags().StringVar(&caFile, "ca", "", "path to custom CA certificate file")
 	rootCmd.AddCommand(connectCmd)
 }
