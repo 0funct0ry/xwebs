@@ -59,14 +59,7 @@ func ResolveConnDetails(nameOrUrl string) (ConnDetails, error) {
 		if bookmark.URL == "" {
 			return ConnDetails{}, fmt.Errorf("bookmark '%s' has no URL", nameOrUrl)
 		}
-		return ConnDetails{
-			URL:      bookmark.URL,
-			Headers:  bookmark.Headers,
-			Insecure: bookmark.Insecure,
-			CA:       bookmark.CA,
-			Cert:     bookmark.Cert,
-			Key:      bookmark.Key,
-		}, nil
+		return ConnDetails(bookmark), nil
 	}
 
 	// 5. If not found, it's an error
