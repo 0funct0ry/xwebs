@@ -59,4 +59,9 @@ func TestResolveConnDetails(t *testing.T) {
 	_, _, err = ResolveConnDetails("invalid")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no URL")
+
+	// 6. Invalid scheme in URL
+	_, _, err = ResolveConnDetails("http://google.com")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid WebSocket scheme")
 }

@@ -31,12 +31,14 @@ all: build
 # Build the binary for the current platform
 .PHONY: build
 build:
-	$(GO) build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o $(BINARY_NAME) .
+	mkdir -p $(BIN_DIR)
+	$(GO) build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME) .
 
 # Build for production (with ldflags)
 .PHONY: build-prod
 build-prod:
-	$(GO) build $(GOFLAGS) -ldflags="-s -w $(LDFLAGS)" -o $(BINARY_NAME) .
+	mkdir -p $(BIN_DIR)
+	$(GO) build $(GOFLAGS) -ldflags="-s -w $(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME) .
 
 # Build for all platforms
 .PHONY: build-all

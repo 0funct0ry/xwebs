@@ -21,9 +21,12 @@ type AppConfig struct {
 
 // ResolveConnDetails resolves a short name or a direct URL into the full WebSocket URL and any associated headers.
 func ResolveConnDetails(nameOrUrl string) (string, map[string]string, error) {
-	// 1. Check if it's already a WebSocket URL
-	if strings.HasPrefix(nameOrUrl, "ws://") || strings.HasPrefix(nameOrUrl, "wss://") {
-		return nameOrUrl, nil, nil
+	// 1. Check if it's potentially a URL (contains a protocol separator)
+	if strings.Contains(nameOrUrl, "://") {
+		if strings.HasPrefix(nameOrUrl, "ws://") || strings.HasPrefix(nameOrUrl, "wss://") {
+			return nameOrUrl, nil, nil
+		}
+		return "", nil, fmt.Errorf("invalid WebSocket scheme in URL %q: only ws:// and wss:// are supported", nameOrUrl)
 	}
 
 	// 2. Load current config (aliases and bookmarks) from Viper

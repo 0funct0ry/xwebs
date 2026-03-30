@@ -75,17 +75,25 @@ Verify your installation and see build details:
 xwebs version
 ```
 
-### Resolve Connection Details
+### WebSocket Connection
 
-While the full interactive client is coming in EPIC 04, you can currently use `connect` to resolve aliases and bookmarks from your configuration:
+The `connect` command performs a WebSocket handshake, injects custom headers, and negotiates subprotocols.
 
 ```bash
-# Resolve a bookmark
+# Direct URL
+xwebs connect wss://echo.websocket.org
+
+# With custom subprotocols
+xwebs connect wss://echo.websocket.org --subprotocol v1.xwebs,mqtt
+
+# Using an alias/bookmark (defined in config)
 xwebs connect staging
 
-# Resolve a raw URL
-xwebs connect wss://echo.websocket.org
+# Skipping TLS verification (for local development)
+xwebs connect wss://localhost:8080 --insecure
 ```
+
+Currently, `connect` establishes the connection and reports handshake details. Full interactive REPL support is coming in EPIC 04.
 
 ### Generate Completion
 
