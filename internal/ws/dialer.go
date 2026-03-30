@@ -117,7 +117,7 @@ func Dial(ctx context.Context, urlStr string, opts ...DialOption) (*Connection, 
 		return nil, fmt.Errorf("failed to dial %q: %w", urlStr, err)
 	}
 
-	return NewConnection(conn, urlStr, resp), nil
+	return NewConnection(conn, urlStr, resp, dOpts), nil
 }
 
 // ParseURL parses and validates a WebSocket URL.

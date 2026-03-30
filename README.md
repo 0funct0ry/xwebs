@@ -15,7 +15,7 @@ Every WebSocket tool does one thing: connect and send messages. That's the equiv
 ## Features
 
 ### Available Now (v0.1.0-alpha)
-- **WebSocket Engine** — Proxy support (HTTP/SOCKS5), full TLS support with custom CAs, mTLS, and insecure mode
+- **WebSocket Engine** — Bidirectional message flow with goroutines/channels, Proxy support (HTTP/SOCKS5), full TLS support (custom CAs, mTLS, insecure mode)
 - **Configuration Profiles** — Switch between named settings (e.g., `--profile debug`)
 - **Aliases & Bookmarks** — Map short names to long WebSocket URLs, headers, and TLS settings
 - **Shell Completion** — Native completion for Bash, Zsh, Fish, and PowerShell

@@ -13,7 +13,9 @@ type DialOptions struct {
 	CACert       string
 	ClientCert   string
 	ClientKey    string
-	ProxyURL     string
+	ProxyURL        string
+	ReadBufferSize  int
+	WriteBufferSize int
 }
 
 // DialOption is a functional option for the Dial function.
@@ -67,5 +69,18 @@ func WithClientCert(certPath, keyPath string) DialOption {
 func WithProxy(proxyURL string) DialOption {
 	return func(o *DialOptions) {
 		o.ProxyURL = proxyURL
+	}
+}
+// WithReadBufferSize sets the buffer size for the read channel.
+func WithReadBufferSize(size int) DialOption {
+	return func(o *DialOptions) {
+		o.ReadBufferSize = size
+	}
+}
+
+// WithWriteBufferSize sets the buffer size for the write channel.
+func WithWriteBufferSize(size int) DialOption {
+	return func(o *DialOptions) {
+		o.WriteBufferSize = size
 	}
 }
