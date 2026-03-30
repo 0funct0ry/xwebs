@@ -3,6 +3,7 @@ package ws
 import (
 	"crypto/tls"
 	"net/http"
+	"time"
 )
 
 // DialOptions configuration for the WebSocket dialer.
@@ -16,6 +17,9 @@ type DialOptions struct {
 	ProxyURL        string
 	ReadBufferSize  int
 	WriteBufferSize int
+	PingInterval    time.Duration
+	PongWait        time.Duration
+	Verbose         bool
 }
 
 // DialOption is a functional option for the Dial function.
@@ -82,5 +86,26 @@ func WithReadBufferSize(size int) DialOption {
 func WithWriteBufferSize(size int) DialOption {
 	return func(o *DialOptions) {
 		o.WriteBufferSize = size
+	}
+}
+
+// WithPingInterval sets the interval for automatic ping messages.
+func WithPingInterval(interval time.Duration) DialOption {
+	return func(o *DialOptions) {
+		o.PingInterval = interval
+	}
+}
+
+// WithPongWait sets the wait time for a pong response from the server.
+func WithPongWait(wait time.Duration) DialOption {
+	return func(o *DialOptions) {
+		o.PongWait = wait
+	}
+}
+
+// WithVerbose enables verbose logging in the WebSocket engine.
+func WithVerbose(verbose bool) DialOption {
+	return func(o *DialOptions) {
+		o.Verbose = verbose
 	}
 }

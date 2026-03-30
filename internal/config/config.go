@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/spf13/viper"
 )
@@ -16,6 +17,8 @@ type Bookmark struct {
 	Cert     string            `mapstructure:"cert"`
 	Key      string            `mapstructure:"key"`
 	Proxy    string            `mapstructure:"proxy"`
+	PingInterval time.Duration `mapstructure:"ping-interval"`
+	PongWait     time.Duration `mapstructure:"pong-wait"`
 }
 
 // AppConfig represents the root configuration structure for aliases and bookmarks.
@@ -33,6 +36,8 @@ type ConnDetails struct {
 	Cert     string
 	Key      string
 	Proxy    string
+	PingInterval time.Duration
+	PongWait     time.Duration
 }
 
 // ResolveConnDetails resolves a short name or a direct URL into the full WebSocket URL and any associated headers.

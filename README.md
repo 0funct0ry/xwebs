@@ -15,7 +15,7 @@ Every WebSocket tool does one thing: connect and send messages. That's the equiv
 ## Features
 
 ### Available Now (v0.1.0-alpha)
-- **WebSocket Engine** — Bidirectional message flow with goroutines/channels, Proxy support (HTTP/SOCKS5), full TLS support (custom CAs, mTLS, insecure mode)
+- **WebSocket Engine** — Bidirectional message flow with goroutines/channels, Proxy support (HTTP/SOCKS5), full TLS support (custom CAs, mTLS, insecure mode), and automatic Ping/Pong keepalive
 - **Configuration Profiles** — Switch between named settings (e.g., `--profile debug`)
 - **Aliases & Bookmarks** — Map short names to long WebSocket URLs, headers, and TLS settings
 - **Shell Completion** — Native completion for Bash, Zsh, Fish, and PowerShell
@@ -116,6 +116,28 @@ xwebs connect ws://echo.websocket.org --proxy socks5://localhost:1080
 
 # Proxy with authentication
 xwebs connect ws://echo.websocket.org --proxy socks5://user:password@proxy.internal:1080
+```
+
+### Keepalive Configuration
+
+`xwebs` can automatically send ping frames to keep connections alive and detect unhealthy connections.
+
+```bash
+# Send ping every 10 seconds, timeout if no pong within 30 seconds
+xwebs connect wss://api.example.com --ping-interval 10s --pong-wait 30s
+
+# Disable automatic pings (default is 30s interval)
+xwebs connect wss://api.example.com --ping-interval 0s
+```
+
+Keepalive settings can be defined in bookmarks:
+
+```yaml
+bookmarks:
+  long-lived:
+    url: "wss://events.example.com"
+    ping-interval: 30s
+    pong-wait: 60s
 ```
 
 Proxy settings can also be defined in bookmarks:

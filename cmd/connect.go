@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"time"
 
 	"github.com/0funct0ry/xwebs/internal/config"
 	"github.com/0funct0ry/xwebs/internal/ws"
@@ -16,6 +17,8 @@ var (
 	certFile     string
 	keyFile      string
 	caFile       string
+	pingInterval time.Duration
+	pongWait     time.Duration
 )
 
 var connectCmd = &cobra.Command{
@@ -52,6 +55,12 @@ Example:
 		if cmd.Flags().Changed("proxy") {
 			details.Proxy = proxy
 		}
+		if cmd.Flags().Changed("ping-interval") {
+			details.PingInterval = pingInterval
+		}
+		if cmd.Flags().Changed("pong-wait") {
+			details.PongWait = pongWait
+		}
 
 		fmt.Printf("Connecting to: %s\n", details.URL)
 		if details.Proxy != "" {
@@ -77,6 +86,9 @@ Example:
 			ws.WithHeaders(header),
 			ws.WithSubprotocols(subprotocols...),
 			ws.WithInsecureSkipVerify(details.Insecure),
+			ws.WithPingInterval(details.PingInterval),
+			ws.WithPongWait(details.PongWait),
+			ws.WithVerbose(verbose),
 		}
 
 		if details.Proxy != "" {
@@ -102,6 +114,20 @@ Example:
 		}
 
 		fmt.Println("\n(Full interactive session logic will be implemented in EPIC 04)")
+		fmt.Println("Press Ctrl+C to disconnect...")
+
+		// Wait for connection to close or context to be cancelled
+		select {
+		case <-conn.Done():
+			if err := conn.Err(); err != nil {
+				fmt.Printf("\nConnection closed with error: %v\n", err)
+			} else {
+				fmt.Println("\nConnection closed by server.")
+			}
+		case <-cmd.Context().Done():
+			fmt.Println("\nDisconnecting...")
+		}
+
 		return nil
 	},
 }
@@ -112,5 +138,7 @@ func init() {
 	connectCmd.Flags().StringVar(&certFile, "cert", "", "path to client certificate file (mTLS)")
 	connectCmd.Flags().StringVar(&keyFile, "key", "", "path to client key file (mTLS)")
 	connectCmd.Flags().StringVar(&caFile, "ca", "", "path to custom CA certificate file")
+	connectCmd.Flags().DurationVar(&pingInterval, "ping-interval", 30*time.Second, "interval for automatic ping messages (0 to disable)")
+	connectCmd.Flags().DurationVar(&pongWait, "pong-wait", 60*time.Second, "wait time for a pong response")
 	rootCmd.AddCommand(connectCmd)
 }
