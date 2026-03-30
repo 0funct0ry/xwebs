@@ -23,6 +23,7 @@ type Bookmark struct {
 	ReconnectBackoff  time.Duration `mapstructure:"reconnect-backoff"`
 	ReconnectMax      time.Duration `mapstructure:"reconnect-max"`
 	ReconnectAttempts int           `mapstructure:"reconnect-attempts"`
+	MaxMessageSize    int64         `mapstructure:"max-message-size"`
 }
 
 // AppConfig represents the root configuration structure for aliases and bookmarks.
@@ -46,6 +47,7 @@ type ConnDetails struct {
 	ReconnectBackoff  time.Duration
 	ReconnectMax      time.Duration
 	ReconnectAttempts int
+	MaxMessageSize    int64
 }
 
 // ResolveConnDetails resolves a short name or a direct URL into the full WebSocket URL and any associated headers.

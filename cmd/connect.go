@@ -17,6 +17,7 @@ var (
 	reconnectBackoff  time.Duration
 	reconnectMax      time.Duration
 	reconnectAttempts int
+	maxMessageSize    int64
 )
 
 var connectCmd = &cobra.Command{
@@ -71,6 +72,9 @@ Example:
 		if cmd.Flags().Changed("reconnect-attempts") {
 			details.ReconnectAttempts = reconnectAttempts
 		}
+		if cmd.Flags().Changed("max-message-size") {
+			details.MaxMessageSize = maxMessageSize
+		}
 
 		header := make(http.Header)
 		if len(details.Headers) > 0 {
@@ -90,6 +94,7 @@ Example:
 			ws.WithReconnectBackoff(details.ReconnectBackoff),
 			ws.WithReconnectMax(details.ReconnectMax),
 			ws.WithReconnectAttempts(details.ReconnectAttempts),
+			ws.WithMaxMessageSize(details.MaxMessageSize),
 		}
 
 		if details.Proxy != "" {
@@ -185,6 +190,7 @@ func init() {
 	connectCmd.Flags().DurationVar(&reconnectBackoff, "reconnect-backoff", 1*time.Second, "initial backoff duration for reconnection")
 	connectCmd.Flags().DurationVar(&reconnectMax, "reconnect-max", 30*time.Second, "maximum backoff duration for reconnection")
 	connectCmd.Flags().IntVar(&reconnectAttempts, "reconnect-attempts", 0, "maximum number of reconnection attempts (0 for unlimited)")
+	connectCmd.Flags().Int64Var(&maxMessageSize, "max-message-size", 0, "maximum message size in bytes (0 for unlimited)")
 	rootCmd.AddCommand(connectCmd)
 }
 

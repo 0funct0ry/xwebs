@@ -24,6 +24,7 @@ type DialOptions struct {
 	ReconnectMax       time.Duration
 	ReconnectAttempts  int
 	Verbose            bool
+	MaxMessageSize     int64
 }
 
 // DialOption is a functional option for the Dial function.
@@ -139,5 +140,12 @@ func WithReconnectMax(max time.Duration) DialOption {
 func WithReconnectAttempts(attempts int) DialOption {
 	return func(o *DialOptions) {
 		o.ReconnectAttempts = attempts
+	}
+}
+
+// WithMaxMessageSize sets the maximum message size for incoming and outgoing messages.
+func WithMaxMessageSize(size int64) DialOption {
+	return func(o *DialOptions) {
+		o.MaxMessageSize = size
 	}
 }

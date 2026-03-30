@@ -15,7 +15,7 @@ Every WebSocket tool does one thing: connect and send messages. That's the equiv
 ## Features
 
 ### Available Now (v0.1.0-alpha)
-- **WebSocket Engine** — Bidirectional message flow with goroutines/channels, Proxy support (HTTP/SOCKS5), full TLS support (custom CAs, mTLS, insecure mode), and automatic Ping/Pong keepalive
+- **WebSocket Engine** — Bidirectional message flow with goroutines/channels, Proxy support (HTTP/SOCKS5), full TLS support (custom CAs, mTLS, insecure mode), automatic Ping/Pong keepalive, and **Max Message Size enforcement**
 - **Configuration Profiles** — Switch between named settings (e.g., `--profile debug`)
 - **Aliases & Bookmarks** — Map short names to long WebSocket URLs, headers, and TLS settings
 - **Shell Completion** — Native completion for Bash, Zsh, Fish, and PowerShell
@@ -171,6 +171,34 @@ bookmarks:
     reconnect-backoff: 1s
     reconnect-max: 30s
     reconnect-attempts: 5
+
+### Message Size Configuration
+
+`xwebs` can enforce a maximum message size for both incoming and outgoing messages. This is useful for protecting against memory exhaustion from unexpectedly large payloads.
+
+```bash
+# Enforce a 1MB limit (1048576 bytes)
+xwebs connect wss://api.example.com --max-message-size 1048576
+```
+
+Message size limits can also be defined in bookmarks:
+
+```yaml
+bookmarks:
+  limited-service:
+    url: "wss://api.example.com"
+    max-message-size: 65536 # 64KB
+```
+
+### Frame Handling
+
+`xwebs` supports both **Text** and **Binary** WebSocket frames. When running in verbose mode (`--verbose`), the engine reports the type and size of every message sent and received.
+
+```bash
+xwebs connect wss://echo.websocket.org --verbose
+# [ws] sending text message to wss://echo.websocket.org (5 bytes)
+# [ws] received text message from wss://echo.websocket.org (5 bytes)
+```
 ```
 
 Currently, `connect` establishes the connection and reports handshake details. Full interactive REPL support is coming in EPIC 04.

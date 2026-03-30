@@ -46,9 +46,10 @@ type Connection struct {
 	_lastErr  error
 	_closeErr error
 
-	_pingInterval time.Duration
-	_pongWait     time.Duration
-	_verbose      bool
+	_pingInterval  time.Duration
+	_pongWait      time.Duration
+	_verbose       bool
+	_maxMessageSize int64
 }
 
 // Start launches the read and write loops for the connection.
@@ -102,6 +103,10 @@ func (c *Connection) Write(msg *Message) error {
 	default:
 	}
 
+	if c._maxMessageSize > 0 && int64(len(msg.Data)) > c._maxMessageSize {
+		return fmt.Errorf("message size %d exceeds limit of %d", len(msg.Data), c._maxMessageSize)
+	}
+
 	select {
 	case c._writeCh <- msg:
 		return nil
@@ -123,14 +128,22 @@ func (c *Connection) readLoop() {
 			return
 		}
 
-		c.Conn.SetPongHandler(func(string) error {
+		c.Conn.SetPingHandler(func(data string) error {
+			if c._verbose {
+				fmt.Fprintf(os.Stderr, "  [ws] received ping message from %s (%d bytes)\n", c.URL, len(data))
+			}
+			// Gorilla handles the pong reply by default
+			return nil
+		})
+
+		c.Conn.SetPongHandler(func(data string) error {
 			if err := c.Conn.SetReadDeadline(time.Now().Add(c._pongWait)); err != nil {
 				if c._verbose {
 					fmt.Fprintf(os.Stderr, "  [ws] error resetting read deadline on pong: %v\n", err)
 				}
 			}
 			if c._verbose {
-				fmt.Fprintf(os.Stderr, "  [ws] received pong from %s\n", c.URL)
+				fmt.Fprintf(os.Stderr, "  [ws] received pong message from %s (%d bytes)\n", c.URL, len(data))
 			}
 			return nil
 		})
@@ -148,17 +161,20 @@ func (c *Connection) readLoop() {
 		}
 
 		var msgType MessageType
+		var typeStr string
 		switch mt {
 		case websocket.TextMessage:
 			msgType = TextMessage
+			typeStr = "text"
 		case websocket.BinaryMessage:
 			msgType = BinaryMessage
-		case websocket.PingMessage:
-			msgType = PingMessage
-		case websocket.PongMessage:
-			msgType = PongMessage
+			typeStr = "binary"
 		default:
-			continue // Ignore other message types for now
+			continue // Ignore other message types as they are handled by handlers
+		}
+
+		if c._verbose {
+			fmt.Fprintf(os.Stderr, "  [ws] received %s message from %s (%d bytes)\n", typeStr, c.URL, len(data))
 		}
 
 		select {
@@ -182,17 +198,26 @@ func (c *Connection) writeLoop() {
 		select {
 		case msg := <-c._writeCh:
 			var mt int
+			var typeStr string
 			switch msg.Type {
 			case TextMessage:
 				mt = websocket.TextMessage
+				typeStr = "text"
 			case BinaryMessage:
 				mt = websocket.BinaryMessage
+				typeStr = "binary"
 			case PingMessage:
 				mt = websocket.PingMessage
+				typeStr = "ping"
 			case PongMessage:
 				mt = websocket.PongMessage
+				typeStr = "pong"
 			default:
 				continue
+			}
+
+			if c._verbose {
+				fmt.Fprintf(os.Stderr, "  [ws] sending %s message to %s (%d bytes)\n", typeStr, c.URL, len(msg.Data))
 			}
 
 			if err := c.Conn.WriteMessage(mt, msg.Data); err != nil {
@@ -210,7 +235,7 @@ func (c *Connection) writeLoop() {
 			return ticker.C
 		}():
 			if c._verbose {
-				fmt.Fprintf(os.Stderr, "  [ws] sending ping to %s\n", c.URL)
+				fmt.Fprintf(os.Stderr, "  [ws] sending ping message to %s (0 bytes)\n", c.URL)
 			}
 			if err := c.Conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				c._mu.Lock()
@@ -237,6 +262,7 @@ func NewConnection(conn *websocket.Conn, url string, resp *http.Response, opts *
 		writeBuf = opts.WriteBufferSize
 	}
 
+	conn.SetReadLimit(opts.MaxMessageSize)
 	return &Connection{
 		Conn:                  conn,
 		URL:                   url,
@@ -248,5 +274,6 @@ func NewConnection(conn *websocket.Conn, url string, resp *http.Response, opts *
 		_pingInterval:         opts.PingInterval,
 		_pongWait:             opts.PongWait,
 		_verbose:              opts.Verbose,
+		_maxMessageSize:       opts.MaxMessageSize,
 	}
 }
