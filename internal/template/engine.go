@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
-	"time"
 
 	"github.com/spf13/cast"
 )
@@ -23,16 +22,16 @@ func New() *Engine {
 	e := &Engine{
 		funcs: make(template.FuncMap),
 	}
-	e.registerDefaults()
 	e.registerStringFuncs()
+	e.registerJSONFuncs()
+	e.registerEncodingFuncs()
+	e.registerCryptoFuncs()
+	e.registerTimeFuncs()
+	e.registerMathFuncs()
+	e.registerSystemFuncs()
+	e.registerIDFuncs()
+	e.registerCollectionFuncs()
 	return e
-}
-
-// registerDefaults adds the standard functions to the engine's function map.
-func (e *Engine) registerDefaults() {
-	e.funcs["now"] = func() time.Time {
-		return time.Now()
-	}
 }
 
 // registerStringFuncs adds string manipulation functions to the engine's function map.

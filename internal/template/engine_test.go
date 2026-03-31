@@ -1,6 +1,7 @@
 package template
 
 import (
+	"os"
 	"testing"
 	"time"
 )
@@ -146,6 +147,96 @@ func TestEngine_Execute(t *testing.T) {
 			tmpl: "{{ . | trim | upper | truncate 3 }}",
 			data: "   hello world   ",
 			want: "HEL...",
+		},
+		{
+			name: "toJSON",
+			tmpl: "{{toJSON .}}",
+			data: map[string]string{"foo": "bar"},
+			want: `{"foo":"bar"}`,
+		},
+		{
+			name: "fromJSON",
+			tmpl: "{{(fromJSON .).foo}}",
+			data: `{"foo":"bar"}`,
+			want: "bar",
+		},
+		{
+			name: "jq",
+			tmpl: "{{jq \".foo\" .}}",
+			data: `{"foo":"bar"}`,
+			want: "bar",
+		},
+		{
+			name: "base64",
+			tmpl: "{{base64Encode . | base64Decode}}",
+			data: "hello world",
+			want: "hello world",
+		},
+		{
+			name: "hex",
+			tmpl: "{{hexEncode . | hexDecode}}",
+			data: "hello world",
+			want: "hello world",
+		},
+		{
+			name: "md5",
+			tmpl: "{{md5 .}}",
+			data: "hello",
+			want: "5d41402abc4b2a76b9719d911017c592",
+		},
+		{
+			name: "sha256",
+			tmpl: "{{sha256 .}}",
+			data: "hello",
+			want: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+		},
+		{
+			name: "math add",
+			tmpl: "{{add 1 2}}",
+			data: nil,
+			want: "3",
+		},
+		{
+			name: "math seq",
+			tmpl: "{{range seq 1 3}}{{.}}{{end}}",
+			data: nil,
+			want: "123",
+		},
+		{
+			name: "collection dict",
+			tmpl: "{{$d := dict \"a\" 1 \"b\" 2}}{{$d.a}}{{$d.b}}",
+			data: nil,
+			want: "12",
+		},
+		{
+			name: "collection default",
+			tmpl: "{{default \"foo\" .}}",
+			data: "",
+			want: "foo",
+		},
+		{
+			name: "collection ternary",
+			tmpl: "{{ternary true \"yes\" \"no\"}}",
+			data: nil,
+			want: "yes",
+		},
+		{
+			name: "system env",
+			tmpl: "{{env \"USER\"}}",
+			data: nil,
+			want: os.Getenv("USER"),
+		},
+		{
+			name: "id uuid",
+			tmpl: "{{uuid | len}}",
+			data: nil,
+			want: "36",
+		},
+		{
+			name: "id counter",
+			tmpl: "{{counter \"a\"}}{{counter \"a\"}}",
+			data: nil,
+			want: "12",
 		},
 	}
 

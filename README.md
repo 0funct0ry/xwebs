@@ -241,25 +241,125 @@ bookmarks:
 
 The following string manipulation functions are available in templates:
 
-| Function | Description | Example |
-|---|---|---|
-| `upper` | Converts string to uppercase | `{{ .msg | upper }}` |
-| `lower` | Converts string to lowercase | `{{ .msg | lower }}` |
-| `trim` | Trims leading/trailing whitespace | `{{ .msg | trim }}` |
-| `replace` | Replaces all occurrences of a string | `{{ .msg | replace "old" "new" }}` |
-| `split` | Splits a string into a list | `{{ .msg | split " " }}` |
-| `join` | Joins a list into a string | `{{ .list | join "," }}` |
-| `contains` | Checks if a string contains a substring | `{{ if contains "error" .msg }}...{{ end }}` |
-| `regexMatch` | Checks if a string matches a regex | `{{ if regexMatch "^[0-9]+$" .msg }}...{{ end }}` |
-| `regexFind` | Finds the first regex match | `{{ .msg | regexFind "[a-z]+" }}` |
-| `regexReplace` | Replaces regex matches | `{{ .msg | regexReplace "[0-9]+" "#" }}` |
-| `shellEscape` | Escapes a string for safe shell use | `{{ .msg | shellEscape }}` |
-| `urlEncode` | URL encodes a string | `{{ .msg | urlEncode }}` |
-| `quote` | Wraps a string in double quotes | `{{ .msg | quote }}` |
-| `truncate` | Truncates a string with ellipsis | `{{ .msg | truncate 10 }}` |
-| `padLeft` | Pads a string on the left | `{{ .msg | padLeft 10 }}` |
-| `padRight` | Pads a string on the right | `{{ .msg | padRight 10 }}` |
-| `indent` | Indents every line with spaces | `{{ .msg | indent 2 }}` |
+| Function       | Description                             | Example                                           |
+|----------------|-----------------------------------------|---------------------------------------------------|
+| `upper`        | Converts string to uppercase            | `{{ .msg \| upper }}`                             |
+| `lower`        | Converts string to lowercase            | `{{ .msg \| lower }}`                             |
+| `trim`         | Trims leading/trailing whitespace       | `{{ .msg \| trim }}`                              |
+| `replace`      | Replaces all occurrences of a string    | `{{ .msg \| replace "old" "new" }}`               |
+| `split`        | Splits a string into a list             | `{{ .msg \| split " " }}`                         |
+| `join`         | Joins a list into a string              | `{{ .list \| join "," }}`                         |
+| `contains`     | Checks if a string contains a substring | `{{ if contains "error" .msg }}...{{ end }}`      |
+| `regexMatch`   | Checks if a string matches a regex      | `{{ if regexMatch "^[0-9]+$" .msg }}...{{ end }}` |
+| `regexFind`    | Finds the first regex match             | `{{ .msg  \| regexFind "[a-z]+" }}`               |
+| `regexReplace` | Replaces regex matches                  | `{{ .msg  \| regexReplace "[0-9]+" "#" }}`        |
+| `shellEscape`  | Escapes a string for safe shell use     | `{{ .msg  \| shellEscape }}`                      |
+| `urlEncode`    | URL encodes a string                    | `{{ .msg  \| urlEncode }}`                        |
+| `quote`        | Wraps a string in double quotes         | `{{ .msg  \| quote }}`                            |
+| `truncate`     | Truncates a string with ellipsis        | `{{ .msg  \| truncate 10 }}`                      |
+| `padLeft`      | Pads a string on the left               | `{{ .msg \| padLeft 10 }}`                        |
+| `padRight`     | Pads a string on the right              | `{{ .msg \| padRight 10 }}`                       |
+| `indent`       | Indents every line with spaces          | `{{ .msg \| indent 2 }}`                          |
+
+#### JSON Functions
+
+| Function       | Description                             | Example                                           |
+|----------------|-----------------------------------------|---------------------------------------------------|
+| `toJSON`       | Marshals a value to JSON string         | `{{ dict "a" 1 \| toJSON }}`                      |
+| `fromJSON`     | Unmarshals a JSON string to a value     | `{{ (fromJSON .msg).key }}`                       |
+| `prettyJSON`   | Marshals to indented JSON string        | `{{ .data \| prettyJSON }}`                       |
+| `compactJSON`  | Removes whitespace from JSON string     | `{{ .msg \| compactJSON }}`                       |
+| `isJSON`       | Checks if a string is valid JSON        | `{{ if isJSON .msg }}...{{ end }}`                |
+| `jq`           | Executes a JQ query on a value          | `{{ jq ".foo[0].bar" .msg }}`                     |
+| `jsonPath`     | Alias for `jq` for dot-path access      | `{{ jsonPath ".user.id" .msg }}`                  |
+| `mergeJSON`    | Merges two JSON objects/strings         | `{{ mergeJSON .base .overlay }}`                  |
+| `setJSON`      | Sets a field in a JSON object           | `{{ setJSON "key" "val" .obj }}`                  |
+| `deleteJSON`   | Deletes a field from a JSON object      | `{{ deleteJSON "key" .obj }}`                     |
+
+#### Encoding Functions
+
+| Function        | Description                             | Example                                           |
+|-----------------|-----------------------------------------|---------------------------------------------------|
+| `base64Encode`  | Base64 encodes a string                 | `{{ .msg \| base64Encode }}`                      |
+| `base64Decode`  | Base64 decodes a string                 | `{{ .msg \| base64Decode }}`                      |
+| `hexEncode`     | Hex encodes a string                    | `{{ .msg \| hexEncode }}`                         |
+| `hexDecode`     | Hex decodes a string                    | `{{ .msg \| hexDecode }}`                         |
+| `gzip`          | Gzip compresses a string                | `{{ .msg \| gzip }}`                              |
+| `gunzip`        | Gunzip decompresses a string            | `{{ .msg \| gunzip }}`                            |
+
+#### Crypto Functions
+
+| Function      | Description                             | Example                                           |
+|---------------|-----------------------------------------|---------------------------------------------------|
+| `md5`         | Calculates MD5 hash (hex)               | `{{ .msg \| md5 }}`                               |
+| `sha256`      | Calculates SHA256 hash (hex)            | `{{ .msg \| sha256 }}`                            |
+| `sha512`      | Calculates SHA512 hash (hex)            | `{{ .msg \| sha512 }}`                            |
+| `hmacSHA256`  | Calculates HMAC-SHA256 (hex)            | `{{ hmacSHA256 "key" .msg }}`                    |
+| `jwt`         | Decodes JWT claims (unverified)         | `{{ (jwt .token).sub }}`                          |
+| `randomBytes` | Generates N random bytes                | `{{ randomBytes 16 \| base64Encode }}`            |
+
+#### Time Functions
+
+| Function        | Description                             | Example                                           |
+|-----------------|-----------------------------------------|---------------------------------------------------|
+| `now`           | Returns current time object             | `{{ now.Year }}`                                  |
+| `nowUnix`       | Returns current Unix timestamp          | `{{ nowUnix }}`                                   |
+| `formatTime`    | Formats a time object or timestamp      | `{{ formatTime "2006-01-02" .t }}`                |
+| `parseTime`     | Parses a time string                    | `{{ parseTime "2006-01-02" "2023-01-01" }}`       |
+| `duration`      | Parses a duration string                | `{{ duration "1h30m" }}`                          |
+| `since`         | Calculated duration since time          | `{{ since .start }}`                              |
+| `uptime`        | Returns xwebs process uptime            | `{{ uptime }}`                                    |
+
+#### Math Functions
+
+| Function | Description                             | Example                               |
+|----------|-----------------------------------------|---------------------------------------|
+| `add`    | Adds two numbers                        | `{{ add 1 2 }}`                       |
+| `sub`    | Subtracts two numbers                   | `{{ sub 10 5 }}`                      |
+| `mul`    | Multiplies two numbers                  | `{{ mul 2 3 }}`                       |
+| `div`    | Divides two numbers                     | `{{ div 10 2 }}`                      |
+| `mod`    | Modulo of two integers                  | `{{ mod 10 3 }}`                      |
+| `max`    | Max of two numbers                      | `{{ max 5 10 }}`                      |
+| `min`    | Min of two numbers                      | `{{ min 5 10 }}`                      |
+| `seq`    | Generates a sequence of integers        | `{{ range seq 1 5 }}{{.}}{{ end }}`   |
+| `random` | Generates a random integer in [min,max) | `{{ random 1 100 }}`                  |
+
+#### System Functions
+
+| Function     | Description                             | Example                               |
+|--------------|-----------------------------------------|---------------------------------------|
+| `env`        | Returns an environment variable         | `{{ env "HOME" }}`                    |
+| `shell`      | Executes a shell command                | `{{ shell "ls -l" }}`                |
+| `hostname`   | Returns the system hostname             | `{{ hostname }}`                      |
+| `pid`        | Returns the process ID                  | `{{ pid }}`                           |
+| `fileRead`   | Reads a file's content                  | `{{ fileRead "config.json" }}`        |
+| `fileExists` | Checks if a file exists                 | `{{ if fileExists "a.txt" }}...{{ end }}` |
+
+#### ID Functions
+
+| Function  | Description                             | Example                               |
+|-----------|-----------------------------------------|---------------------------------------|
+| `uuid`    | Generates a UUID v4                     | `{{ uuid }}`                          |
+| `ulid`    | Generates a ULID                        | `{{ ulid }}`                          |
+| `nanoid`  | Generates a NanoID                      | `{{ nanoid }}`                        |
+| `shortid` | Generates a ShortID                     | `{{ shortid }}`                       |
+| `counter` | Returns/increments a named counter      | `{{ counter "msg_id" }}`              |
+
+#### Collection Functions
+
+| Function   | Description                             | Example                               |
+|------------|-----------------------------------------|---------------------------------------|
+| `default`  | Returns default value if input is empty | `{{ .val \| default "fallback" }}`    |
+| `ternary`  | Selects value based on boolean          | `{{ ternary .ok "yes" "no" }}`        |
+| `dict`     | Creates a map from key-value pairs      | `{{ $d := dict "a" 1 "b" 2 }}`        |
+| `list`     | Creates a list from arguments           | `{{ $l := list 1 2 3 }}`              |
+| `keys`     | Returns sorted keys of a map            | `{{ keys .map \| join "," }}`         |
+| `pick`     | Filters map by selected keys            | `{{ pick (list "a") .map }}`          |
+| `chunk`    | Splits a list into chunks of size N     | `{{ chunk 2 .list }}`                 |
+| `uniq`     | Returns unique items from a list        | `{{ .list \| uniq }}`                 |
+| `first`    | Returns the first item of a list        | `{{ .list \| first }}`                |
+| `last`     | Returns the last item of a list         | `{{ .list \| last }}`                 |
+| `pluck`    | Extracts a field from a list of maps    | `{{ .users \| pluck "id" }}`          |
 
 Functions can be chained together:
 ```text
