@@ -23,6 +23,7 @@ Every WebSocket tool does one thing: connect and send messages. That's the equiv
 - **Keepalive** (ping/pong) with configurable intervals
 - **Message fragmentation** control
 - **Per-message-deflate compression**
+- **Custom Headers & Authentication** — repeatable `--header` flags, `--token` (Bearer), and `--auth` (Basic) with full **Go template support**
 - **Template Engine** — Rich Go template FuncMap with `now`, `jq`, `base64`, `crypto`, and more (core engine implemented)
 - **Configuration Profiles** — Switch between named settings (e.g., `--profile debug`)
 - **Aliases & Bookmarks** — Map short names to long WebSocket URLs, headers, and TLS settings
@@ -94,6 +95,30 @@ xwebs connect wss://echo.websocket.org --subprotocol v1.xwebs,mqtt
 
 # Using an alias/bookmark (defined in config)
 xwebs connect staging
+```
+
+### Custom Headers and Authentication
+
+`xwebs` allows you to inject custom HTTP headers and authentication credentials into the WebSocket handshake. Values can be static or dynamic Go templates.
+
+```bash
+# Add multiple custom headers
+xwebs connect wss://api.example.com -H "X-API-Key: 12345" -H "X-Client-ID: local-01"
+
+# Use environment variables in headers via templates
+xwebs connect wss://api.example.com -H "Authorization: Bearer {{ env \"AUTH_TOKEN\" }}"
+
+# Dedicated flag for Bearer tokens
+xwebs connect wss://api.example.com --token "my-secret-token"
+xwebs connect wss://api.example.com --token "{{ .Env.AUTH_TOKEN }}"
+
+# Dedicated flag for Basic Authentication (user:pass)
+xwebs connect wss://api.example.com --auth "admin:password123"
+xwebs connect wss://api.example.com --auth "admin:{{ .Env.PASS }}"
+```
+
+> [!TIP]
+> When using templates in CLI flags, always wrap the value in single quotes to prevent your shell from interpreting the double curly braces `{{ }}`.
 
 ### TLS Configuration
 
@@ -178,7 +203,7 @@ bookmarks:
     reconnect-backoff: 1s
     reconnect-max: 30s
     reconnect-attempts: 5
-
+```
 ### Message Size Configuration
 
 `xwebs` can enforce a maximum message size for both incoming and outgoing messages. This is useful for protecting against memory exhaustion from unexpectedly large payloads.
@@ -195,6 +220,7 @@ bookmarks:
   limited-service:
     url: "wss://api.example.com"
     max-message-size: 65536 # 64KB
+```
 
 ### Compression Configuration
 
@@ -213,27 +239,27 @@ bookmarks:
     url: "wss://api.example.com"
     compress: true
 ```
-```
+
  
- ### Fragmentation Configuration
+### Fragmentation Configuration
  
- `xwebs` supports automatic message fragmentation for outgoing messages that exceed a specified frame size. This is useful for splitting large payloads into smaller frames to avoid overwhelming network buffers or the remote endpoint. Incoming fragmented messages are automatically reassembled.
+`xwebs` supports automatic message fragmentation for outgoing messages that exceed a specified frame size. This is useful for splitting large payloads into smaller frames to avoid overwhelming network buffers or the remote endpoint. Incoming fragmented messages are automatically reassembled.
  
- ```bash
+```bash
  # Fragment outgoing messages into 10KB frames (10240 bytes)
  xwebs connect wss://api.example.com --max-frame-size 10240
- ```
+```
  
- Fragmentation settings can also be defined in bookmarks:
+Fragmentation settings can also be defined in bookmarks:
  
- ```yaml
+```yaml
  bookmarks:
    large-payloads:
      url: "wss://api.example.com"
      max-frame-size: 16384 # 16KB
- ```
+```
  
- ### Template Engine
+### Template Engine
 
 `xwebs` includes a powerful Go template engine that can be used in handlers, CLI flags, and the REPL to create dynamic messages and shell commands.
 
@@ -289,14 +315,14 @@ The following string manipulation functions are available in templates:
 
 #### Crypto Functions
 
-| Function      | Description                             | Example                                           |
-|---------------|-----------------------------------------|---------------------------------------------------|
-| `md5`         | Calculates MD5 hash (hex)               | `{{ .msg \| md5 }}`                               |
-| `sha256`      | Calculates SHA256 hash (hex)            | `{{ .msg \| sha256 }}`                            |
-| `sha512`      | Calculates SHA512 hash (hex)            | `{{ .msg \| sha512 }}`                            |
-| `hmacSHA256`  | Calculates HMAC-SHA256 (hex)            | `{{ hmacSHA256 "key" .msg }}`                    |
-| `jwt`         | Decodes JWT claims (unverified)         | `{{ (jwt .token).sub }}`                          |
-| `randomBytes` | Generates N random bytes                | `{{ randomBytes 16 \| base64Encode }}`            |
+| Function      | Description                     | Example                                |
+|---------------|---------------------------------|----------------------------------------|
+| `md5`         | Calculates MD5 hash (hex)       | `{{ .msg \| md5 }}`                    |
+| `sha256`      | Calculates SHA256 hash (hex)    | `{{ .msg \| sha256 }}`                 |
+| `sha512`      | Calculates SHA512 hash (hex)    | `{{ .msg \| sha512 }}`                 |
+| `hmacSHA256`  | Calculates HMAC-SHA256 (hex)    | `{{ hmacSHA256 "key" .msg }}`          |
+| `jwt`         | Decodes JWT claims (unverified) | `{{ (jwt .token).sub }}`               |
+| `randomBytes` | Generates N random bytes        | `{{ randomBytes 16 \| base64Encode }}` |
 
 #### Time Functions
 
@@ -326,14 +352,14 @@ The following string manipulation functions are available in templates:
 
 #### System Functions
 
-| Function     | Description                             | Example                               |
-|--------------|-----------------------------------------|---------------------------------------|
-| `env`        | Returns an environment variable         | `{{ env "HOME" }}`                    |
-| `shell`      | Executes a shell command                | `{{ shell "ls -l" }}`                |
-| `hostname`   | Returns the system hostname             | `{{ hostname }}`                      |
-| `pid`        | Returns the process ID                  | `{{ pid }}`                           |
-| `fileRead`   | Reads a file's content                  | `{{ fileRead "config.json" }}`        |
-| `fileExists` | Checks if a file exists                 | `{{ if fileExists "a.txt" }}...{{ end }}` |
+| Function     | Description                     | Example                                   |
+|--------------|---------------------------------|-------------------------------------------|
+| `env`        | Returns an environment variable | `{{ env "HOME" }}`                        |
+| `shell`      | Executes a shell command        | `{{ shell "ls -l" }}`                     |
+| `hostname`   | Returns the system hostname     | `{{ hostname }}`                          |
+| `pid`        | Returns the process ID          | `{{ pid }}`                               |
+| `fileRead`   | Reads a file's content          | `{{ fileRead "config.json" }}`            |
+| `fileExists` | Checks if a file exists         | `{{ if fileExists "a.txt" }}...{{ end }}` |
 
 > [!NOTE]
 > These functions can be disabled for security using the `--no-shell-func` global flag. See [Template Sandboxing](#template-sandboxing) for details.
@@ -373,31 +399,30 @@ Safe functions (string manipulation, JSON processing, math, time, encoding, cryp
 | `last`     | Returns the last item of a list         | `{{ .list \| last }}`                 |
 | `pluck`    | Extracts a field from a list of maps    | `{{ .users \| pluck "id" }}`          |
 
-{{ .message | trim | upper | truncate 20 }}
-```
+
 
 #### Template Context
 
 The root context (`.`) available in templates provides access to connection, message, server, and session data. This context is automatically populated by xwebs.
 
-| Field | Description | Example |
-|-------|-------------|---------|
-| `.Conn` | Connection metadata (URL, subprotocol, headers, etc.) | `{{ .Conn.URL }}` |
-| `.Msg` | Incoming/Outgoing message details (Data, Type, Length) | `{{ .Msg.Length }} bytes` |
-| `.Handler` | Execution results (Stdout, Stderr, ExitCode, Duration) | `{{ .Handler.Duration }}` |
-| `.Server` | Global server metrics (ClientCount, Uptime) | `{{ .Server.Uptime }}` |
-| `.Session` | Persistent key-value store for the current session | `{{ index .Session "id" }}` |
-| `.Env` | Environment variables (if not sandboxed) | `{{ .Env.PATH }}` |
+| Field      | Description                                            | Example                     |
+|------------|--------------------------------------------------------|-----------------------------|
+| `.Conn`    | Connection metadata (URL, subprotocol, headers, etc.)  | `{{ .Conn.URL }}`           |
+| `.Msg`     | Incoming/Outgoing message details (Data, Type, Length) | `{{ .Msg.Length }} bytes`   |
+| `.Handler` | Execution results (Stdout, Stderr, ExitCode, Duration) | `{{ .Handler.Duration }}`   |
+| `.Server`  | Global server metrics (ClientCount, Uptime)            | `{{ .Server.Uptime }}`      |
+| `.Session` | Persistent key-value store for the current session     | `{{ index .Session "id" }}` |
+| `.Env`     | Environment variables (if not sandboxed)               | `{{ .Env.PATH }}`           |
 
 #### Context Management Functions
 
 These functions allow you to interact with the session data dynamically within your templates.
 
-| Function | Description | Example |
-|----------|-------------|---------|
-| `sessionSet` | Sets a value in the persistent session store | `{{ sessionSet "user" "admin" }}` |
-| `sessionGet` | Retrieves a value from the session store | `Welcome, {{ sessionGet "user" }}!` |
-| `sessionClear`| Clears all data from the session store | `{{ sessionClear }}` |
+| Function       | Description                                  | Example                             |
+|----------------|----------------------------------------------|-------------------------------------|
+| `sessionSet`   | Sets a value in the persistent session store | `{{ sessionSet "user" "admin" }}`   |
+| `sessionGet`   | Retrieves a value from the session store     | `Welcome, {{ sessionGet "user" }}!` |
+| `sessionClear` | Clears all data from the session store       | `{{ sessionClear }}`                |
 
 Currently, `connect` establishes the connection and reports handshake details. Full interactive REPL support is coming in EPIC 04.
 
@@ -464,14 +489,14 @@ xwebs searches for configuration files in the following order (first found wins)
 
 ### Environment Variable Mapping
 
-| Flag           | Environment Variable |
-|----------------|----------------------|
-| `--verbose`    | `XWEBS_VERBOSE`      |
-| `--quiet`      | `XWEBS_QUIET`        |
-| `--color`      | `XWEBS_COLOR`        |
-| `--log-level`  | `XWEBS_LOG_LEVEL`    |
-| `--log-format` | `XWEBS_LOG_FORMAT`   |
-| `--profile`    | `XWEBS_PROFILE`      |
+| Flag              | Environment Variable  |
+|-------------------|-----------------------|
+| `--verbose`       | `XWEBS_VERBOSE`       |
+| `--quiet`         | `XWEBS_QUIET`         |
+| `--color`         | `XWEBS_COLOR`         |
+| `--log-level`     | `XWEBS_LOG_LEVEL`     |
+| `--log-format`    | `XWEBS_LOG_FORMAT`    |
+| `--profile`       | `XWEBS_PROFILE`       |
 | `--no-shell-func` | `XWEBS_NO_SHELL_FUNC` |
 
 ### Named Profiles

@@ -2,12 +2,15 @@ package cmd
 
 import (
 	"bufio"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/0funct0ry/xwebs/internal/config"
+	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/0funct0ry/xwebs/internal/ws"
 	"github.com/gorilla/websocket"
 	"github.com/spf13/cobra"
@@ -23,6 +26,9 @@ var (
 	maxMessageSize    int64
 	maxFrameSize      int
 	compress          bool
+	customHeaders     []string
+	authToken         string
+	authBasic         string
 )
 
 var connectCmd = &cobra.Command{
@@ -38,8 +44,24 @@ Example:
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		target := args[0]
+		tmplEngine := template.New(false) // Not sandboxed for CLI usage
+
+		// Evaluate target URL as template if it contains {{
+		if strings.Contains(target, "{{") {
+			evalTarget, err := tmplEngine.Execute("url", target, template.NewContext())
+			if err != nil {
+				return fmt.Errorf("evaluating URL template: %w", err)
+			}
+			target = evalTarget
+		}
+
 		details, err := config.ResolveConnDetails(target)
 		if err != nil {
+			// If not an alias, check if it's a valid URL
+			if !strings.Contains(target, "://") {
+				return fmt.Errorf("invalid URL or alias: %s", target)
+			}
+			// If it has ://, it might be a direct URL that ResolveConnDetails failed on (e.g. invalid scheme)
 			return err
 		}
 
@@ -92,6 +114,56 @@ Example:
 			for k, v := range details.Headers {
 				header.Add(k, v)
 			}
+		}
+
+		// Add custom headers from flags, evaluating each value as a template
+		for _, h := range customHeaders {
+			parts := strings.SplitN(h, ":", 2)
+			if len(parts) != 2 {
+				return fmt.Errorf("invalid header format %q; expected Key: Value", h)
+			}
+			key := strings.TrimSpace(parts[0])
+			val := strings.TrimSpace(parts[1])
+
+			if strings.Contains(val, "{{") {
+				evalVal, err := tmplEngine.Execute(key, val, template.NewContext())
+				if err != nil {
+					return fmt.Errorf("evaluating header %q template: %w", key, err)
+				}
+				val = evalVal
+			}
+			header.Add(key, val)
+		}
+
+		// Add auth token if provided
+		if authToken != "" {
+			val := authToken
+			if strings.Contains(val, "{{") {
+				evalVal, err := tmplEngine.Execute("token", val, template.NewContext())
+				if err != nil {
+					return fmt.Errorf("evaluating token template: %w", err)
+				}
+				val = evalVal
+			}
+			header.Set("Authorization", "Bearer "+val)
+		}
+
+		// Add basic auth if provided
+		if authBasic != "" {
+			val := authBasic
+			if strings.Contains(val, "{{") {
+				evalVal, err := tmplEngine.Execute("auth", val, template.NewContext())
+				if err != nil {
+					return fmt.Errorf("evaluating auth template: %w", err)
+				}
+				val = evalVal
+			}
+			parts := strings.SplitN(val, ":", 2)
+			if len(parts) != 2 {
+				return fmt.Errorf("invalid auth format; expected user:pass")
+			}
+			auth := base64.StdEncoding.EncodeToString([]byte(val))
+			header.Set("Authorization", "Basic "+auth)
 		}
 
 		opts := []ws.DialOption{
@@ -237,6 +309,9 @@ func init() {
 	connectCmd.Flags().Int64Var(&maxMessageSize, "max-message-size", 0, "maximum message size in bytes (0 for unlimited)")
 	connectCmd.Flags().IntVarP(&maxFrameSize, "max-frame-size", "f", 0, "maximum frame size for outgoing messages (0 for no fragmentation)")
 	connectCmd.Flags().BoolVar(&compress, "compress", false, "enable per-message-deflate compression")
+	connectCmd.Flags().StringSliceVarP(&customHeaders, "header", "H", []string{}, "custom headers to include in the handshake (Key: Value)")
+	connectCmd.Flags().StringVar(&authToken, "token", "", "bearer token for authentication")
+	connectCmd.Flags().StringVar(&authBasic, "auth", "", "basic auth credentials (user:pass)")
 	rootCmd.AddCommand(connectCmd)
 }
 
