@@ -233,16 +233,38 @@ bookmarks:
      max-frame-size: 16384 # 16KB
  ```
  
- ### Frame Handling
+ ### Template Engine
 
-`xwebs` supports both **Text** and **Binary** WebSocket frames. When running in verbose mode (`--verbose`), the engine reports the type and size of every message sent and received.
+`xwebs` includes a powerful Go template engine that can be used in handlers, CLI flags, and the REPL to create dynamic messages and shell commands.
 
-```bash
-xwebs connect wss://echo.websocket.org --verbose
-# [ws] sending text message to wss://echo.websocket.org (5 bytes)
-# [ws] received text message from wss://echo.websocket.org (5 bytes)
+#### String Functions
+
+The following string manipulation functions are available in templates:
+
+| Function | Description | Example |
+|---|---|---|
+| `upper` | Converts string to uppercase | `{{ .msg | upper }}` |
+| `lower` | Converts string to lowercase | `{{ .msg | lower }}` |
+| `trim` | Trims leading/trailing whitespace | `{{ .msg | trim }}` |
+| `replace` | Replaces all occurrences of a string | `{{ .msg | replace "old" "new" }}` |
+| `split` | Splits a string into a list | `{{ .msg | split " " }}` |
+| `join` | Joins a list into a string | `{{ .list | join "," }}` |
+| `contains` | Checks if a string contains a substring | `{{ if contains "error" .msg }}...{{ end }}` |
+| `regexMatch` | Checks if a string matches a regex | `{{ if regexMatch "^[0-9]+$" .msg }}...{{ end }}` |
+| `regexFind` | Finds the first regex match | `{{ .msg | regexFind "[a-z]+" }}` |
+| `regexReplace` | Replaces regex matches | `{{ .msg | regexReplace "[0-9]+" "#" }}` |
+| `shellEscape` | Escapes a string for safe shell use | `{{ .msg | shellEscape }}` |
+| `urlEncode` | URL encodes a string | `{{ .msg | urlEncode }}` |
+| `quote` | Wraps a string in double quotes | `{{ .msg | quote }}` |
+| `truncate` | Truncates a string with ellipsis | `{{ .msg | truncate 10 }}` |
+| `padLeft` | Pads a string on the left | `{{ .msg | padLeft 10 }}` |
+| `padRight` | Pads a string on the right | `{{ .msg | padRight 10 }}` |
+| `indent` | Indents every line with spaces | `{{ .msg | indent 2 }}` |
+
+Functions can be chained together:
+```text
+{{ .message | trim | upper | truncate 20 }}
 ```
-
 
 Currently, `connect` establishes the connection and reports handshake details. Full interactive REPL support is coming in EPIC 04.
 
