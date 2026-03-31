@@ -9,8 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chzyer/readline"
-
 	"github.com/0funct0ry/xwebs/internal/config"
 	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/0funct0ry/xwebs/internal/ws"
@@ -31,7 +29,6 @@ var (
 	customHeaders     []string
 	authToken         string
 	authBasic         string
-	interactive       bool
 )
 
 var connectCmd = &cobra.Command{
@@ -200,72 +197,6 @@ Example:
 			opts = append(opts, ws.WithClientCert(details.Cert, details.Key))
 		}
 
-		stat, _ := os.Stdin.Stat()
-		isTerminal := (stat.Mode() & os.ModeCharDevice) != 0
-
-		isInteractive := isTerminal
-		if isTerminal && cmd.Flags().Changed("interactive") {
-			isInteractive = interactive
-		} else if !isTerminal {
-			isInteractive = false
-		}
-
-		var rl *readline.Instance
-		if isInteractive {
-			config := &readline.Config{
-				Prompt:          "> ",
-				InterruptPrompt: "^C\n",
-				EOFPrompt:       "exit",
-			}
-			var err error
-			rl, err = readline.NewEx(config)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to initialize readline: %v\n", err)
-				isInteractive = false
-			} else {
-				defer rl.Close()
-			}
-		}
-
-		if isTerminal {
-			fmt.Println("\nEnter message to send (Ctrl+C to disconnect):")
-		}
-
-		// Start the input reader exactly once
-		inputChan := make(chan string)
-		inputErrChan := make(chan error, 1)
-		go func() {
-			if isInteractive {
-				for {
-					line, err := rl.Readline()
-					if err != nil { // EOF or Ctrl-C
-						if err == readline.ErrInterrupt {
-							if len(line) == 0 {
-								break
-							} else {
-								continue
-							}
-						}
-						break
-					}
-					line = strings.TrimSpace(line)
-					if line == "" {
-						continue
-					}
-					inputChan <- line
-				}
-			} else {
-				scanner := bufio.NewScanner(os.Stdin)
-				for scanner.Scan() {
-					inputChan <- scanner.Text()
-				}
-				if err := scanner.Err(); err != nil && err != os.ErrClosed {
-					inputErrChan <- err
-				}
-			}
-			close(inputChan)
-		}()
-
 		reconnectCount := 0
 		for {
 			fmt.Printf("Connecting to: %s\n", details.URL)
@@ -305,49 +236,18 @@ Example:
 			}
 
 			// Message reader goroutine to display incoming messages
-			readDone := make(chan struct{})
 			go func() {
-				defer close(readDone)
-				for {
-					msg, ok := <-conn.Read()
-					if !ok {
-						return
-					}
-					switch msg.Type {
-					case ws.TextMessage:
-						if isInteractive {
-							fmt.Fprintf(rl.Stdout(), "< %s\n", string(msg.Data))
-						} else {
-							fmt.Printf("%s\n", string(msg.Data))
-						}
-					case ws.BinaryMessage:
-						if isInteractive {
-							fmt.Fprintf(rl.Stdout(), "< [binary message, %d bytes]\n", len(msg.Data))
-						} else {
-							fmt.Printf("[binary message, %d bytes]\n", len(msg.Data))
-						}
-					}
-				}
-			}()
-
-			// Sender goroutine taking input from the singleton input loop
-			sendDone := make(chan struct{})
-			go func() {
-				defer close(sendDone)
 				for {
 					select {
-					case text, ok := <-inputChan:
+					case msg, ok := <-conn.Read():
 						if !ok {
 							return
 						}
-						msg := &ws.Message{Type: ws.TextMessage, Data: []byte(text)}
-						if err := conn.Write(msg); err != nil {
-							if isInteractive {
-								fmt.Fprintf(rl.Stderr(), "\nError sending message: %v\n", err)
-							} else {
-								fmt.Fprintf(os.Stderr, "\nError sending message: %v\n", err)
-							}
-							return
+						switch msg.Type {
+						case ws.TextMessage:
+							fmt.Printf("\n< %s\n> ", string(msg.Data))
+						case ws.BinaryMessage:
+							fmt.Printf("\n< [binary message, %d bytes]\n> ", len(msg.Data))
 						}
 					case <-conn.Done():
 						return
@@ -355,18 +255,35 @@ Example:
 				}
 			}()
 
-			// Wait for connection to close, context to be cancelled, or input to finish
+			fmt.Println("\nEnter message to send (Ctrl+C to disconnect):")
+			
+			// Simple interactive loop for manual verification
+			go func() {
+				scanner := bufio.NewScanner(os.Stdin)
+				fmt.Print("> ")
+				for scanner.Scan() {
+					text := scanner.Text()
+					if text == "" {
+						fmt.Print("> ")
+						continue
+					}
+					msg := &ws.Message{Type: ws.TextMessage, Data: []byte(text)}
+					if err := conn.Write(msg); err != nil {
+						fmt.Printf("\nError sending message: %v\n", err)
+						return
+					}
+					// No need to print > here if we expect the reader to do it, 
+					// but since the reader only prints on incoming, we need it here too.
+					fmt.Print("> ")
+				}
+				if err := scanner.Err(); err != nil && err != os.ErrClosed {
+					fmt.Fprintf(os.Stderr, "\nError reading stdin: %v\n", err)
+				}
+			}()
+
+			// Wait for connection to close or context to be cancelled
 			var closedUnexpectedly bool
 			select {
-			case <-sendDone:
-				// If we are not in a TTY, give a small grace period for the last echo
-				if !isTerminal {
-					time.Sleep(1 * time.Second)
-				}
-				_ = conn.Close()
-				// Wait for the reader to finish processing all messages
-				<-readDone
-				return nil
 			case <-conn.Done():
 				code, reason := conn.CloseStatus()
 				if err := conn.Err(); err != nil {
@@ -421,7 +338,6 @@ func init() {
 	connectCmd.Flags().StringSliceVarP(&customHeaders, "header", "H", []string{}, "custom headers to include in the handshake (Key: Value)")
 	connectCmd.Flags().StringVar(&authToken, "token", "", "bearer token for authentication")
 	connectCmd.Flags().StringVar(&authBasic, "auth", "", "basic auth credentials (user:pass)")
-	connectCmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "enable interactive REPL mode (default: auto-detect TTY)")
 	rootCmd.AddCommand(connectCmd)
 }
 

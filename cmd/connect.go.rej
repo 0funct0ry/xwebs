@@ -1,0 +1,52 @@
+@@ -10,6 +10,8 @@
+ 	"strings"
+ 	"time"
+ 	"sync/atomic"
++	"io"
++	"github.com/chzyer/readline"
+ 
+ 	"github.com/0funct0ry/xwebs/internal/config"
+ 	"github.com/0funct0ry/xwebs/internal/template"
+@@ -196,11 +198,38 @@
+ 			opts = append(opts, ws.WithClientCert(details.Cert, details.Key))
+ 		}
+ 
+-		isInteractive := false
++		stat, _ := os.Stdin.Stat()
++		isTerminal := (stat.Mode() & os.ModeCharDevice) != 0
++
++		isInteractive := isTerminal
+ 		if cmd.Flags().Changed("interactive") {
+ 			isInteractive = interactive
+-		} else {
+-			stat, _ := os.Stdin.Stat()
+-			isInteractive = (stat.Mode() & os.ModeCharDevice) != 0
+ 		}
+ 
++		var rl *readline.Instance
++		if isInteractive {
++			config := &readline.Config{
++				Prompt:          "> ",
++				InterruptPrompt: "^C\n",
++				EOFPrompt:       "exit",
++			}
++			var err error
++			rl, err = readline.NewEx(config)
++			if err != nil {
++				fmt.Fprintf(os.Stderr, "Warning: failed to initialize readline: %v\n", err)
++				isInteractive = false
++			} else {
++				defer rl.Close()
++			}
++		}
++
++		if isInteractive {
++			fmt.Println("\nEnter message to send (Ctrl+C to disconnect):")
++		}
++
++		// Start the input reader exactly once
++		inputChan := make(chan string)
++		inputErrChan := make(chan error, 1)
++		go func() {
++			if isInteractive {
++				for {

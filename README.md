@@ -104,6 +104,18 @@ Enter message to send (Ctrl+C to disconnect):
 > 
 ```
 
+**Non-Interactive & Pipeline Mode:**
+
+`xwebs` automatically detects when it is not running in a terminal (TTY) or when it is part of a shell pipeline. In this mode, prompts and extraneous output are suppressed, making it perfect for scripting and piping clean data. **Note: If data is piped, the tool forces non-interactive mode and ignores the `--interactive` flag.**
+
+```bash
+# Pipe data directly; no "> " prompts will be shown
+echo "{\"hello\": \"world\"}" | xwebs connect wss://echo.websocket.org
+
+# Force non-interactive mode explicitly in a TTY
+xwebs connect wss://api.example.com --interactive=false
+```
+
 # With custom subprotocols
 xwebs connect wss://echo.websocket.org --subprotocol v1.xwebs,mqtt
 

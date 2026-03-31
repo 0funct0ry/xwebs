@@ -199,6 +199,7 @@ func (c *Connection) Write(msg *Message) error {
 
 func (c *Connection) readLoop() {
 	defer func() {
+		close(c._readCh)
 		c.forceClose()
 		if c._onDisconnect != nil {
 			c._mu.Lock()
