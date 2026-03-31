@@ -23,6 +23,7 @@ Every WebSocket tool does one thing: connect and send messages. That's the equiv
 - **Keepalive** (ping/pong) with configurable intervals
 - **Message fragmentation** control
 - **Per-message-deflate compression**
+- **Template Engine** — Rich Go template FuncMap with `now`, `jq`, `base64`, `crypto`, and more (core engine implemented)
 - **Configuration Profiles** — Switch between named settings (e.g., `--profile debug`)
 - **Aliases & Bookmarks** — Map short names to long WebSocket URLs, headers, and TLS settings
 - **Shell Completion** — Native completion for Bash, Zsh, Fish, and PowerShell
@@ -32,7 +33,6 @@ Every WebSocket tool does one thing: connect and send messages. That's the equiv
 
 ### On the Roadmap (Planned)
 - **Client Mode** — Full interactive REPL for WebSocket communication
-- **Template Engine** — Rich Go template FuncMap with `jq`, `base64`, `crypto`, and more
 - **Server Mode** — WebSocket server with handler dispatch and administration REPL
 - **Handler Pipeline** — Bind message patterns to shell commands and actions
 - **Relay & Broadcast** — MITM proxy and pub/sub fan-out modes
