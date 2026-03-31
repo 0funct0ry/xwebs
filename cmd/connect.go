@@ -227,24 +227,44 @@ Example:
 			}
 
 			reconnectCount = 0 // Reset on successful connection
-			fmt.Println("Handshake successful!")
+			fmt.Printf("Successfully connected to %s\n", details.URL)
 			if conn.NegotiatedSubprotocol != "" {
-				fmt.Printf("Negotiated Subprotocol: %s\n", conn.NegotiatedSubprotocol)
+				fmt.Printf("Subprotocol: %s\n", conn.NegotiatedSubprotocol)
 			}
 			if conn.IsCompressionEnabled() {
-				fmt.Println("Compression: enabled (permessage-deflate)")
-			} else if conn.CompressionRequested() {
-				fmt.Println("Compression: requested but not negotiated by server")
+				fmt.Println("Compression: permessage-deflate")
 			}
+
+			// Message reader goroutine to display incoming messages
+			go func() {
+				for {
+					select {
+					case msg, ok := <-conn.Read():
+						if !ok {
+							return
+						}
+						switch msg.Type {
+						case ws.TextMessage:
+							fmt.Printf("\n< %s\n> ", string(msg.Data))
+						case ws.BinaryMessage:
+							fmt.Printf("\n< [binary message, %d bytes]\n> ", len(msg.Data))
+						}
+					case <-conn.Done():
+						return
+					}
+				}
+			}()
 
 			fmt.Println("\nEnter message to send (Ctrl+C to disconnect):")
 			
 			// Simple interactive loop for manual verification
 			go func() {
 				scanner := bufio.NewScanner(os.Stdin)
+				fmt.Print("> ")
 				for scanner.Scan() {
 					text := scanner.Text()
 					if text == "" {
+						fmt.Print("> ")
 						continue
 					}
 					msg := &ws.Message{Type: ws.TextMessage, Data: []byte(text)}
@@ -252,6 +272,12 @@ Example:
 						fmt.Printf("\nError sending message: %v\n", err)
 						return
 					}
+					// No need to print > here if we expect the reader to do it, 
+					// but since the reader only prints on incoming, we need it here too.
+					fmt.Print("> ")
+				}
+				if err := scanner.Err(); err != nil && err != os.ErrClosed {
+					fmt.Fprintf(os.Stderr, "\nError reading stdin: %v\n", err)
 				}
 			}()
 

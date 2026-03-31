@@ -31,6 +31,7 @@ Every WebSocket tool does one thing: connect and send messages. That's the equiv
 - **Version Info** — Detailed build information with `xwebs version`
 - **Makefile Integration** — Standardized `build`, `test`, `lint`, and `install` targets
 - **CI/CD** — Automated testing and building via GitHub Actions
+- **Interactive Connect** — Basic TTY loop for sending and receiving messages
 
 ### On the Roadmap (Planned)
 - **Client Mode** — Full interactive REPL for WebSocket communication
@@ -84,11 +85,24 @@ xwebs version
 
 ### WebSocket Connection
 
-The `connect` command performs a WebSocket handshake, injects custom headers, and negotiates subprotocols.
+The `connect` command performs a WebSocket handshake, injects custom headers, and negotiates subprotocols. Once connected, it enters a basic interactive mode where you can type messages to send and see incoming messages from the server.
 
 ```bash
 # Direct URL
 xwebs connect wss://echo.websocket.org
+```
+
+**Interactive Session Example:**
+
+```text
+Connecting to: wss://echo.websocket.org
+Successfully connected to wss://echo.websocket.org
+
+Enter message to send (Ctrl+C to disconnect):
+> Hello, xwebs!
+< Hello, xwebs!
+> 
+```
 
 # With custom subprotocols
 xwebs connect wss://echo.websocket.org --subprotocol v1.xwebs,mqtt
