@@ -25,6 +25,7 @@ type DialOptions struct {
 	ReconnectAttempts  int
 	Verbose            bool
 	MaxMessageSize     int64
+	MaxFrameSize       int
 	Compress           bool
 }
 
@@ -148,6 +149,13 @@ func WithReconnectAttempts(attempts int) DialOption {
 func WithMaxMessageSize(size int64) DialOption {
 	return func(o *DialOptions) {
 		o.MaxMessageSize = size
+	}
+}
+
+// WithMaxFrameSize sets the maximum frame size for outgoing messages.
+func WithMaxFrameSize(size int) DialOption {
+	return func(o *DialOptions) {
+		o.MaxFrameSize = size
 	}
 }
 

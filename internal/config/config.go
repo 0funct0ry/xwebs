@@ -24,6 +24,7 @@ type Bookmark struct {
 	ReconnectMax      time.Duration `mapstructure:"reconnect-max"`
 	ReconnectAttempts int           `mapstructure:"reconnect-attempts"`
 	MaxMessageSize    int64         `mapstructure:"max-message-size"`
+	MaxFrameSize      int           `mapstructure:"max-frame-size"`
 	Compress          bool          `mapstructure:"compress"`
 }
 
@@ -49,6 +50,7 @@ type ConnDetails struct {
 	ReconnectMax      time.Duration
 	ReconnectAttempts int
 	MaxMessageSize    int64
+	MaxFrameSize      int
 	Compress          bool
 }
 

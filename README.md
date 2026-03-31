@@ -15,7 +15,7 @@ Every WebSocket tool does one thing: connect and send messages. That's the equiv
 ## Features
 
 ### Available Now (v0.1.0-alpha)
-- **WebSocket Engine** — Bidirectional message flow with goroutines/channels, Proxy support (HTTP/SOCKS5), full TLS support (custom CAs, mTLS, insecure mode), automatic Ping/Pong keepalive, and **Max Message Size enforcement**
+- **WebSocket Engine** — Bidirectional message flow with goroutines/channels, Proxy support (HTTP/SOCKS5), full TLS support (custom CAs, mTLS, insecure mode), automatic Ping/Pong keepalive, **Max Message Size enforcement**, and **Automatic Message Fragmentation**
 - **Configuration Profiles** — Switch between named settings (e.g., `--profile debug`)
 - **Aliases & Bookmarks** — Map short names to long WebSocket URLs, headers, and TLS settings
 - **Shell Completion** — Native completion for Bash, Zsh, Fish, and PowerShell
@@ -207,8 +207,26 @@ bookmarks:
     compress: true
 ```
 ```
-
-### Frame Handling
+ 
+ ### Fragmentation Configuration
+ 
+ `xwebs` supports automatic message fragmentation for outgoing messages that exceed a specified frame size. This is useful for splitting large payloads into smaller frames to avoid overwhelming network buffers or the remote endpoint. Incoming fragmented messages are automatically reassembled.
+ 
+ ```bash
+ # Fragment outgoing messages into 10KB frames (10240 bytes)
+ xwebs connect wss://api.example.com --max-frame-size 10240
+ ```
+ 
+ Fragmentation settings can also be defined in bookmarks:
+ 
+ ```yaml
+ bookmarks:
+   large-payloads:
+     url: "wss://api.example.com"
+     max-frame-size: 16384 # 16KB
+ ```
+ 
+ ### Frame Handling
 
 `xwebs` supports both **Text** and **Binary** WebSocket frames. When running in verbose mode (`--verbose`), the engine reports the type and size of every message sent and received.
 

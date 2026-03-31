@@ -51,6 +51,7 @@ type Connection struct {
 	_pongWait      time.Duration
 	_verbose       bool
 	_maxMessageSize int64
+	_maxFrameSize   int
 	_compressionRequested bool
 }
 
@@ -241,13 +242,24 @@ func (c *Connection) writeLoop() {
 				fmt.Fprintf(os.Stderr, "  [ws] sending %s message to %s (%d bytes)\n", typeStr, c.URL, len(msg.Data))
 			}
 
-			if err := c.Conn.WriteMessage(mt, msg.Data); err != nil {
-				c._mu.Lock()
-				if c._lastErr == nil && !c._closed {
-					c._lastErr = err
+			if c._maxFrameSize > 0 && (msg.Type == TextMessage || msg.Type == BinaryMessage) && len(msg.Data) > c._maxFrameSize {
+				if err := c.writeFragmented(mt, msg.Data); err != nil {
+					c._mu.Lock()
+					if c._lastErr == nil && !c._closed {
+						c._lastErr = err
+					}
+					c._mu.Unlock()
+					return
 				}
-				c._mu.Unlock()
-				return
+			} else {
+				if err := c.Conn.WriteMessage(mt, msg.Data); err != nil {
+					c._mu.Lock()
+					if c._lastErr == nil && !c._closed {
+						c._lastErr = err
+					}
+					c._mu.Unlock()
+					return
+				}
 			}
 		case <-func() <-chan time.Time {
 			if ticker == nil {
@@ -296,6 +308,7 @@ func NewConnection(conn *websocket.Conn, url string, resp *http.Response, opts *
 		_pongWait:             opts.PongWait,
 		_verbose:              opts.Verbose,
 		_maxMessageSize:       opts.MaxMessageSize,
+		_maxFrameSize:         opts.MaxFrameSize,
 		_compressionRequested: opts.Compress,
 	}
 
@@ -310,4 +323,29 @@ func NewConnection(conn *websocket.Conn, url string, resp *http.Response, opts *
 	}
 
 	return c
+}
+
+func (c *Connection) writeFragmented(messageType int, data []byte) error {
+	w, err := c.Conn.NextWriter(messageType)
+	if err != nil {
+		return err
+	}
+
+	for i := 0; i < len(data); i += c._maxFrameSize {
+		end := i + c._maxFrameSize
+		if end > len(data) {
+			end = len(data)
+		}
+
+		if c._verbose {
+			fmt.Fprintf(os.Stderr, "  [ws] sending frame: %d-%d bytes\n", i, end)
+		}
+
+		if _, err := w.Write(data[i:end]); err != nil {
+			_ = w.Close()
+			return err
+		}
+	}
+
+	return w.Close()
 }

@@ -262,3 +262,53 @@ func TestConnection_FrameTypes(t *testing.T) {
 	}
 }
 
+
+func TestConnection_Fragmentation(t *testing.T) {
+	upgrader := websocket.Upgrader{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		for {
+			mt, message, err := conn.ReadMessage()
+			if err != nil {
+				return
+			}
+			// Echo back
+			if err := conn.WriteMessage(mt, message); err != nil {
+				return
+			}
+		}
+	}))
+	defer server.Close()
+
+	url := "ws" + strings.TrimPrefix(server.URL, "http")
+	dialer := websocket.Dialer{}
+	conn, _, err := dialer.Dial(url, nil)
+	if err != nil {
+		t.Fatalf("failed to dial: %v", err)
+	}
+
+	maxFrameSize := 10
+	c := NewConnection(conn, url, nil, &DialOptions{MaxFrameSize: maxFrameSize, Verbose: true})
+	c.Start()
+	defer c.Close()
+
+	msgData := []byte("this is a message that should be fragmented into multiple frames because it is longer than 10 bytes")
+	msg := &Message{Type: TextMessage, Data: msgData}
+
+	if err := c.Write(msg); err != nil {
+		t.Fatalf("failed to write: %v", err)
+	}
+
+	select {
+	case received := <-c.Read():
+		if string(received.Data) != string(msgData) {
+			t.Errorf("expected %q, got %q", string(msgData), string(received.Data))
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for message")
+	}
+}

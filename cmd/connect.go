@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/0funct0ry/xwebs/internal/config"
@@ -18,6 +20,7 @@ var (
 	reconnectMax      time.Duration
 	reconnectAttempts int
 	maxMessageSize    int64
+	maxFrameSize      int
 	compress          bool
 )
 
@@ -76,6 +79,9 @@ Example:
 		if cmd.Flags().Changed("max-message-size") {
 			details.MaxMessageSize = maxMessageSize
 		}
+		if cmd.Flags().Changed("max-frame-size") {
+			details.MaxFrameSize = maxFrameSize
+		}
 		if cmd.Flags().Changed("compress") {
 			details.Compress = compress
 		}
@@ -99,6 +105,7 @@ Example:
 			ws.WithReconnectMax(details.ReconnectMax),
 			ws.WithReconnectAttempts(details.ReconnectAttempts),
 			ws.WithMaxMessageSize(details.MaxMessageSize),
+			ws.WithMaxFrameSize(details.MaxFrameSize),
 			ws.WithCompression(details.Compress),
 		}
 
@@ -152,8 +159,23 @@ Example:
 				fmt.Println("Compression: requested but not negotiated by server")
 			}
 
-			fmt.Println("\n(Full interactive session logic will be implemented in EPIC 04)")
-			fmt.Println("Press Ctrl+C to disconnect...")
+			fmt.Println("\nEnter message to send (Ctrl+C to disconnect):")
+			
+			// Simple interactive loop for manual verification
+			go func() {
+				scanner := bufio.NewScanner(os.Stdin)
+				for scanner.Scan() {
+					text := scanner.Text()
+					if text == "" {
+						continue
+					}
+					msg := &ws.Message{Type: ws.TextMessage, Data: []byte(text)}
+					if err := conn.Write(msg); err != nil {
+						fmt.Printf("\nError sending message: %v\n", err)
+						return
+					}
+				}
+			}()
 
 			// Wait for connection to close or context to be cancelled
 			var closedUnexpectedly bool
@@ -201,6 +223,7 @@ func init() {
 	connectCmd.Flags().DurationVar(&reconnectMax, "reconnect-max", 30*time.Second, "maximum backoff duration for reconnection")
 	connectCmd.Flags().IntVar(&reconnectAttempts, "reconnect-attempts", 0, "maximum number of reconnection attempts (0 for unlimited)")
 	connectCmd.Flags().Int64Var(&maxMessageSize, "max-message-size", 0, "maximum message size in bytes (0 for unlimited)")
+	connectCmd.Flags().IntVarP(&maxFrameSize, "max-frame-size", "f", 0, "maximum frame size for outgoing messages (0 for no fragmentation)")
 	connectCmd.Flags().BoolVar(&compress, "compress", false, "enable per-message-deflate compression")
 	rootCmd.AddCommand(connectCmd)
 }

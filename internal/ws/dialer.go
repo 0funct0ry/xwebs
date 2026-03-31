@@ -79,6 +79,8 @@ func Dial(ctx context.Context, urlStr string, opts ...DialOption) (*Connection, 
 		Subprotocols:      dOpts.Subprotocols,
 		TLSClientConfig:   dOpts.TLSConfig,
 		EnableCompression: dOpts.Compress,
+		ReadBufferSize:    dOpts.ReadBufferSize,
+		WriteBufferSize:   dOpts.WriteBufferSize,
 	}
 
 	if dOpts.ProxyURL != "" {
