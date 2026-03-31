@@ -50,9 +50,14 @@ type Connection struct {
 	_pingInterval  time.Duration
 	_pongWait      time.Duration
 	_verbose       bool
-	_maxMessageSize int64
-	_maxFrameSize   int
+	_maxMessageSize       int64
+	_maxFrameSize         int
 	_compressionRequested bool
+
+	_closeCode    int
+	_closeReason  string
+	_onDisconnect func(code int, reason string)
+	_closing      chan struct{}
 }
 
 // Start launches the read and write loops for the connection.
@@ -62,16 +67,71 @@ func (c *Connection) Start() {
 }
 
 // Close closes the underlying websocket connection and signals the loops to stop.
-func (c *Connection) Close() error {
+// CloseWithCode closes the connection with a specific code and reason gracefully.
+func (c *Connection) CloseWithCode(code int, reason string) error {
 	c._mu.Lock()
-	defer c._mu.Unlock()
 	if c._closed {
+		c._mu.Unlock()
 		return nil
 	}
-	c._closed = true
-	close(c._done)
-	c._closeErr = c.Conn.Close()
+
+	// Check if already closing
+	select {
+	case <-c._closing:
+		c._mu.Unlock()
+		return nil
+	default:
+	}
+
+	c._closeCode = code
+	c._closeReason = reason
+	close(c._closing)
+	
+	if c._verbose {
+		fmt.Fprintf(os.Stderr, "  [ws] initiating graceful close: %d %s\n", code, reason)
+	}
+	c._mu.Unlock()
+
+	// Wait for the done channel to be closed by loops
+	select {
+	case <-c._done:
+	case <-time.After(2 * time.Second): // Timeout for graceful flush
+		if c._verbose {
+			fmt.Fprintf(os.Stderr, "  [ws] graceful close timed out, forcing closure\n")
+		}
+		c.forceClose()
+	}
+	
 	return c._closeErr
+}
+
+// CloseStatus returns the close code and reason for the connection.
+func (c *Connection) CloseStatus() (int, string) {
+	c._mu.Lock()
+	defer c._mu.Unlock()
+	return c._closeCode, c._closeReason
+}
+
+// Close closes the underlying websocket connection gracefully (1000 Normal Closure).
+func (c *Connection) Close() error {
+	return c.CloseWithCode(websocket.CloseNormalClosure, "")
+}
+
+// forceClose performs an immediate, non-graceful closure.
+func (c *Connection) forceClose() {
+	c._mu.Lock()
+	if c._closed {
+		c._mu.Unlock()
+		return
+	}
+	c._closed = true
+	select {
+	case <-c._done:
+	default:
+		close(c._done)
+	}
+	c._closeErr = c.Conn.Close()
+	c._mu.Unlock()
 }
 
 // IsClosed returns true if the connection is closed.
@@ -138,7 +198,32 @@ func (c *Connection) Write(msg *Message) error {
 }
 
 func (c *Connection) readLoop() {
-	defer c.Close()
+	defer func() {
+		c.forceClose()
+		if c._onDisconnect != nil {
+			c._mu.Lock()
+			code := c._closeCode
+			reason := c._closeReason
+			c._mu.Unlock()
+			c._onDisconnect(code, reason)
+		}
+	}()
+
+	c.Conn.SetCloseHandler(func(code int, text string) error {
+		c._mu.Lock()
+		c._closeCode = code
+		c._closeReason = text
+		if c._verbose {
+			fmt.Fprintf(os.Stderr, "  [ws] received close frame from %s: %d %s\n", c.URL, code, text)
+		}
+		c._mu.Unlock()
+		
+		// The default handler sends a close message and returns.
+		// We want to ensure the readLoop gets the error.
+		message := websocket.FormatCloseMessage(code, "")
+		_ = c.Conn.WriteControl(websocket.CloseMessage, message, time.Now().Add(time.Second))
+		return nil
+	})
 
 	if c._pongWait > 0 {
 		if err := c.Conn.SetReadDeadline(time.Now().Add(c._pongWait)); err != nil {
@@ -175,8 +260,18 @@ func (c *Connection) readLoop() {
 		mt, data, err := c.Conn.ReadMessage()
 		if err != nil {
 			c._mu.Lock()
-			if c._lastErr == nil && !c._closed {
+			if c._lastErr == nil {
 				c._lastErr = err
+			}
+			
+			// If we haven't captured a specific close code yet, do it now
+			if ce, ok := err.(*websocket.CloseError); ok {
+				c._closeCode = ce.Code
+				c._closeReason = ce.Text
+			} else if c._closeCode == 1000 && !c._closed {
+				// If it's not a clean close and we didn't initiate closure, it's abnormal
+				c._closeCode = websocket.CloseAbnormalClosure
+				c._closeReason = err.Error()
 			}
 			c._mu.Unlock()
 			return
@@ -208,7 +303,7 @@ func (c *Connection) readLoop() {
 }
 
 func (c *Connection) writeLoop() {
-	defer c.Close()
+	defer c.forceClose()
 
 	var ticker *time.Ticker
 	if c._pingInterval > 0 {
@@ -219,47 +314,8 @@ func (c *Connection) writeLoop() {
 	for {
 		select {
 		case msg := <-c._writeCh:
-			var mt int
-			var typeStr string
-			switch msg.Type {
-			case TextMessage:
-				mt = websocket.TextMessage
-				typeStr = "text"
-			case BinaryMessage:
-				mt = websocket.BinaryMessage
-				typeStr = "binary"
-			case PingMessage:
-				mt = websocket.PingMessage
-				typeStr = "ping"
-			case PongMessage:
-				mt = websocket.PongMessage
-				typeStr = "pong"
-			default:
-				continue
-			}
-
-			if c._verbose {
-				fmt.Fprintf(os.Stderr, "  [ws] sending %s message to %s (%d bytes)\n", typeStr, c.URL, len(msg.Data))
-			}
-
-			if c._maxFrameSize > 0 && (msg.Type == TextMessage || msg.Type == BinaryMessage) && len(msg.Data) > c._maxFrameSize {
-				if err := c.writeFragmented(mt, msg.Data); err != nil {
-					c._mu.Lock()
-					if c._lastErr == nil && !c._closed {
-						c._lastErr = err
-					}
-					c._mu.Unlock()
-					return
-				}
-			} else {
-				if err := c.Conn.WriteMessage(mt, msg.Data); err != nil {
-					c._mu.Lock()
-					if c._lastErr == nil && !c._closed {
-						c._lastErr = err
-					}
-					c._mu.Unlock()
-					return
-				}
+			if err := c.sendMessage(msg); err != nil {
+				return
 			}
 		case <-func() <-chan time.Time {
 			if ticker == nil {
@@ -278,10 +334,74 @@ func (c *Connection) writeLoop() {
 				c._mu.Unlock()
 				return
 			}
+		case <-c._closing:
+			// Flush pending messages
+			for {
+				select {
+				case msg := <-c._writeCh:
+					if err := c.sendMessage(msg); err != nil {
+						return
+					}
+				default:
+					// All messages flushed, send close frame
+					c._mu.Lock()
+					code := c._closeCode
+					reason := c._closeReason
+					c._mu.Unlock()
+
+					if c._verbose {
+						fmt.Fprintf(os.Stderr, "  [ws] sending close frame to %s: %d %s\n", c.URL, code, reason)
+					}
+					_ = c.Conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(code, reason))
+					return
+				}
+			}
 		case <-c._done:
 			return
 		}
 	}
+}
+
+func (c *Connection) sendMessage(msg *Message) error {
+	var mt int
+	var typeStr string
+	switch msg.Type {
+	case TextMessage:
+		mt = websocket.TextMessage
+		typeStr = "text"
+	case BinaryMessage:
+		mt = websocket.BinaryMessage
+		typeStr = "binary"
+	case PingMessage:
+		mt = websocket.PingMessage
+		typeStr = "ping"
+	case PongMessage:
+		mt = websocket.PongMessage
+		typeStr = "pong"
+	default:
+		return nil
+	}
+
+	if c._verbose {
+		fmt.Fprintf(os.Stderr, "  [ws] sending %s message to %s (%d bytes)\n", typeStr, c.URL, len(msg.Data))
+	}
+
+	var err error
+	if c._maxFrameSize > 0 && (msg.Type == TextMessage || msg.Type == BinaryMessage) && len(msg.Data) > c._maxFrameSize {
+		err = c.writeFragmented(mt, msg.Data)
+	} else {
+		err = c.Conn.WriteMessage(mt, msg.Data)
+	}
+
+	if err != nil {
+		c._mu.Lock()
+		if c._lastErr == nil && !c._closed {
+			c._lastErr = err
+		}
+		c._mu.Unlock()
+		return err
+	}
+	return nil
 }
 
 // NewConnection creates a new Connection wrapper with initialized channels.
@@ -310,6 +430,9 @@ func NewConnection(conn *websocket.Conn, url string, resp *http.Response, opts *
 		_maxMessageSize:       opts.MaxMessageSize,
 		_maxFrameSize:         opts.MaxFrameSize,
 		_compressionRequested: opts.Compress,
+		_onDisconnect:         opts.OnDisconnect,
+		_closing:              make(chan struct{}),
+		_closeCode:            1000, // Default to normal closure
 	}
 
 	if c.IsCompressionEnabled() {

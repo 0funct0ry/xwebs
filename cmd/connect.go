@@ -9,6 +9,7 @@ import (
 
 	"github.com/0funct0ry/xwebs/internal/config"
 	"github.com/0funct0ry/xwebs/internal/ws"
+	"github.com/gorilla/websocket"
 	"github.com/spf13/cobra"
 )
 
@@ -107,6 +108,11 @@ Example:
 			ws.WithMaxMessageSize(details.MaxMessageSize),
 			ws.WithMaxFrameSize(details.MaxFrameSize),
 			ws.WithCompression(details.Compress),
+			ws.WithOnDisconnect(func(code int, reason string) {
+				if verbose {
+					fmt.Fprintf(os.Stderr, "\n  [ws] disconnected: code=%d, reason=%q\n", code, reason)
+				}
+			}),
 		}
 
 		if details.Proxy != "" {
@@ -181,16 +187,22 @@ Example:
 			var closedUnexpectedly bool
 			select {
 			case <-conn.Done():
+				code, reason := conn.CloseStatus()
 				if err := conn.Err(); err != nil {
-					fmt.Printf("\nConnection lost: %v\n", err)
-					closedUnexpectedly = true
+					if websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+						fmt.Printf("\nConnection lost: %v (code=%d, reason=%q)\n", err, code, reason)
+						closedUnexpectedly = true
+					} else {
+						fmt.Printf("\nConnection closed: %d %s\n", code, reason)
+						closedUnexpectedly = false
+					}
 				} else {
-					fmt.Println("\nConnection closed by server.")
+					fmt.Printf("\nConnection closed gracefully: %d %s\n", code, reason)
 					closedUnexpectedly = false
 				}
 			case <-cmd.Context().Done():
 				fmt.Println("\nDisconnecting...")
-				conn.Close()
+				_ = conn.Close()
 				return nil
 			}
 

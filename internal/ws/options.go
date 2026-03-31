@@ -27,6 +27,7 @@ type DialOptions struct {
 	MaxMessageSize     int64
 	MaxFrameSize       int
 	Compress           bool
+	OnDisconnect       func(code int, reason string)
 }
 
 // DialOption is a functional option for the Dial function.
@@ -163,5 +164,12 @@ func WithMaxFrameSize(size int) DialOption {
 func WithCompression(compress bool) DialOption {
 	return func(o *DialOptions) {
 		o.Compress = compress
+	}
+}
+
+// WithOnDisconnect sets a callback for when the connection is closed.
+func WithOnDisconnect(handler func(code int, reason string)) DialOption {
+	return func(o *DialOptions) {
+		o.OnDisconnect = handler
 	}
 }
