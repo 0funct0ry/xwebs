@@ -22,6 +22,7 @@ var (
 	logFormat string
 	profile   string
 	proxy     string
+	noShellFunc bool
 )
 
 var validLogLevels = []string{"debug", "info", "warn", "error"}
@@ -39,6 +40,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&logFormat, "log-format", "text", "log format: text, json")
 	rootCmd.PersistentFlags().StringVar(&profile, "profile", "", "profile name for configuration")
 	rootCmd.PersistentFlags().StringVar(&proxy, "proxy", "", "proxy URL (http, https, socks5)")
+	rootCmd.PersistentFlags().BoolVar(&noShellFunc, "no-shell-func", false, "disable dangerous template functions (shell, env, fileRead, etc.)")
 
 	_ = rootCmd.PersistentFlags().MarkDeprecated("toggle", "this flag is no longer used")
 
@@ -98,6 +100,7 @@ func initConfig() {
 	_ = viper.BindPFlag("log-format", rootCmd.PersistentFlags().Lookup("log-format"))
 	_ = viper.BindPFlag("profile", rootCmd.PersistentFlags().Lookup("profile"))
 	_ = viper.BindPFlag("proxy", rootCmd.PersistentFlags().Lookup("proxy"))
+	_ = viper.BindPFlag("no-shell-func", rootCmd.PersistentFlags().Lookup("no-shell-func"))
 
 	// Sync global variables from Viper and update flag defaults for help text
 	syncFlag := func(name string, ptr interface{}) {
@@ -125,6 +128,7 @@ func initConfig() {
 	syncFlag("log-level", &logLevel)
 	syncFlag("log-format", &logFormat)
 	syncFlag("proxy", &proxy)
+	syncFlag("no-shell-func", &noShellFunc)
 }
 
 func validateFlags() error {
@@ -179,6 +183,9 @@ For more information, visit: https://github.com/0funct0ry/xwebs`,
 			}
 			if proxy != "" {
 				fmt.Fprintf(os.Stderr, "  - Proxy:      %s\n", proxy)
+			}
+			if noShellFunc {
+				fmt.Fprintf(os.Stderr, "  - Sandboxed:  %v\n", noShellFunc)
 			}
 			fmt.Fprintf(os.Stderr, "\n")
 		}

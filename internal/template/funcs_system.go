@@ -1,6 +1,7 @@
 package template
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -8,6 +9,25 @@ import (
 )
 
 func (e *Engine) registerSystemFuncs() {
+	if e.sandboxed {
+		disabled := func(name string) func(...interface{}) (interface{}, error) {
+			return func(args ...interface{}) (interface{}, error) {
+				return nil, fmt.Errorf("function %s is disabled in sandbox mode", name)
+			}
+		}
+
+		e.funcs["env"] = disabled("env")
+		e.funcs["shell"] = disabled("shell")
+		e.funcs["hostname"] = disabled("hostname")
+		e.funcs["pid"] = disabled("pid")
+		e.funcs["cwd"] = disabled("cwd")
+		e.funcs["fileRead"] = disabled("fileRead")
+		e.funcs["fileExists"] = disabled("fileExists")
+		e.funcs["glob"] = disabled("glob")
+		e.funcs["tempFile"] = disabled("tempFile")
+		return
+	}
+
 	e.funcs["env"] = func(key string) string {
 		return os.Getenv(key)
 	}

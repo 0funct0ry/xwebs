@@ -335,6 +335,18 @@ The following string manipulation functions are available in templates:
 | `fileRead`   | Reads a file's content                  | `{{ fileRead "config.json" }}`        |
 | `fileExists` | Checks if a file exists                 | `{{ if fileExists "a.txt" }}...{{ end }}` |
 
+> [!NOTE]
+> These functions can be disabled for security using the `--no-shell-func` global flag. See [Template Sandboxing](#template-sandboxing) for details.
+
+#### Template Sandboxing
+
+For security-sensitive environments or when running untrusted configurations, you can enable template sandboxing using the `--no-shell-func` flag (or `XWEBS_NO_SHELL_FUNC=true` environment variable). 
+
+When enabled, the following functions are restricted and will return an error if called:
+- `env`, `shell`, `fileRead`, `fileExists`, `glob`, `hostname`, `pid`, `cwd`, `tempFile`
+
+Safe functions (string manipulation, JSON processing, math, time, encoding, cryptography, etc.) continue to work normally in sandbox mode.
+
 #### ID Functions
 
 | Function  | Description                             | Example                               |
@@ -412,6 +424,7 @@ Global Flags:
   -v, --verbose            enable verbose output
   -q, --quiet              suppress all output except errors
       --proxy string       proxy URL (http, https, socks5)
+      --no-shell-func      disable dangerous template functions (shell, env, fileRead, etc.)
       --color string      color output mode: auto, on, off (default "auto")
       --log-level string   logging level: debug, info, warn, error (default "info")
       --log-format string  log format: text, json (default "text")
@@ -438,6 +451,7 @@ xwebs searches for configuration files in the following order (first found wins)
 | `--log-level`  | `XWEBS_LOG_LEVEL`    |
 | `--log-format` | `XWEBS_LOG_FORMAT`   |
 | `--profile`    | `XWEBS_PROFILE`      |
+| `--no-shell-func` | `XWEBS_NO_SHELL_FUNC` |
 
 ### Named Profiles
 

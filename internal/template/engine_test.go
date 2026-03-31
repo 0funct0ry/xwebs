@@ -7,7 +7,7 @@ import (
 )
 
 func TestEngine_Execute(t *testing.T) {
-	e := New()
+	e := New(false)
 
 	tests := []struct {
 		name    string
@@ -16,6 +16,7 @@ func TestEngine_Execute(t *testing.T) {
 		want    string
 		wantErr bool
 	}{
+		// ... existing tests ...
 		{
 			name: "plain text",
 			tmpl: "hello world",
@@ -249,6 +250,57 @@ func TestEngine_Execute(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Errorf("Engine.Execute() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestEngine_Sandbox(t *testing.T) {
+	e := New(true)
+
+	tests := []struct {
+		name    string
+		tmpl    string
+		data    interface{}
+		wantErr bool
+	}{
+		{
+			name:    "env disabled",
+			tmpl:    "{{env \"USER\"}}",
+			wantErr: true,
+		},
+		{
+			name:    "shell disabled",
+			tmpl:    "{{shell \"whoami\"}}",
+			wantErr: true,
+		},
+		{
+			name:    "fileRead disabled",
+			tmpl:    "{{fileRead \"/etc/passwd\"}}",
+			wantErr: true,
+		},
+		{
+			name:    "hostname disabled",
+			tmpl:    "{{hostname}}",
+			wantErr: true,
+		},
+		{
+			name:    "math works in sandbox",
+			tmpl:    "{{add 1 2}}",
+			wantErr: false,
+		},
+		{
+			name:    "string works in sandbox",
+			tmpl:    "{{upper \"hello\"}}",
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := e.Execute(tt.name, tt.tmpl, tt.data)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Engine.Execute() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}

@@ -14,13 +14,15 @@ import (
 
 // Engine is a wrapper around text/template that provides standard functions.
 type Engine struct {
-	funcs template.FuncMap
+	funcs     template.FuncMap
+	sandboxed bool
 }
 
 // New creates a new template engine with the standard functions registered.
-func New() *Engine {
+func New(sandboxed bool) *Engine {
 	e := &Engine{
-		funcs: make(template.FuncMap),
+		funcs:     make(template.FuncMap),
+		sandboxed: sandboxed,
 	}
 	e.registerStringFuncs()
 	e.registerJSONFuncs()
