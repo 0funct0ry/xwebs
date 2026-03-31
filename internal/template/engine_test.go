@@ -305,3 +305,62 @@ func TestEngine_Sandbox(t *testing.T) {
 		})
 	}
 }
+
+func TestEngine_Context(t *testing.T) {
+	e := New(false)
+
+	ctx := NewContext()
+	ctx.Conn = &ConnectionContext{
+		URL: "ws://example.com",
+		Headers: map[string]string{"X-Test": "Value"},
+	}
+	ctx.Msg = &MessageContext{
+		Type: "text",
+		Data: "hello",
+		Length: 5,
+	}
+
+	tests := []struct {
+		name string
+		tmpl string
+		want string
+	}{
+		{
+			name: "conn url",
+			tmpl: "{{.Conn.URL}}",
+			want: "ws://example.com",
+		},
+		{
+			name: "conn header",
+			tmpl: "{{index .Conn.Headers \"X-Test\"}}",
+			want: "Value",
+		},
+		{
+			name: "msg data",
+			tmpl: "{{.Msg.Data}}",
+			want: "hello",
+		},
+		{
+			name: "session set and get",
+			tmpl: "{{sessionSet \"foo\" \"bar\"}}{{sessionGet \"foo\"}}",
+			want: "bar",
+		},
+		{
+			name: "env access",
+			tmpl: "{{.Env.USER}}",
+			want: os.Getenv("USER"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := e.Execute(tt.name, tt.tmpl, ctx)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/url"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -16,6 +17,7 @@ import (
 type Engine struct {
 	funcs     template.FuncMap
 	sandboxed bool
+	session   map[string]interface{}
 }
 
 // New creates a new template engine with the standard functions registered.
@@ -23,6 +25,7 @@ func New(sandboxed bool) *Engine {
 	e := &Engine{
 		funcs:     make(template.FuncMap),
 		sandboxed: sandboxed,
+		session:   make(map[string]interface{}),
 	}
 	e.registerStringFuncs()
 	e.registerJSONFuncs()
@@ -33,6 +36,7 @@ func New(sandboxed bool) *Engine {
 	e.registerSystemFuncs()
 	e.registerIDFuncs()
 	e.registerCollectionFuncs()
+	e.registerContextFuncs()
 	return e
 }
 
@@ -147,8 +151,44 @@ func (e *Engine) registerStringFuncs() {
 	}
 }
 
+// registerContextFuncs adds session management functions to the engine's function map.
+func (e *Engine) registerContextFuncs() {
+	e.funcs["sessionSet"] = func(key string, value interface{}) string {
+		e.session[key] = value
+		return ""
+	}
+	e.funcs["sessionGet"] = func(key string) interface{} {
+		return e.session[key]
+	}
+	e.funcs["sessionClear"] = func() string {
+		e.session = make(map[string]interface{})
+		return ""
+	}
+}
+
 // Execute renders the template string with the provided data.
 func (e *Engine) Execute(name, text string, data interface{}) (string, error) {
+	// If the data is a TemplateContext, inject the engine's session and environment
+	if ctx, ok := data.(*TemplateContext); ok {
+		if ctx.Session == nil {
+			ctx.Session = make(map[string]interface{})
+		}
+		for k, v := range e.session {
+			ctx.Session[k] = v
+		}
+
+		// Also populate environment variables if not already set
+		if len(ctx.Env) == 0 && !e.sandboxed {
+			ctx.Env = make(map[string]string)
+			for _, env := range os.Environ() {
+				parts := strings.SplitN(env, "=", 2)
+				if len(parts) == 2 {
+					ctx.Env[parts[0]] = parts[1]
+				}
+			}
+		}
+	}
+
 	tmpl, err := template.New(name).Funcs(e.funcs).Parse(text)
 	if err != nil {
 		return "", fmt.Errorf("parsing template %s: %w", name, err)

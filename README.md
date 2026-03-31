@@ -373,10 +373,31 @@ Safe functions (string manipulation, JSON processing, math, time, encoding, cryp
 | `last`     | Returns the last item of a list         | `{{ .list \| last }}`                 |
 | `pluck`    | Extracts a field from a list of maps    | `{{ .users \| pluck "id" }}`          |
 
-Functions can be chained together:
-```text
 {{ .message | trim | upper | truncate 20 }}
 ```
+
+#### Template Context
+
+The root context (`.`) available in templates provides access to connection, message, server, and session data. This context is automatically populated by xwebs.
+
+| Field | Description | Example |
+|-------|-------------|---------|
+| `.Conn` | Connection metadata (URL, subprotocol, headers, etc.) | `{{ .Conn.URL }}` |
+| `.Msg` | Incoming/Outgoing message details (Data, Type, Length) | `{{ .Msg.Length }} bytes` |
+| `.Handler` | Execution results (Stdout, Stderr, ExitCode, Duration) | `{{ .Handler.Duration }}` |
+| `.Server` | Global server metrics (ClientCount, Uptime) | `{{ .Server.Uptime }}` |
+| `.Session` | Persistent key-value store for the current session | `{{ index .Session "id" }}` |
+| `.Env` | Environment variables (if not sandboxed) | `{{ .Env.PATH }}` |
+
+#### Context Management Functions
+
+These functions allow you to interact with the session data dynamically within your templates.
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `sessionSet` | Sets a value in the persistent session store | `{{ sessionSet "user" "admin" }}` |
+| `sessionGet` | Retrieves a value from the session store | `Welcome, {{ sessionGet "user" }}!` |
+| `sessionClear`| Clears all data from the session store | `{{ sessionClear }}` |
 
 Currently, `connect` establishes the connection and reports handshake details. Full interactive REPL support is coming in EPIC 04.
 
