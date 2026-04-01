@@ -214,7 +214,20 @@ func (r *REPL) RegisterClientCommands(cc ClientContext) {
 			if len(args) == 0 {
 				return fmt.Errorf("usage: :connect <url>")
 			}
-			return cc.Dial(ctx, args[0])
+			url := strings.Join(args, " ")
+			if strings.Contains(url, "{{") {
+				engine := cc.GetTemplateEngine()
+				if engine != nil {
+					tmplCtx := template.NewContext()
+					tmplCtx.Session = r.GetVars()
+					evaluated, err := engine.Execute("url", url, tmplCtx)
+					if err != nil {
+						return fmt.Errorf("evaluating URL template: %w", err)
+					}
+					url = evaluated
+				}
+			}
+			return cc.Dial(ctx, url)
 		},
 	})
 

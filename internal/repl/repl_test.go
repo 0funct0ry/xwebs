@@ -142,3 +142,39 @@ func TestREPLCompletion(t *testing.T) {
 		})
 	}
 }
+
+func TestSessionCommands(t *testing.T) {
+	r, _ := New(ClientMode, nil)
+	r.RegisterCommonCommands()
+
+	t.Run("set and get", func(t *testing.T) {
+		err := r.executeCommand(context.Background(), ":set mykey myvalue")
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+		if r.GetVar("mykey") != "myvalue" {
+			t.Errorf("Expected 'myvalue', got %v", r.GetVar("mykey"))
+		}
+
+		err = r.executeCommand(context.Background(), ":get mykey")
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+	})
+
+	t.Run("vars", func(t *testing.T) {
+		r.SetVar("a", "1")
+		r.SetVar("b", "2")
+		err := r.executeCommand(context.Background(), ":vars")
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+	})
+
+	t.Run("env", func(t *testing.T) {
+		err := r.executeCommand(context.Background(), ":env")
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+	})
+}

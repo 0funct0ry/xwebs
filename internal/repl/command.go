@@ -3,6 +3,7 @@ package repl
 import (
 	"context"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 )
@@ -129,8 +130,23 @@ func (r *REPL) RegisterCommonCommands() {
 				keys = append(keys, k)
 			}
 			sort.Strings(keys)
+			r.Printf("\nSession Variables:\n")
 			for _, k := range keys {
 				r.Printf("  %-15s = %v\n", k, vars[k])
+			}
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "env",
+		help: "List all environment variables",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			envs := os.Environ()
+			sort.Strings(envs)
+			r.Printf("\nEnvironment Variables:\n")
+			for _, e := range envs {
+				r.Printf("  %s\n", e)
 			}
 			return nil
 		},

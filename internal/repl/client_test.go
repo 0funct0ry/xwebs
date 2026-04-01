@@ -38,7 +38,9 @@ func (m *mockClientContext) GetTemplateEngine() *template.Engine { return m.tmpl
 
 func TestClientCommands(t *testing.T) {
 	r, _ := New(ClientMode, nil)
-	mcc := &mockClientContext{}
+	mcc := &mockClientContext{
+		tmplEngine: template.New(false),
+	}
 	r.RegisterClientCommands(mcc)
 
 	t.Run("connect command", func(t *testing.T) {
@@ -48,6 +50,17 @@ func TestClientCommands(t *testing.T) {
 		}
 		if mcc.dialURL != "ws://example.com" {
 			t.Errorf("Expected dial URL 'ws://example.com', got %q", mcc.dialURL)
+		}
+	})
+
+	t.Run("connect command with template", func(t *testing.T) {
+		r.SetVar("host", "example.org")
+		err := r.executeCommand(context.Background(), ":connect ws://{{.Session.host}}")
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+		if mcc.dialURL != "ws://example.org" {
+			t.Errorf("Expected dial URL 'ws://example.org', got %q", mcc.dialURL)
 		}
 	})
 

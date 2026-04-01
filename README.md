@@ -117,6 +117,7 @@ When running in a terminal (TTY), `xwebs connect` enters a rich interactive REPL
 | `:set <k> <v>`   | Set a session variable for templates         |
 | `:get <k>`       | Get the value of a session variable          |
 | `:vars`          | List all active session variables            |
+| `:env`           | List all environment variables               |
 | `:clear`         | Clear the terminal screen                    |
 | `:exit`          | Disconnect and quit the application          |
 

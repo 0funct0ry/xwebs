@@ -19,9 +19,14 @@ import (
 )
 
 type connectClientContext struct {
-	conn       *ws.Connection
-	dialChan   chan string
-	tmplEngine *template.Engine
+	conn            *ws.Connection
+	dialChan        chan string
+	tmplEngine      *template.Engine
+	repl            *repl.REPL
+	originalURL     string
+	originalHeaders map[string]string // Key: Template
+	originalAuth    string             // Auth template
+	originalToken   string             // Token template
 }
 
 func (c *connectClientContext) GetConnection() *ws.Connection {
@@ -155,6 +160,31 @@ Example:
 			details.Compress = compress
 		}
 
+		cc := &connectClientContext{
+			dialChan:        make(chan string, 1),
+			tmplEngine:      tmplEngine,
+			originalURL:     target,
+			originalHeaders: make(map[string]string),
+		}
+
+		// Store original header templates
+		for _, h := range customHeaders {
+			parts := strings.SplitN(h, ":", 2)
+			if len(parts) == 2 {
+				key := strings.TrimSpace(parts[0])
+				val := strings.TrimSpace(parts[1])
+				if strings.Contains(val, "{{") {
+					cc.originalHeaders[key] = val
+				}
+			}
+		}
+		if strings.Contains(authToken, "{{") {
+			cc.originalToken = authToken
+		}
+		if strings.Contains(authBasic, "{{") {
+			cc.originalAuth = authBasic
+		}
+
 		header := make(http.Header)
 		if len(details.Headers) > 0 {
 			for k, v := range details.Headers {
@@ -259,10 +289,6 @@ Example:
 			isInteractive = false
 		}
 
-		cc := &connectClientContext{
-			dialChan:   make(chan string, 1),
-			tmplEngine: tmplEngine,
-		}
 		if isInteractive {
 			var err error
 			r, err = repl.New(repl.ClientMode, nil)
@@ -270,6 +296,7 @@ Example:
 				fmt.Fprintf(os.Stderr, "Warning: failed to initialize REPL: %v\n", err)
 				isInteractive = false
 			} else {
+				cc.repl = r
 				r.RegisterCommonCommands()
 				r.RegisterClientCommands(cc)
 				defer r.Close()
@@ -311,6 +338,53 @@ Example:
 		for {
 			var conn *ws.Connection
 			var err error
+
+			// Re-evaluate URL if it's a template
+			if cc.originalURL != "" && strings.Contains(cc.originalURL, "{{") {
+				tmplCtx := template.NewContext()
+				if cc.repl != nil {
+					tmplCtx.Session = cc.repl.GetVars()
+				}
+				if evalURL, err := cc.tmplEngine.Execute("url", cc.originalURL, tmplCtx); err == nil {
+					details.URL = evalURL
+				}
+			}
+
+			// Re-evaluate headers if they are templates
+			for key, tmpl := range cc.originalHeaders {
+				tmplCtx := template.NewContext()
+				if cc.repl != nil {
+					tmplCtx.Session = cc.repl.GetVars()
+				}
+				if evalVal, err := cc.tmplEngine.Execute(key, tmpl, tmplCtx); err == nil {
+					header.Set(key, evalVal)
+				}
+			}
+
+			// Re-evaluate auth templates
+			if cc.originalToken != "" {
+				tmplCtx := template.NewContext()
+				if cc.repl != nil {
+					tmplCtx.Session = cc.repl.GetVars()
+				}
+				if evalVal, err := cc.tmplEngine.Execute("token", cc.originalToken, tmplCtx); err == nil {
+					header.Set("Authorization", "Bearer "+evalVal)
+				}
+			}
+			if cc.originalAuth != "" {
+				tmplCtx := template.NewContext()
+				if cc.repl != nil {
+					tmplCtx.Session = cc.repl.GetVars()
+				}
+				if evalVal, err := cc.tmplEngine.Execute("auth", cc.originalAuth, tmplCtx); err == nil {
+					parts := strings.SplitN(evalVal, ":", 2)
+					if len(parts) == 2 {
+						auth := base64.StdEncoding.EncodeToString([]byte(evalVal))
+						header.Set("Authorization", "Basic "+auth)
+					}
+				}
+			}
+
 			if details.URL != "" {
 				info(r, isInteractive, "Connecting to: %s\n", details.URL)
 				if details.Proxy != "" && reconnectCount == 0 {
