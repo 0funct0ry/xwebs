@@ -48,6 +48,13 @@ func (c *connectClientContext) CloseConnection() error {
 	return nil
 }
 
+func (c *connectClientContext) CloseConnectionWithCode(code int, reason string) error {
+	if c.conn != nil {
+		return c.conn.CloseWithCode(code, reason)
+	}
+	return nil
+}
+
 func (c *connectClientContext) GetTemplateEngine() *template.Engine {
 	return c.tmplEngine
 }
@@ -80,6 +87,8 @@ Example:
   xwebs connect secure-server --cert client.crt --key client.key --ca ca.crt`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		var r *repl.REPL
+		var isInteractive bool
 		target := args[0]
 		tmplEngine := template.New(false) // Not sandboxed for CLI usage
 
@@ -219,7 +228,13 @@ Example:
 			ws.WithCompression(details.Compress),
 			ws.WithOnDisconnect(func(code int, reason string) {
 				if verbose {
-					fmt.Fprintf(os.Stderr, "\n  [ws] disconnected: code=%d, reason=%q\n", code, reason)
+					// Use warn to ensure it goes through the REPL if interactive
+					msg := fmt.Sprintf("  [ws] disconnected: code=%d, reason=%q\n", code, reason)
+					if isInteractive {
+						warn(r, isInteractive, "%s", msg)
+					} else {
+						warn(r, isInteractive, "\n%s", msg)
+					}
 				}
 			}),
 		}
@@ -237,14 +252,13 @@ Example:
 		stat, _ := os.Stdin.Stat()
 		isTerminal := (stat.Mode() & os.ModeCharDevice) != 0
 
-		isInteractive := isTerminal
+		isInteractive = isTerminal
 		if isTerminal && cmd.Flags().Changed("interactive") {
 			isInteractive = interactive
 		} else if !isTerminal {
 			isInteractive = false
 		}
 
-		var r *repl.REPL
 		cc := &connectClientContext{
 			dialChan:   make(chan string, 1),
 			tmplEngine: tmplEngine,

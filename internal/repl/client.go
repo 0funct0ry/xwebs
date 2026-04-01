@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/0funct0ry/xwebs/internal/template"
@@ -18,6 +19,7 @@ type ClientContext interface {
 	SetConnection(conn *ws.Connection)
 	Dial(ctx context.Context, url string) error
 	CloseConnection() error
+	CloseConnectionWithCode(code int, reason string) error
 	GetTemplateEngine() *template.Engine
 }
 
@@ -41,6 +43,13 @@ func (c *DefaultClientContext) Dial(ctx context.Context, url string) error {
 func (c *DefaultClientContext) CloseConnection() error {
 	if c.conn != nil {
 		return c.conn.Close()
+	}
+	return nil
+}
+
+func (c *DefaultClientContext) CloseConnectionWithCode(code int, reason string) error {
+	if c.conn != nil {
+		return c.conn.CloseWithCode(code, reason)
 	}
 	return nil
 }
@@ -105,8 +114,23 @@ func (r *REPL) RegisterClientCommands(cc ClientContext) {
 				return fmt.Errorf("no active connection")
 			}
 
-			// Parse optional code and reason (simplistic version)
-			return conn.Close()
+			code := 1000
+			reason := "Normal Closure"
+
+			if len(args) > 0 {
+				// Try to parse first arg as a code
+				if c, err := strconv.Atoi(args[0]); err == nil {
+					code = c
+					if len(args) > 1 {
+						reason = strings.Join(args[1:], " ")
+					}
+				} else {
+					// Treat all args as reason
+					reason = strings.Join(args, " ")
+				}
+			}
+
+			return cc.CloseConnectionWithCode(code, reason)
 		},
 	})
 

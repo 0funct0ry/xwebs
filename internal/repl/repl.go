@@ -100,12 +100,12 @@ func (r *REPL) Close() error {
 
 // Printf prints a formatted string to the REPL output, ensuring it doesn't break the current prompt.
 func (r *REPL) Printf(format string, args ...interface{}) {
-	fmt.Fprintf(r.rl.Stdout(), format, args...)
+	_, _ = r.rl.Write([]byte(fmt.Sprintf(format, args...)))
 }
 
 // Errorf prints a formatted error string to the REPL stderr.
 func (r *REPL) Errorf(format string, args ...interface{}) {
-	fmt.Fprintf(r.rl.Stderr(), format, args...)
+	_, _ = r.rl.Write([]byte(fmt.Sprintf(format, args...)))
 }
 
 // Run starts the REPL input loop.
