@@ -31,12 +31,11 @@ Every WebSocket tool does one thing: connect and send messages. That's the equiv
 - **Version Info** — Detailed build information with `xwebs version`
 - **Makefile Integration** — Standardized `build`, `test`, `lint`, and `install` targets
 - **CI/CD** — Automated testing and building via GitHub Actions
-- **Interactive Connect** — Robust, shared REPL framework with command history, tab completion, and multi-mode support
-- **REPL Subsystem** — Reusable core for both client (`connect`) and server (`serve`) modes
-- **REPL Commands** — Built-in commands for session management (`:set`, `:vars`), connection status (`:status`), and WebSocket operations (`:ping`, `:close`)
+- **Client Mode & REPL** — Robust, shared REPL framework with command history, tab completion, and multi-mode support
+- **Core REPL Commands** — Built-in commands for session management (`:set`, `:vars`), connection status (`:status`), and WebSocket operations (`:ping`, `:close`, `:send`, `:sendb`, `:sendj`, `:sendt`)
+- **Connection Management** — Dynamic `:connect` and `:reconnect` within the active REPL session
 
 ### On the Roadmap (Planned)
-- **Client Mode** — Full interactive REPL for WebSocket communication
 - **Server Mode** — WebSocket server with handler dispatch and administration REPL
 - **Handler Pipeline** — Bind message patterns to shell commands and actions
 - **Relay & Broadcast** — MITM proxy and pub/sub fan-out modes
@@ -100,18 +99,42 @@ When running in a terminal (TTY), `xwebs connect` enters a rich interactive REPL
 
 **Common REPL Commands:**
 
-| Command        | Description                               |
-|----------------|-------------------------------------------|
-| `:help`        | List all available commands               |
-| `:status`      | Show detailed connection metadata         |
-| `:ping [data]` | Send a WebSocket ping frame               |
-| `:pong [data]` | Send a WebSocket pong frame               |
-| `:close [c][r]`| Send a graceful close frame               |
-| `:set <k> <v>` | Set a session variable for templates      |
-| `:get <k>`     | Get the value of a session variable       |
-| `:vars`        | List all active session variables         |
-| `:clear`       | Clear the terminal screen                 |
-| `:exit`        | Disconnect and quit the application       |
+| Command          | Description                                  |
+|------------------|----------------------------------------------|
+| `:help`          | List all available commands                  |
+| `:status`        | Show detailed connection metadata            |
+| `:send <text>`   | Send a text message (default for bare text)  |
+| `:sendb <hex>`   | Send binary data (hex or `base64:`)          |
+| `:sendj <json>`  | Send validated JSON message                  |
+| `:sendt <tmpl>`  | Send rendered Go template                    |
+| `:ping [data]`   | Send a WebSocket ping frame                  |
+| `:pong [data]`   | Send a WebSocket pong frame                  |
+| `:connect <url>` | Connect to a new URL in the same session     |
+| `:reconnect`     | Force a reconnection to the current URL      |
+| `:close [c][r]`  | Send a graceful close frame                  |
+| `:disconnect`    | Disconnect from the current server           |
+| `:set <k> <v>`   | Set a session variable for templates         |
+| `:get <k>`       | Get the value of a session variable          |
+| `:vars`          | List all active session variables            |
+| `:clear`         | Clear the terminal screen                    |
+| `:exit`          | Disconnect and quit the application          |
+
+**Advanced Sending Examples:**
+
+```text
+# Sending Binary (Hex)
+> :sendb 48656c6c6f
+< Hello
+
+# Sending JSON (Validated)
+> :sendj {"event":"login","id":123}
+< {"status":"ok"}
+
+# Sending Templates (Dynamic)
+> :set user alice
+> :sendt hello {{ .Session.user }}
+< hello alice
+```
 
 **Interactive Session Example:**
 

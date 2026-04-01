@@ -19,7 +19,9 @@ import (
 )
 
 type connectClientContext struct {
-	conn *ws.Connection
+	conn       *ws.Connection
+	dialChan   chan string
+	tmplEngine *template.Engine
 }
 
 func (c *connectClientContext) GetConnection() *ws.Connection {
@@ -28,6 +30,26 @@ func (c *connectClientContext) GetConnection() *ws.Connection {
 
 func (c *connectClientContext) SetConnection(conn *ws.Connection) {
 	c.conn = conn
+}
+
+func (c *connectClientContext) Dial(ctx context.Context, url string) error {
+	select {
+	case c.dialChan <- url:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (c *connectClientContext) CloseConnection() error {
+	if c.conn != nil {
+		return c.conn.Close()
+	}
+	return nil
+}
+
+func (c *connectClientContext) GetTemplateEngine() *template.Engine {
+	return c.tmplEngine
 }
 
 var (
@@ -223,7 +245,10 @@ Example:
 		}
 
 		var r *repl.REPL
-		cc := &connectClientContext{}
+		cc := &connectClientContext{
+			dialChan:   make(chan string, 1),
+			tmplEngine: tmplEngine,
+		}
 		if isInteractive {
 			var err error
 			r, err = repl.New(repl.ClientMode, nil)
@@ -270,138 +295,190 @@ Example:
 
 		reconnectCount := 0
 		for {
-			fmt.Printf("Connecting to: %s\n", details.URL)
-			if details.Proxy != "" && reconnectCount == 0 {
-				fmt.Printf("Proxy: %s\n", details.Proxy)
-			}
-
-			conn, err := ws.Dial(cmd.Context(), details.URL, opts...)
-			if err != nil {
-				if !details.Reconnect {
-					return fmt.Errorf("connection failed: %w", err)
+			var conn *ws.Connection
+			var err error
+			if details.URL != "" {
+				fmt.Printf("Connecting to: %s\n", details.URL)
+				if details.Proxy != "" && reconnectCount == 0 {
+					fmt.Printf("Proxy: %s\n", details.Proxy)
 				}
 
-				if details.ReconnectAttempts > 0 && reconnectCount >= details.ReconnectAttempts {
-					return fmt.Errorf("connection failed after %d attempts: %w", reconnectCount, err)
-				}
-
-				backoff := ws.ExponentialBackoff(details.ReconnectBackoff, details.ReconnectMax, reconnectCount)
-				fmt.Printf("Connection failed: %v. Retrying in %v... (attempt %d)\n", err, backoff, reconnectCount+1)
-
-				select {
-				case <-time.After(backoff):
-					reconnectCount++
-					continue
-				case <-cmd.Context().Done():
-					return nil
-				}
-			}
-
-			cc.SetConnection(conn)
-
-			reconnectCount = 0 // Reset on successful connection
-			fmt.Printf("Successfully connected to %s\n", details.URL)
-			if conn.NegotiatedSubprotocol != "" {
-				fmt.Printf("Subprotocol: %s\n", conn.NegotiatedSubprotocol)
-			}
-			if conn.IsCompressionEnabled() {
-				fmt.Println("Compression: permessage-deflate")
-			}
-
-			// Message reader goroutine to display incoming messages
-			readDone := make(chan struct{})
-			go func() {
-				defer close(readDone)
-				for {
-					msg, ok := <-conn.Read()
-					if !ok {
-						return
-					}
-					switch msg.Type {
-					case ws.TextMessage:
-						if isInteractive {
-							r.Printf("< %s\n", string(msg.Data))
-						} else {
-							fmt.Printf("%s\n", string(msg.Data))
+				conn, err = ws.Dial(cmd.Context(), details.URL, opts...)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Connection failed: %v\n", err)
+					if !details.Reconnect || (details.ReconnectAttempts > 0 && reconnectCount >= details.ReconnectAttempts) {
+						if !isInteractive {
+							return fmt.Errorf("connection failed: %w", err)
 						}
-					case ws.BinaryMessage:
-						if isInteractive {
-							r.Printf("< [binary message, %d bytes]\n", len(msg.Data))
-						} else {
-							fmt.Printf("[binary message, %d bytes]\n", len(msg.Data))
+						// In interactive mode, we don't exit, we wait for manual retry
+						fmt.Println("Use :connect <url> or :reconnect to try again.")
+						conn = nil // ensure it's nil
+					} else {
+						backoff := ws.ExponentialBackoff(details.ReconnectBackoff, details.ReconnectMax, reconnectCount)
+						fmt.Printf("Retrying in %v... (attempt %d)\n", backoff, reconnectCount+1)
+						select {
+						case <-time.After(backoff):
+							reconnectCount++
+							continue
+						case newURL := <-cc.dialChan:
+							if newURL != "" {
+								details.URL = newURL
+							}
+							reconnectCount = 0
+							continue
+						case <-cmd.Context().Done():
+							return nil
 						}
 					}
 				}
-			}()
+			}
 
-			// Sender goroutine taking input from the singleton input loop
-			sendDone := make(chan struct{})
-			go func() {
-				defer close(sendDone)
-				for {
-					select {
-					case text, ok := <-inputChan:
+			if conn != nil {
+				cc.SetConnection(conn)
+				reconnectCount = 0 // Reset on successful connection
+				fmt.Printf("Successfully connected to %s\n", details.URL)
+				if conn.NegotiatedSubprotocol != "" {
+					fmt.Printf("Subprotocol: %s\n", conn.NegotiatedSubprotocol)
+				}
+				if conn.IsCompressionEnabled() {
+					fmt.Println("Compression: permessage-deflate")
+				}
+
+				// Message reader goroutine to display incoming messages
+				readDone := make(chan struct{})
+				go func() {
+					defer close(readDone)
+					for {
+						msg, ok := <-conn.Read()
 						if !ok {
 							return
 						}
-						msg := &ws.Message{Type: ws.TextMessage, Data: []byte(text)}
-						if err := conn.Write(msg); err != nil {
+						switch msg.Type {
+						case ws.TextMessage:
 							if isInteractive {
-								r.Errorf("\nError sending message: %v\n", err)
+								r.Printf("< %s\n", string(msg.Data))
 							} else {
-								fmt.Fprintf(os.Stderr, "\nError sending message: %v\n", err)
+								fmt.Printf("%s\n", string(msg.Data))
 							}
+						case ws.BinaryMessage:
+							if isInteractive {
+								r.Printf("< [binary: %x] (%d bytes)\n", msg.Data, len(msg.Data))
+							} else {
+								fmt.Printf("[binary: %x] (%d bytes)\n", msg.Data, len(msg.Data))
+							}
+						}
+					}
+				}()
+
+				// Sender goroutine taking input from the singleton input loop
+				sendDone := make(chan struct{})
+				go func() {
+					defer close(sendDone)
+					for {
+						select {
+						case text, ok := <-inputChan:
+							if !ok {
+								return
+							}
+							msg := &ws.Message{Type: ws.TextMessage, Data: []byte(text)}
+							if err := conn.Write(msg); err != nil {
+								if isInteractive {
+									r.Errorf("\nError sending message: %v\n", err)
+								} else {
+									fmt.Fprintf(os.Stderr, "\nError sending message: %v\n", err)
+								}
+								return
+							}
+						case <-conn.Done():
 							return
 						}
-					case <-conn.Done():
-						return
 					}
-				}
-			}()
+				}()
 
-			// Wait for connection to close, context to be cancelled, or input to finish
-			var closedUnexpectedly bool
-			select {
-			case <-sendDone:
-				// If we are not in a TTY, give a small grace period for the last echo
-				if !isTerminal {
-					time.Sleep(1 * time.Second)
-				}
-				_ = conn.Close()
-				// Wait for the reader to finish processing all messages
-				<-readDone
-				return nil
-			case <-conn.Done():
-				code, reason := conn.CloseStatus()
-				if err := conn.Err(); err != nil {
-					if websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-						fmt.Printf("\nConnection lost: %v (code=%d, reason=%q)\n", err, code, reason)
-						closedUnexpectedly = true
+				// Wait for connection to close, context to be cancelled, or manual dial
+				var closedUnexpectedly bool
+				var forcedDial bool
+				select {
+				case <-sendDone:
+					// REPL exited via :exit
+					if !isTerminal {
+						time.Sleep(1 * time.Second)
+					}
+					_ = conn.Close()
+					<-readDone
+					return nil
+				case newURL := <-cc.dialChan:
+					if newURL != "" {
+						details.URL = newURL
+					}
+					forcedDial = true
+					_ = conn.Close()
+				case <-conn.Done():
+					code, reason := conn.CloseStatus()
+					if err := conn.Err(); err != nil {
+						if websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+							fmt.Printf("\nConnection lost: %v (code=%d, reason=%q)\n", err, code, reason)
+							closedUnexpectedly = true
+						} else {
+							fmt.Printf("\nConnection closed: %d %s\n", code, reason)
+							closedUnexpectedly = false
+						}
 					} else {
-						fmt.Printf("\nConnection closed: %d %s\n", code, reason)
+						fmt.Printf("\nConnection closed gracefully: %d %s\n", code, reason)
 						closedUnexpectedly = false
 					}
-				} else {
-					fmt.Printf("\nConnection closed gracefully: %d %s\n", code, reason)
-					closedUnexpectedly = false
+				case <-cmd.Context().Done():
+					fmt.Println("\nDisconnecting...")
+					_ = conn.Close()
+					return nil
 				}
-			case <-cmd.Context().Done():
-				fmt.Println("\nDisconnecting...")
-				_ = conn.Close()
-				return nil
+
+				cc.SetConnection(nil)
+				if forcedDial {
+					reconnectCount = 0
+					continue
+				}
+
+				if details.Reconnect && closedUnexpectedly {
+					backoff := ws.ExponentialBackoff(details.ReconnectBackoff, details.ReconnectMax, 0)
+					fmt.Printf("Attempting to reconnect in %v...\n", backoff)
+					select {
+					case <-time.After(backoff):
+						continue
+					case newURL := <-cc.dialChan:
+						if newURL != "" {
+							details.URL = newURL
+						}
+						reconnectCount = 0
+						continue
+					case <-cmd.Context().Done():
+						return nil
+					}
+				}
 			}
 
-			if details.Reconnect && closedUnexpectedly {
-				backoff := ws.ExponentialBackoff(details.ReconnectBackoff, details.ReconnectMax, 0)
-				fmt.Printf("Attempting to reconnect in %v...\n", backoff)
+			// Idle state or manually disconnected: wait for new dial or exit
+			if isInteractive {
+				fmt.Println("\nEnter :connect <url> or :reconnect to start a new session (or :exit to quit)")
 				select {
-				case <-time.After(backoff):
+				case newURL := <-cc.dialChan:
+					if newURL != "" {
+						details.URL = newURL
+					}
+					reconnectCount = 0
 					continue
 				case <-cmd.Context().Done():
 					return nil
+				case <-inputChan:
+					// This case handles bare input when disconnected - we just ignore it
+					// but we need to read it from inputChan so it doesn't block the REPL
+					fmt.Println("No active connection. Use :connect <url> or :reconnect.")
+					continue
 				}
+			} else {
+				// Non-interactive exits if connection is closed and no reconnect happened
+				break
 			}
-			break
 		}
 		return nil
 	},
