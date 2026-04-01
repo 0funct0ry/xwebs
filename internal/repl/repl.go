@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/0funct0ry/xwebs/internal/template"
+	"github.com/0funct0ry/xwebs/internal/ws"
 	"github.com/chzyer/readline"
 )
 
@@ -40,6 +42,12 @@ type REPL struct {
 	completionData map[string][]string
 
 	onInput func(ctx context.Context, text string) error
+	
+	// TemplateEngine is used for :format template
+	TemplateEngine *template.Engine
+
+	// Display handles message output and filtering
+	Display *FormattingState
 
 	done chan struct{}
 }
@@ -108,6 +116,7 @@ func New(mode Mode, cfg *Config) (*REPL, error) {
 		return nil, fmt.Errorf("initializing readline: %w", err)
 	}
 	r.rl = rl
+	r.Display = NewFormattingState()
 
 	return r, nil
 }
@@ -136,6 +145,21 @@ func (r *REPL) Printf(format string, args ...interface{}) {
 // Errorf prints a formatted error string to the REPL stderr.
 func (r *REPL) Errorf(format string, args ...interface{}) {
 	_, _ = r.rl.Write([]byte(fmt.Sprintf(format, args...)))
+}
+
+// Notify prints a notification (e.g. connection event) if quiet mode is not active.
+func (r *REPL) Notify(format string, args ...interface{}) {
+	if !r.Display.Quiet {
+		r.Printf(format, args...)
+	}
+}
+
+// PrintMessage formats and prints a WebSocket message if filtering allows.
+func (r *REPL) PrintMessage(msg *ws.Message) {
+	formatted, ok := r.Display.FormatMessage(msg, r.GetVars(), r.TemplateEngine)
+	if ok {
+		r.Printf("%s\n", formatted)
+	}
 }
 
 // Run starts the REPL input loop.

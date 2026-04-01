@@ -27,8 +27,22 @@ const (
 
 // Message represents a WebSocket message.
 type Message struct {
-	Type MessageType
-	Data []byte
+	Type     MessageType
+	Data     []byte
+	Metadata MessageMetadata
+}
+
+// MessageMetadata contains frame-level information and transport context.
+type MessageMetadata struct {
+	ID           string
+	Timestamp    time.Time
+	Direction    string // "sent" or "received"
+	Opcode       int
+	Length       int
+	Compressed   bool
+	Masked       bool
+	MessageIndex uint64
+	URL          string
 }
 
 // Connection wraps a gorilla websocket connection with additional metadata and lifecycle management.
@@ -38,14 +52,18 @@ type Connection struct {
 	NegotiatedSubprotocol string
 	HandshakeResponse     *http.Response
 
-	_readCh  chan *Message
+	_readCh chan *Message
 	_writeCh chan *Message
 	_done    chan struct{}
+	
+	ID string // Unique connection ID
 
 	_mu       sync.Mutex
 	_closed   bool
 	_lastErr  error
 	_closeErr error
+	
+	_msgCount uint64 // Internal counter for messages
 
 	_pingInterval         time.Duration
 	_pongWait             time.Duration
@@ -307,8 +325,29 @@ func (c *Connection) readLoop() {
 			fmt.Fprintf(os.Stderr, "  [ws] received %s message from %s (%d bytes)\n", typeStr, c.URL, len(data))
 		}
 
+		c._mu.Lock()
+		c._msgCount++
+		count := c._msgCount
+		c._mu.Unlock()
+
+		msg := &Message{
+			Type: msgType,
+			Data: data,
+			Metadata: MessageMetadata{
+				ID:           c.ID,
+				Timestamp:    time.Now(),
+				Direction:    "received",
+				Opcode:     mt,
+				Length:     len(data),
+				Compressed: c.IsCompressionEnabled(),
+				Masked:     false,
+				MessageIndex: count,
+				URL:          c.URL,
+			},
+		}
+
 		select {
-		case c._readCh <- &Message{Type: msgType, Data: data}:
+		case c._readCh <- msg:
 		case <-c._done:
 			return
 		}
@@ -414,6 +453,25 @@ func (c *Connection) sendMessage(msg *Message) error {
 		c._mu.Unlock()
 		return err
 	}
+
+	// Populate metadata for sent messages (echo)
+	c._mu.Lock()
+	c._msgCount++
+	count := c._msgCount
+	c._mu.Unlock()
+
+	msg.Metadata = MessageMetadata{
+		ID:           c.ID,
+		Timestamp:    time.Now(),
+		Direction:    "sent",
+		Opcode:     mt,
+		Length:     len(msg.Data),
+		Compressed: c.IsCompressionEnabled(),
+		Masked:     true,
+		MessageIndex: count,
+		URL:          c.URL,
+	}
+
 	return nil
 }
 
@@ -446,6 +504,7 @@ func NewConnection(conn *websocket.Conn, url string, resp *http.Response, opts *
 		_onDisconnect:         opts.OnDisconnect,
 		_closing:              make(chan struct{}),
 		_closeCode:            1000, // Default to normal closure
+		ID:                    fmt.Sprintf("conn-%d", time.Now().UnixNano()), // Simple unique ID
 	}
 
 	if c.IsCompressionEnabled() {

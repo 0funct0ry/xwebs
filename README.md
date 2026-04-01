@@ -35,6 +35,7 @@ Every WebSocket tool does one thing: connect and send messages. That's the equiv
 - **Core REPL Commands** — Built-in commands for session management (`:set`, `:vars`), connection status (`:status`), and WebSocket operations (`:ping`, `:pong`, `:close`, `:send`, `:sendb`, `:sendj`, `:sendt`)
 - **Ping/Pong Observability** — Send and receive WebSocket control frames (ping/pong) with text or binary payloads, visible in the REPL session
 - **Connection Management** — Dynamic `:connect` and `:reconnect` within the active REPL session
+- **Output Formatting & Filtering** — Flexible display options including JSON pretty-printing, hex dumps, and `jq` or Regex message filters
 
 ### On the Roadmap (Planned)
 - **Server Mode** — WebSocket server with handler dispatch and administration REPL
@@ -120,7 +121,13 @@ When running in a terminal (TTY), `xwebs connect` enters a rich interactive REPL
 | :env           | List all environment variables               |
 | :clear         | Clear the terminal screen                    |
 | :history [n]    | Display last N command history               |
-| :exit          | Disconnect and quit the application          |
+| :exit            | Disconnect and quit the application          |
+| `:format <type>` | Set display format: `json`, `raw`, `hex`, `template` |
+| `:filter <expr>` | Set a display filter (`.jq`, `/regex/`, or `off`) |
+| `:quiet`         | Toggle non-message output suppression        |
+| `:verbose`       | Toggle frame-level metadata display          |
+| `:timestamps`    | Toggle ISO 8601 message timestamps           |
+| `:color <mode>`  | Set coloring mode: `on`, `off`, `auto`       |
 
 **Advanced Sending Examples:**
 
@@ -168,6 +175,47 @@ echo "{\"hello\": \"world\"}" | xwebs connect wss://echo.websocket.org
 
 # Force non-interactive mode explicitly in a TTY
 xwebs connect wss://api.example.com --interactive=false
+
+# JSONL output for machine-readable streams
+xwebs connect wss://echo.websocket.org --format jsonl
+```
+
+### Output Formatting & Filtering
+
+`xwebs` provides advanced control over how messages are displayed in your terminal. This is purely a display concern and does not affect the data sent or received.
+
+**Formatting Examples:**
+
+```text
+# Enable JSON pretty-printing for all incoming messages
+> :format json
+
+# Use a custom Go template for display
+# Available: .Message, .MessageType, .Timestamp, .Direction, etc.
+> :format template [{{ .Timestamp }}] {{ .Direction }} >> {{ .Message }}
+
+# Toggle frame-level metadata (Opcode, Length, Compression)
+> :verbose
+```
+
+**Filtering Examples:**
+
+```text
+# Show only messages where the 'event' field is 'update'
+> :filter .event == "update"
+
+# Show only messages containing the word "ERROR" (regex)
+> :filter /ERROR/
+
+# Clear the filter
+> :filter off
+```
+
+**Non-Interactive Formatting:**
+
+```bash
+# Filter and format incoming messages in a pipe
+xwebs connect wss://api.example.com --filter '.status == "healthy"' --format json
 ```
 
 # With custom subprotocols

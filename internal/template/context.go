@@ -45,6 +45,15 @@ type TemplateContext struct {
 	Server  *ServerContext         `json:"server,omitempty"`
 	Session map[string]interface{} `json:"session"`
 	Env     map[string]string      `json:"env"`
+
+	// Convenience fields for common operations (mirrors some values in Msg)
+	Message      string    `json:"message,omitempty"`
+	MessageBytes []byte    `json:"message_bytes,omitempty"`
+	MessageLen   int       `json:"message_len,omitempty"`
+	MessageType  string    `json:"message_type,omitempty"`
+	MessageIndex uint64    `json:"message_index,omitempty"`
+	Timestamp    time.Time `json:"timestamp,omitempty"`
+	Direction    string    `json:"direction,omitempty"`
 }
 
 // NewContext creates a new TemplateContext with initialized maps.

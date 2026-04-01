@@ -80,6 +80,9 @@ var (
 	authToken         string
 	authBasic         string
 	interactive       bool
+	formatStr         string
+	filterStr         string
+	timestamps        bool
 )
 
 var connectCmd = &cobra.Command{
@@ -306,6 +309,7 @@ Example:
 				isInteractive = false
 			} else {
 				cc.repl = r
+				r.TemplateEngine = tmplEngine
 				r.RegisterCommonCommands()
 				r.RegisterClientCommands(cc)
 
@@ -324,6 +328,18 @@ Example:
 
 				// Populate template functions for completion
 				r.SetCompletionData("template_funcs", tmplEngine.FuncNames())
+
+				// Initialize Display state from flags/config
+				r.Display.Format = repl.DisplayFormat(formatStr)
+				r.Display.Quiet = quiet
+				r.Display.Verbose = verbose
+				r.Display.Timestamps = timestamps
+				r.Display.Color = color
+				if filterStr != "" {
+					if err := r.Display.SetFilter(filterStr); err != nil {
+						fmt.Fprintf(os.Stderr, "Warning: invalid initial filter: %v\n", err)
+					}
+				}
 
 				defer r.Close()
 			}
@@ -462,17 +478,32 @@ Example:
 				readDone := make(chan struct{})
 				go func() {
 					defer close(readDone)
+					
+					var fs *repl.FormattingState
+					if !isInteractive {
+						fs = repl.NewFormattingState()
+						fs.Format = repl.DisplayFormat(formatStr)
+						fs.Quiet = quiet
+						fs.Verbose = verbose
+						fs.Timestamps = timestamps
+						fs.Color = color
+						if filterStr != "" {
+							_ = fs.SetFilter(filterStr)
+						}
+					}
+
 					for {
 						msg, ok := <-conn.Read()
 						if !ok {
 							return
 						}
-						switch msg.Type {
-						case ws.TextMessage:
-							info(r, isInteractive, "< %s\n", string(msg.Data))
-
+						
+						// Use REPL's centralized printing logic
+						if isInteractive && r != nil {
+							r.PrintMessage(msg)
+							
 							// If interactive, try to extract JSON keys for completion
-							if isInteractive && r != nil {
+							if msg.Type == ws.TextMessage {
 								var data interface{}
 								if err := json.Unmarshal(msg.Data, &data); err == nil {
 									keys := ExtractJSONKeys(data, "")
@@ -481,21 +512,22 @@ Example:
 									}
 								}
 							}
-						case ws.BinaryMessage:
-							info(r, isInteractive, "< [binary: %x] (%d bytes)\n", msg.Data, len(msg.Data))
-						case ws.PingMessage:
-							p := formatPayload(msg.Data)
-							if isInteractive {
-								r.Printf("< [ping] (%d bytes) %s\n", len(msg.Data), p)
+						} else if fs != nil {
+							// Non-interactive mode (pipeline) with formatting
+							if formatStr == "jsonl" {
+								// Special case for machine-readable output
+								output, _ := json.Marshal(msg)
+								fmt.Println(string(output))
 							} else {
-								fmt.Printf("[ping] (%d bytes) %s\n", len(msg.Data), p)
+								formatted, ok := fs.FormatMessage(msg, nil, cc.tmplEngine)
+								if ok {
+									fmt.Println(formatted)
+								}
 							}
-						case ws.PongMessage:
-							p := formatPayload(msg.Data)
-							if isInteractive {
-								r.Printf("< [pong] (%d bytes) %s\n", len(msg.Data), p)
-							} else {
-								fmt.Printf("[pong] (%d bytes) %s\n", len(msg.Data), p)
+						} else {
+							// Fallback if neither interactive nor fs initialized
+							if !quiet || (msg.Type != ws.PingMessage && msg.Type != ws.PongMessage) {
+								fmt.Printf("< %s\n", string(msg.Data))
 							}
 						}
 					}
@@ -634,6 +666,9 @@ func init() {
 	connectCmd.Flags().StringVar(&authToken, "token", "", "bearer token for authentication")
 	connectCmd.Flags().StringVar(&authBasic, "auth", "", "basic auth credentials (user:pass)")
 	connectCmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "enable interactive REPL mode (default: auto-detect TTY)")
+	connectCmd.Flags().StringVar(&formatStr, "format", "raw", "initial message display format: json, raw, hex, template")
+	connectCmd.Flags().StringVar(&filterStr, "filter", "", "initial display filter (JQ or /regex/)")
+	connectCmd.Flags().BoolVar(&timestamps, "timestamps", false, "display message timestamps")
 	rootCmd.AddCommand(connectCmd)
 }
 
@@ -645,31 +680,19 @@ var (
 	caFile       string
 )
 
-func formatPayload(data []byte) string {
-	if len(data) == 0 {
-		return ""
-	}
-	// Simple printable ASCII check
-	for _, b := range data {
-		if b < 32 || b > 126 {
-			return fmt.Sprintf("[hex: %x]", data)
-		}
-	}
-	return string(data)
-}
 
 func info(r *repl.REPL, isInteractive bool, format string, args ...interface{}) {
 	if isInteractive && r != nil {
-		r.Printf(format, args...)
-	} else {
+		r.Notify(format, args...)
+	} else if !quiet {
 		fmt.Printf(format, args...)
 	}
 }
 
 func infoln(r *repl.REPL, isInteractive bool, text string) {
 	if isInteractive && r != nil {
-		r.Printf("%s\n", text)
-	} else {
+		r.Notify("%s\n", text)
+	} else if !quiet {
 		fmt.Println(text)
 	}
 }

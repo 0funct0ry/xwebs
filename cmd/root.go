@@ -87,7 +87,7 @@ func initConfig() {
 		}
 	}
 
-	if viper.ConfigFileUsed() != "" {
+	if viper.ConfigFileUsed() != "" && !quiet {
 		fmt.Fprintf(os.Stderr, "Using config file: %s\n", viper.ConfigFileUsed())
 	}
 
