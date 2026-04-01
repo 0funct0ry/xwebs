@@ -117,9 +117,10 @@ When running in a terminal (TTY), `xwebs connect` enters a rich interactive REPL
 | `:set <k> <v>`   | Set a session variable for templates         |
 | `:get <k>`       | Get the value of a session variable          |
 | `:vars`          | List all active session variables            |
-| `:env`           | List all environment variables               |
-| `:clear`         | Clear the terminal screen                    |
-| `:exit`          | Disconnect and quit the application          |
+| :env           | List all environment variables               |
+| :clear         | Clear the terminal screen                    |
+| :history [n]    | Display last N command history               |
+| :exit          | Disconnect and quit the application          |
 
 **Advanced Sending Examples:**
 
@@ -577,6 +578,24 @@ xwebs searches for configuration files in the following order (first found wins)
 | `--log-format`    | `XWEBS_LOG_FORMAT`    |
 | `--profile`       | `XWEBS_PROFILE`       |
 | `--no-shell-func` | `XWEBS_NO_SHELL_FUNC` |
+
+### REPL Configuration
+
+The REPL supports persistent command history, reverse-i-search (Ctrl+R), and configurable limits.
+
+Example configuration in `~/.xwebs.yaml`:
+
+```yaml
+repl:
+  history-file: "~/.xwebs_history"
+  history-limit: 1000
+```
+
+**History Features:**
+- **Persistence**: Commands are saved across sessions to the configured `history-file`.
+- **Search**: Use `Ctrl+R` in the REPL to search through previous commands.
+- **Navigation**: Use Up/Down arrows to navigate command history.
+- **Manual Inspection**: Use the `:history [n]` command to view the last `n` entries.
 
 ### Named Profiles
 

@@ -28,10 +28,17 @@ type Bookmark struct {
 	Compress          bool          `mapstructure:"compress"`
 }
 
+// REPLConfig defines configuration for the interactive shell.
+type REPLConfig struct {
+	HistoryFile  string `mapstructure:"history-file"`
+	HistoryLimit int    `mapstructure:"history-limit"`
+}
+
 // AppConfig represents the root configuration structure for aliases and bookmarks.
 type AppConfig struct {
 	Aliases   map[string]string   `mapstructure:"aliases"`
 	Bookmarks map[string]Bookmark `mapstructure:"bookmarks"`
+	REPL      REPLConfig          `mapstructure:"repl"`
 }
 
 // ConnDetails contains all information needed to establish a connection.

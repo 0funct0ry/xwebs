@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -42,6 +44,7 @@ type REPL struct {
 type Config struct {
 	Prompt          string
 	HistoryFile     string
+	HistoryLimit    int
 	InterruptPrompt string
 	EOFPrompt       string
 }
@@ -49,11 +52,32 @@ type Config struct {
 // New creates a new REPL instance.
 func New(mode Mode, cfg *Config) (*REPL, error) {
 	if cfg == nil {
-		cfg = &Config{
-			Prompt:          "> ",
-			InterruptPrompt: "^C\n",
-			EOFPrompt:       "exit",
+		cfg = &Config{}
+	}
+	if cfg.Prompt == "" {
+		cfg.Prompt = "> "
+	}
+	if cfg.InterruptPrompt == "" {
+		cfg.InterruptPrompt = "^C\n"
+	}
+	if cfg.EOFPrompt == "" {
+		cfg.EOFPrompt = "exit"
+	}
+
+	if cfg.HistoryFile == "" {
+		home, _ := os.UserHomeDir()
+		if home != "" {
+			cfg.HistoryFile = filepath.Join(home, ".xwebs_history")
 		}
+	} else if strings.HasPrefix(cfg.HistoryFile, "~") {
+		home, _ := os.UserHomeDir()
+		if home != "" {
+			cfg.HistoryFile = filepath.Join(home, strings.TrimPrefix(cfg.HistoryFile, "~"))
+		}
+	}
+
+	if cfg.HistoryLimit <= 0 {
+		cfg.HistoryLimit = 1000 // Default limit
 	}
 
 	rlConfig := &readline.Config{
@@ -61,6 +85,7 @@ func New(mode Mode, cfg *Config) (*REPL, error) {
 		InterruptPrompt: cfg.InterruptPrompt,
 		EOFPrompt:       cfg.EOFPrompt,
 		HistoryFile:     cfg.HistoryFile,
+		HistoryLimit:    cfg.HistoryLimit,
 	}
 
 	r := &REPL{

@@ -16,6 +16,7 @@ import (
 	"github.com/0funct0ry/xwebs/internal/ws"
 	"github.com/gorilla/websocket"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 type connectClientContext struct {
@@ -291,7 +292,14 @@ Example:
 
 		if isInteractive {
 			var err error
-			r, err = repl.New(repl.ClientMode, nil)
+			cfg := &repl.Config{}
+			var appCfg config.AppConfig
+			if err := viper.Unmarshal(&appCfg); err == nil {
+				cfg.HistoryFile = appCfg.REPL.HistoryFile
+				cfg.HistoryLimit = appCfg.REPL.HistoryLimit
+			}
+
+			r, err = repl.New(repl.ClientMode, cfg)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to initialize REPL: %v\n", err)
 				isInteractive = false

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -147,6 +148,52 @@ func (r *REPL) RegisterCommonCommands() {
 			r.Printf("\nEnvironment Variables:\n")
 			for _, e := range envs {
 				r.Printf("  %s\n", e)
+			}
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "history",
+		help: "Display command history: :history [n]",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if r.config.HistoryFile == "" {
+				return fmt.Errorf("history is not enabled (no history file configured)")
+			}
+
+			data, err := os.ReadFile(r.config.HistoryFile)
+			if err != nil {
+				if os.IsNotExist(err) {
+					r.Printf("No history found.\n")
+					return nil
+				}
+				return fmt.Errorf("reading history file: %w", err)
+			}
+
+			lines := strings.Split(string(data), "\n")
+			// Filter empty lines
+			var history []string
+			for _, line := range lines {
+				if strings.TrimSpace(line) != "" {
+					history = append(history, line)
+				}
+			}
+
+			n := 20 // Default to last 20
+			if len(args) > 0 {
+				if val, err := strconv.Atoi(args[0]); err == nil {
+					n = val
+				}
+			}
+
+			if n > len(history) {
+				n = len(history)
+			}
+
+			start := len(history) - n
+			r.Printf("\nCommand History (last %d):\n", n)
+			for i := start; i < len(history); i++ {
+				r.Printf("  %4d  %s\n", i+1, history[i])
 			}
 			return nil
 		},
