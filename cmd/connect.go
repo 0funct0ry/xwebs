@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"net/http"
@@ -9,14 +10,25 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chzyer/readline"
-
 	"github.com/0funct0ry/xwebs/internal/config"
+	"github.com/0funct0ry/xwebs/internal/repl"
 	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/0funct0ry/xwebs/internal/ws"
 	"github.com/gorilla/websocket"
 	"github.com/spf13/cobra"
 )
+
+type connectClientContext struct {
+	conn *ws.Connection
+}
+
+func (c *connectClientContext) GetConnection() *ws.Connection {
+	return c.conn
+}
+
+func (c *connectClientContext) SetConnection(conn *ws.Connection) {
+	c.conn = conn
+}
 
 var (
 	pingInterval      time.Duration
@@ -210,51 +222,41 @@ Example:
 			isInteractive = false
 		}
 
-		var rl *readline.Instance
+		var r *repl.REPL
+		cc := &connectClientContext{}
 		if isInteractive {
-			config := &readline.Config{
-				Prompt:          "> ",
-				InterruptPrompt: "^C\n",
-				EOFPrompt:       "exit",
-			}
 			var err error
-			rl, err = readline.NewEx(config)
+			r, err = repl.New(repl.ClientMode, nil)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to initialize readline: %v\n", err)
+				fmt.Fprintf(os.Stderr, "Warning: failed to initialize REPL: %v\n", err)
 				isInteractive = false
 			} else {
-				defer rl.Close()
+				r.RegisterCommonCommands()
+				r.RegisterClientCommands(cc)
+				defer r.Close()
 			}
 		}
 
-		if isTerminal {
+		if isTerminal && !isInteractive {
 			fmt.Println("\nEnter message to send (Ctrl+C to disconnect):")
 		}
 
 		// Start the input reader exactly once
 		inputChan := make(chan string)
 		inputErrChan := make(chan error, 1)
-		go func() {
-			if isInteractive {
-				for {
-					line, err := rl.Readline()
-					if err != nil { // EOF or Ctrl-C
-						if err == readline.ErrInterrupt {
-							if len(line) == 0 {
-								break
-							} else {
-								continue
-							}
-						}
-						break
-					}
-					line = strings.TrimSpace(line)
-					if line == "" {
-						continue
-					}
-					inputChan <- line
+		if isInteractive {
+			r.SetOnInput(func(ctx context.Context, text string) error {
+				inputChan <- text
+				return nil
+			})
+			go func() {
+				if err := r.Run(cmd.Context()); err != nil {
+					inputErrChan <- err
 				}
-			} else {
+				close(inputChan)
+			}()
+		} else {
+			go func() {
 				scanner := bufio.NewScanner(os.Stdin)
 				for scanner.Scan() {
 					inputChan <- scanner.Text()
@@ -262,9 +264,9 @@ Example:
 				if err := scanner.Err(); err != nil && err != os.ErrClosed {
 					inputErrChan <- err
 				}
-			}
-			close(inputChan)
-		}()
+				close(inputChan)
+			}()
+		}
 
 		reconnectCount := 0
 		for {
@@ -295,6 +297,8 @@ Example:
 				}
 			}
 
+			cc.SetConnection(conn)
+
 			reconnectCount = 0 // Reset on successful connection
 			fmt.Printf("Successfully connected to %s\n", details.URL)
 			if conn.NegotiatedSubprotocol != "" {
@@ -316,13 +320,13 @@ Example:
 					switch msg.Type {
 					case ws.TextMessage:
 						if isInteractive {
-							fmt.Fprintf(rl.Stdout(), "< %s\n", string(msg.Data))
+							r.Printf("< %s\n", string(msg.Data))
 						} else {
 							fmt.Printf("%s\n", string(msg.Data))
 						}
 					case ws.BinaryMessage:
 						if isInteractive {
-							fmt.Fprintf(rl.Stdout(), "< [binary message, %d bytes]\n", len(msg.Data))
+							r.Printf("< [binary message, %d bytes]\n", len(msg.Data))
 						} else {
 							fmt.Printf("[binary message, %d bytes]\n", len(msg.Data))
 						}
@@ -343,7 +347,7 @@ Example:
 						msg := &ws.Message{Type: ws.TextMessage, Data: []byte(text)}
 						if err := conn.Write(msg); err != nil {
 							if isInteractive {
-								fmt.Fprintf(rl.Stderr(), "\nError sending message: %v\n", err)
+								r.Errorf("\nError sending message: %v\n", err)
 							} else {
 								fmt.Fprintf(os.Stderr, "\nError sending message: %v\n", err)
 							}

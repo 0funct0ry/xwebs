@@ -31,7 +31,9 @@ Every WebSocket tool does one thing: connect and send messages. That's the equiv
 - **Version Info** — Detailed build information with `xwebs version`
 - **Makefile Integration** — Standardized `build`, `test`, `lint`, and `install` targets
 - **CI/CD** — Automated testing and building via GitHub Actions
-- **Interactive Connect** — Basic TTY loop for sending and receiving messages
+- **Interactive Connect** — Robust, shared REPL framework with command history, tab completion, and multi-mode support
+- **REPL Subsystem** — Reusable core for both client (`connect`) and server (`serve`) modes
+- **REPL Commands** — Built-in commands for session management (`:set`, `:vars`), connection status (`:status`), and WebSocket operations (`:ping`, `:close`)
 
 ### On the Roadmap (Planned)
 - **Client Mode** — Full interactive REPL for WebSocket communication
@@ -92,16 +94,42 @@ The `connect` command performs a WebSocket handshake, injects custom headers, an
 xwebs connect wss://echo.websocket.org
 ```
 
+### Interactive REPL Mode
+
+When running in a terminal (TTY), `xwebs connect` enters a rich interactive REPL mode. Unlike basic "line-at-a-time" interfaces, this REPL supports powerful built-in commands starting with a colon `:`.
+
+**Common REPL Commands:**
+
+| Command        | Description                               |
+|----------------|-------------------------------------------|
+| `:help`        | List all available commands               |
+| `:status`      | Show detailed connection metadata         |
+| `:ping [data]` | Send a WebSocket ping frame               |
+| `:pong [data]` | Send a WebSocket pong frame               |
+| `:close [c][r]`| Send a graceful close frame               |
+| `:set <k> <v>` | Set a session variable for templates      |
+| `:get <k>`     | Get the value of a session variable       |
+| `:vars`        | List all active session variables         |
+| `:clear`       | Clear the terminal screen                 |
+| `:exit`        | Disconnect and quit the application       |
+
 **Interactive Session Example:**
 
 ```text
 Connecting to: wss://echo.websocket.org
 Successfully connected to wss://echo.websocket.org
 
-Enter message to send (Ctrl+C to disconnect):
+> :status
+Connection Status:
+  URL:            wss://echo.websocket.org
+  Subprotocol:    
+  Compression:    false
+  Closed:         false
+
 > Hello, xwebs!
 < Hello, xwebs!
-> 
+
+> :exit
 ```
 
 **Non-Interactive & Pipeline Mode:**
