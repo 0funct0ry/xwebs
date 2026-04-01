@@ -32,7 +32,8 @@ Every WebSocket tool does one thing: connect and send messages. That's the equiv
 - **Makefile Integration** — Standardized `build`, `test`, `lint`, and `install` targets
 - **CI/CD** — Automated testing and building via GitHub Actions
 - **Client Mode & REPL** — Robust, shared REPL framework with command history, tab completion, and multi-mode support
-- **Core REPL Commands** — Built-in commands for session management (`:set`, `:vars`), connection status (`:status`), and WebSocket operations (`:ping`, `:close`, `:send`, `:sendb`, `:sendj`, `:sendt`)
+- **Core REPL Commands** — Built-in commands for session management (`:set`, `:vars`), connection status (`:status`), and WebSocket operations (`:ping`, `:pong`, `:close`, `:send`, `:sendb`, `:sendj`, `:sendt`)
+- **Ping/Pong Observability** — Send and receive WebSocket control frames (ping/pong) with text or binary payloads, visible in the REPL session
 - **Connection Management** — Dynamic `:connect` and `:reconnect` within the active REPL session
 
 ### On the Roadmap (Planned)
@@ -107,8 +108,8 @@ When running in a terminal (TTY), `xwebs connect` enters a rich interactive REPL
 | `:sendb <hex>`   | Send binary data (hex or `base64:`)          |
 | `:sendj <json>`  | Send validated JSON message                  |
 | `:sendt <tmpl>`  | Send rendered Go template                    |
-| `:ping [data]`   | Send a WebSocket ping frame                  |
-| `:pong [data]`   | Send a WebSocket pong frame                  |
+| `:ping [p]`     | Send a ping frame (text or binary prefix)    |
+| `:pong [p]`     | Send a pong frame (text or binary prefix)    |
 | `:connect <url>` | Connect to a new URL in the same session     |
 | `:reconnect`     | Force a reconnection to the current URL      |
 | `:close [c][r]`  | Send a graceful close frame                  |

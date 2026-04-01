@@ -263,7 +263,7 @@ Example:
 		}
 
 		if isTerminal && !isInteractive {
-			fmt.Println("\nEnter message to send (Ctrl+C to disconnect):")
+			infoln(r, isInteractive, "\nEnter message to send (Ctrl+C to disconnect):")
 		}
 
 		// Start the input reader exactly once
@@ -298,24 +298,24 @@ Example:
 			var conn *ws.Connection
 			var err error
 			if details.URL != "" {
-				fmt.Printf("Connecting to: %s\n", details.URL)
+				info(r, isInteractive, "Connecting to: %s\n", details.URL)
 				if details.Proxy != "" && reconnectCount == 0 {
-					fmt.Printf("Proxy: %s\n", details.Proxy)
+					info(r, isInteractive, "Proxy: %s\n", details.Proxy)
 				}
 
 				conn, err = ws.Dial(cmd.Context(), details.URL, opts...)
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "Connection failed: %v\n", err)
+					warn(r, isInteractive, "Connection failed: %v\n", err)
 					if !details.Reconnect || (details.ReconnectAttempts > 0 && reconnectCount >= details.ReconnectAttempts) {
 						if !isInteractive {
 							return fmt.Errorf("connection failed: %w", err)
 						}
 						// In interactive mode, we don't exit, we wait for manual retry
-						fmt.Println("Use :connect <url> or :reconnect to try again.")
+						infoln(r, isInteractive, "Use :connect <url> or :reconnect to try again.")
 						conn = nil // ensure it's nil
 					} else {
 						backoff := ws.ExponentialBackoff(details.ReconnectBackoff, details.ReconnectMax, reconnectCount)
-						fmt.Printf("Retrying in %v... (attempt %d)\n", backoff, reconnectCount+1)
+						info(r, isInteractive, "Retrying in %v... (attempt %d)\n", backoff, reconnectCount+1)
 						select {
 						case <-time.After(backoff):
 							reconnectCount++
@@ -336,12 +336,12 @@ Example:
 			if conn != nil {
 				cc.SetConnection(conn)
 				reconnectCount = 0 // Reset on successful connection
-				fmt.Printf("Successfully connected to %s\n", details.URL)
+				info(r, isInteractive, "Successfully connected to %s\n", details.URL)
 				if conn.NegotiatedSubprotocol != "" {
-					fmt.Printf("Subprotocol: %s\n", conn.NegotiatedSubprotocol)
+					info(r, isInteractive, "Subprotocol: %s\n", conn.NegotiatedSubprotocol)
 				}
 				if conn.IsCompressionEnabled() {
-					fmt.Println("Compression: permessage-deflate")
+					infoln(r, isInteractive, "Compression: permessage-deflate")
 				}
 
 				// Message reader goroutine to display incoming messages
@@ -355,16 +355,22 @@ Example:
 						}
 						switch msg.Type {
 						case ws.TextMessage:
-							if isInteractive {
-								r.Printf("< %s\n", string(msg.Data))
-							} else {
-								fmt.Printf("%s\n", string(msg.Data))
-							}
+							info(r, isInteractive, "< %s\n", string(msg.Data))
 						case ws.BinaryMessage:
+							info(r, isInteractive, "< [binary: %x] (%d bytes)\n", msg.Data, len(msg.Data))
+						case ws.PingMessage:
+							p := formatPayload(msg.Data)
 							if isInteractive {
-								r.Printf("< [binary: %x] (%d bytes)\n", msg.Data, len(msg.Data))
+								r.Printf("< [ping] (%d bytes) %s\n", len(msg.Data), p)
 							} else {
-								fmt.Printf("[binary: %x] (%d bytes)\n", msg.Data, len(msg.Data))
+								fmt.Printf("[ping] (%d bytes) %s\n", len(msg.Data), p)
+							}
+						case ws.PongMessage:
+							p := formatPayload(msg.Data)
+							if isInteractive {
+								r.Printf("< [pong] (%d bytes) %s\n", len(msg.Data), p)
+							} else {
+								fmt.Printf("[pong] (%d bytes) %s\n", len(msg.Data), p)
 							}
 						}
 					}
@@ -417,18 +423,18 @@ Example:
 					code, reason := conn.CloseStatus()
 					if err := conn.Err(); err != nil {
 						if websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-							fmt.Printf("\nConnection lost: %v (code=%d, reason=%q)\n", err, code, reason)
+							info(r, isInteractive, "\nConnection lost: %v (code=%d, reason=%q)\n", err, code, reason)
 							closedUnexpectedly = true
 						} else {
-							fmt.Printf("\nConnection closed: %d %s\n", code, reason)
+							info(r, isInteractive, "\nConnection closed: %d %s\n", code, reason)
 							closedUnexpectedly = false
 						}
 					} else {
-						fmt.Printf("\nConnection closed gracefully: %d %s\n", code, reason)
+						info(r, isInteractive, "\nConnection closed gracefully: %d %s\n", code, reason)
 						closedUnexpectedly = false
 					}
 				case <-cmd.Context().Done():
-					fmt.Println("\nDisconnecting...")
+					infoln(r, isInteractive, "\nDisconnecting...")
 					_ = conn.Close()
 					return nil
 				}
@@ -441,7 +447,7 @@ Example:
 
 				if details.Reconnect && closedUnexpectedly {
 					backoff := ws.ExponentialBackoff(details.ReconnectBackoff, details.ReconnectMax, 0)
-					fmt.Printf("Attempting to reconnect in %v...\n", backoff)
+					info(r, isInteractive, "Attempting to reconnect in %v...\n", backoff)
 					select {
 					case <-time.After(backoff):
 						continue
@@ -459,7 +465,7 @@ Example:
 
 			// Idle state or manually disconnected: wait for new dial or exit
 			if isInteractive {
-				fmt.Println("\nEnter :connect <url> or :reconnect to start a new session (or :exit to quit)")
+				infoln(r, isInteractive, "\nEnter :connect <url> or :reconnect to start a new session (or :exit to quit)")
 				select {
 				case newURL := <-cc.dialChan:
 					if newURL != "" {
@@ -472,7 +478,7 @@ Example:
 				case <-inputChan:
 					// This case handles bare input when disconnected - we just ignore it
 					// but we need to read it from inputChan so it doesn't block the REPL
-					fmt.Println("No active connection. Use :connect <url> or :reconnect.")
+					infoln(r, isInteractive, "No active connection. Use :connect <url> or :reconnect.")
 					continue
 				}
 			} else {
@@ -513,3 +519,40 @@ var (
 	keyFile      string
 	caFile       string
 )
+
+func formatPayload(data []byte) string {
+	if len(data) == 0 {
+		return ""
+	}
+	// Simple printable ASCII check
+	for _, b := range data {
+		if b < 32 || b > 126 {
+			return fmt.Sprintf("[hex: %x]", data)
+		}
+	}
+	return string(data)
+}
+
+func info(r *repl.REPL, isInteractive bool, format string, args ...interface{}) {
+	if isInteractive && r != nil {
+		r.Printf(format, args...)
+	} else {
+		fmt.Printf(format, args...)
+	}
+}
+
+func infoln(r *repl.REPL, isInteractive bool, text string) {
+	if isInteractive && r != nil {
+		r.Printf("%s\n", text)
+	} else {
+		fmt.Println(text)
+	}
+}
+
+func warn(r *repl.REPL, isInteractive bool, format string, args ...interface{}) {
+	if isInteractive && r != nil {
+		r.Errorf(format, args...)
+	} else {
+		fmt.Fprintf(os.Stderr, format, args...)
+	}
+}

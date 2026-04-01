@@ -226,6 +226,38 @@ func (c *Connection) readLoop() {
 		return nil
 	})
 
+	c.Conn.SetPingHandler(func(data string) error {
+		if c._verbose {
+			fmt.Fprintf(os.Stderr, "  [ws] received ping from %s (%d bytes)\n", c.URL, len(data))
+		}
+		// Forward to read channel
+		select {
+		case c._readCh <- &Message{Type: PingMessage, Data: []byte(data)}:
+		case <-c._done:
+		}
+		// Must send pong back when overriding default handler
+		return c.Conn.WriteControl(websocket.PongMessage, []byte(data), time.Now().Add(time.Second))
+	})
+
+	c.Conn.SetPongHandler(func(data string) error {
+		if c._pongWait > 0 {
+			if err := c.Conn.SetReadDeadline(time.Now().Add(c._pongWait)); err != nil {
+				if c._verbose {
+					fmt.Fprintf(os.Stderr, "  [ws] error resetting read deadline on pong: %v\n", err)
+				}
+			}
+		}
+		if c._verbose {
+			fmt.Fprintf(os.Stderr, "  [ws] received pong from %s (%d bytes)\n", c.URL, len(data))
+		}
+		// Forward to read channel
+		select {
+		case c._readCh <- &Message{Type: PongMessage, Data: []byte(data)}:
+		case <-c._done:
+		}
+		return nil
+	})
+
 	if c._pongWait > 0 {
 		if err := c.Conn.SetReadDeadline(time.Now().Add(c._pongWait)); err != nil {
 			c._mu.Lock()
@@ -235,26 +267,6 @@ func (c *Connection) readLoop() {
 			c._mu.Unlock()
 			return
 		}
-
-		c.Conn.SetPingHandler(func(data string) error {
-			if c._verbose {
-				fmt.Fprintf(os.Stderr, "  [ws] received ping message from %s (%d bytes)\n", c.URL, len(data))
-			}
-			// Gorilla handles the pong reply by default
-			return nil
-		})
-
-		c.Conn.SetPongHandler(func(data string) error {
-			if err := c.Conn.SetReadDeadline(time.Now().Add(c._pongWait)); err != nil {
-				if c._verbose {
-					fmt.Fprintf(os.Stderr, "  [ws] error resetting read deadline on pong: %v\n", err)
-				}
-			}
-			if c._verbose {
-				fmt.Fprintf(os.Stderr, "  [ws] received pong message from %s (%d bytes)\n", c.URL, len(data))
-			}
-			return nil
-		})
 	}
 
 	for {

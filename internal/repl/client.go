@@ -66,27 +66,33 @@ func (r *REPL) RegisterClientCommands(cc ClientContext) {
 
 	r.RegisterCommand(&BuiltinCommand{
 		name: "ping",
-		help: "Send a ping message: :ping [data]",
+		help: "Send a ping frame: :ping [text|hex:data|base64:data]",
 		handler: func(ctx context.Context, r *REPL, args []string) error {
 			conn := cc.GetConnection()
 			if conn == nil || conn.IsClosed() {
 				return fmt.Errorf("no active connection")
 			}
-			data := strings.Join(args, " ")
-			return conn.Write(&ws.Message{Type: ws.PingMessage, Data: []byte(data)})
+			data, err := parsePayload(args)
+			if err != nil {
+				return err
+			}
+			return conn.Write(&ws.Message{Type: ws.PingMessage, Data: data})
 		},
 	})
 
 	r.RegisterCommand(&BuiltinCommand{
 		name: "pong",
-		help: "Send a pong message: :pong [data]",
+		help: "Send a pong frame: :pong [text|hex:data|base64:data]",
 		handler: func(ctx context.Context, r *REPL, args []string) error {
 			conn := cc.GetConnection()
 			if conn == nil || conn.IsClosed() {
 				return fmt.Errorf("no active connection")
 			}
-			data := strings.Join(args, " ")
-			return conn.Write(&ws.Message{Type: ws.PongMessage, Data: []byte(data)})
+			data, err := parsePayload(args)
+			if err != nil {
+				return err
+			}
+			return conn.Write(&ws.Message{Type: ws.PongMessage, Data: data})
 		},
 	})
 
@@ -230,4 +236,30 @@ func (r *REPL) RegisterClientCommands(cc ClientContext) {
 			return cc.CloseConnection()
 		},
 	})
+}
+
+// parsePayload is a helper to parse CLI arguments into a byte slice,
+// supporting hex: and base64: prefixes, defaulting to plain text.
+func parsePayload(args []string) ([]byte, error) {
+	if len(args) == 0 {
+		return nil, nil
+	}
+	raw := strings.Join(args, " ")
+	if strings.HasPrefix(raw, "base64:") {
+		data, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(raw, "base64:"))
+		if err != nil {
+			return nil, fmt.Errorf("decoding base64: %w", err)
+		}
+		return data, nil
+	}
+	if strings.HasPrefix(raw, "hex:") {
+		// Remove spaces from hex data if present
+		hexStr := strings.ReplaceAll(strings.TrimPrefix(raw, "hex:"), " ", "")
+		data, err := hex.DecodeString(hexStr)
+		if err != nil {
+			return nil, fmt.Errorf("decoding hex: %w", err)
+		}
+		return data, nil
+	}
+	return []byte(raw), nil
 }

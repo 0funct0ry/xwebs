@@ -137,4 +137,51 @@ func TestConnectionPingPong(t *testing.T) {
 			t.Fatal("manual ping not received by server")
 		}
 	})
+
+	t.Run("received ping and pong visible on read channel", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			conn, err := upgrader.Upgrade(w, r, nil)
+			if err != nil {
+				return
+			}
+			defer conn.Close()
+			
+			// Send a ping to the client
+			_ = conn.WriteControl(websocket.PingMessage, []byte("server-ping"), time.Now().Add(time.Second))
+			
+			// Send a pong to the client
+			_ = conn.WriteControl(websocket.PongMessage, []byte("server-pong"), time.Now().Add(time.Second))
+			
+			// Stay alive
+			for {
+				if _, _, err := conn.ReadMessage(); err != nil {
+					break
+				}
+			}
+		}))
+		defer server.Close()
+
+		url := strings.Replace(server.URL, "http", "ws", 1)
+		conn, err := Dial(context.Background(), url)
+		require.NoError(t, err)
+		defer conn.Close()
+
+		// Expect ping on read channel
+		select {
+		case msg := <-conn.Read():
+			assert.Equal(t, PingMessage, msg.Type)
+			assert.Equal(t, []byte("server-ping"), msg.Data)
+		case <-time.After(1 * time.Second):
+			t.Fatal("ping not received on read channel")
+		}
+
+		// Expect pong on read channel
+		select {
+		case msg := <-conn.Read():
+			assert.Equal(t, PongMessage, msg.Type)
+			assert.Equal(t, []byte("server-pong"), msg.Data)
+		case <-time.After(1 * time.Second):
+			t.Fatal("pong not received on read channel")
+		}
+	})
 }
