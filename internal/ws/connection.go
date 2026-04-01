@@ -47,9 +47,9 @@ type Connection struct {
 	_lastErr  error
 	_closeErr error
 
-	_pingInterval  time.Duration
-	_pongWait      time.Duration
-	_verbose       bool
+	_pingInterval         time.Duration
+	_pongWait             time.Duration
+	_verbose              bool
 	_maxMessageSize       int64
 	_maxFrameSize         int
 	_compressionRequested bool
@@ -86,7 +86,7 @@ func (c *Connection) CloseWithCode(code int, reason string) error {
 	c._closeCode = code
 	c._closeReason = reason
 	close(c._closing)
-	
+
 	if c._verbose {
 		fmt.Fprintf(os.Stderr, "  [ws] initiating graceful close: %d %s\n", code, reason)
 	}
@@ -101,7 +101,7 @@ func (c *Connection) CloseWithCode(code int, reason string) error {
 		}
 		c.forceClose()
 	}
-	
+
 	return c._closeErr
 }
 
@@ -218,7 +218,7 @@ func (c *Connection) readLoop() {
 			fmt.Fprintf(os.Stderr, "  [ws] received close frame from %s: %d %s\n", c.URL, code, text)
 		}
 		c._mu.Unlock()
-		
+
 		// The default handler sends a close message and returns.
 		// We want to ensure the readLoop gets the error.
 		message := websocket.FormatCloseMessage(code, "")
@@ -276,7 +276,7 @@ func (c *Connection) readLoop() {
 			if c._lastErr == nil {
 				c._lastErr = err
 			}
-			
+
 			// If we haven't captured a specific close code yet, do it now
 			if ce, ok := err.(*websocket.CloseError); ok {
 				c._closeCode = ce.Code

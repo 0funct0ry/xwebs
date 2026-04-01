@@ -262,7 +262,6 @@ func TestConnection_FrameTypes(t *testing.T) {
 	}
 }
 
-
 func TestConnection_Fragmentation(t *testing.T) {
 	upgrader := websocket.Upgrader{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

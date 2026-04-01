@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"text/template"
@@ -200,4 +201,14 @@ func (e *Engine) Execute(name, text string, data interface{}) (string, error) {
 	}
 
 	return buf.String(), nil
+}
+
+// FuncNames returns a sorted list of registered template function names.
+func (e *Engine) FuncNames() []string {
+	names := make([]string, 0, len(e.funcs))
+	for name := range e.funcs {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }

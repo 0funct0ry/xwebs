@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 
@@ -27,16 +28,19 @@ type REPL struct {
 	mode   Mode
 	rl     *readline.Instance
 	config *Config
-	
+
 	commands map[string]Command
 	aliases  map[string]string
-	
+
 	// mu protects session variables
-	mu    sync.RWMutex
-	vars  map[string]interface{}
-	
+	mu   sync.RWMutex
+	vars map[string]interface{}
+
+	// completionData stores dynamic suggestions (bookmarks, aliases, JSON keys, etc.)
+	completionData map[string][]string
+
 	onInput func(ctx context.Context, text string) error
-	
+
 	done chan struct{}
 }
 
@@ -89,12 +93,13 @@ func New(mode Mode, cfg *Config) (*REPL, error) {
 	}
 
 	r := &REPL{
-		mode:     mode,
-		config:   cfg,
-		commands: make(map[string]Command),
-		aliases:  make(map[string]string),
-		vars:     make(map[string]interface{}),
-		done:     make(chan struct{}),
+		mode:           mode,
+		config:         cfg,
+		commands:       make(map[string]Command),
+		aliases:        make(map[string]string),
+		vars:           make(map[string]interface{}),
+		completionData: make(map[string][]string),
+		done:           make(chan struct{}),
 	}
 
 	rlConfig.AutoComplete = r
@@ -202,40 +207,7 @@ func (r *REPL) executeCommand(ctx context.Context, line string) error {
 
 // Do satisfies the readline.AutoCompleter interface.
 func (r *REPL) Do(line []rune, pos int) (newLine [][]rune, length int) {
-	if len(line) == 0 || line[0] != ':' {
-		return nil, 0
-	}
-
-	// Only complete the first word (the command)
-	currentLine := string(line[:pos])
-	parts := strings.Fields(currentLine)
-	if len(parts) > 1 && !strings.HasSuffix(currentLine, " ") {
-		return nil, 0
-	}
-
-	prefix := strings.TrimPrefix(parts[0], ":")
-	var suggestions [][]rune
-
-	// Collect unique command names and aliases
-	seen := make(map[string]bool)
-	for name := range r.commands {
-		if strings.HasPrefix(strings.ToLower(name), strings.ToLower(prefix)) {
-			if !seen[name] {
-				suggestions = append(suggestions, []rune(name[len(prefix):]))
-				seen[name] = true
-			}
-		}
-	}
-	for alias := range r.aliases {
-		if strings.HasPrefix(strings.ToLower(alias), strings.ToLower(prefix)) {
-			if !seen[alias] {
-				suggestions = append(suggestions, []rune(alias[len(prefix):]))
-				seen[alias] = true
-			}
-		}
-	}
-
-	return suggestions, len(prefix)
+	return r.DoContext(line, pos)
 }
 
 // GetVar returns a session variable.
@@ -256,11 +228,56 @@ func (r *REPL) SetVar(name string, value interface{}) {
 func (r *REPL) GetVars() map[string]interface{} {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	// Return a copy
 	res := make(map[string]interface{}, len(r.vars))
 	for k, v := range r.vars {
 		res[k] = v
 	}
 	return res
+}
+
+// SetCompletionData sets dynamic completion suggestions for a given category.
+func (r *REPL) SetCompletionData(category string, suggestions []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Ensure unique and sorted
+	unique := make(map[string]bool)
+	var sorted []string
+	for _, s := range suggestions {
+		if !unique[s] {
+			unique[s] = true
+			sorted = append(sorted, s)
+		}
+	}
+	sort.Strings(sorted)
+	r.completionData[category] = sorted
+}
+
+// GetCompletionData returns dynamic completion suggestions for a given category.
+func (r *REPL) GetCompletionData(category string) []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	data := r.completionData[category]
+	res := make([]string, len(data))
+	copy(res, data)
+	return res
+}
+
+// AddCompletionItem adds a single item to a completion category.
+func (r *REPL) AddCompletionItem(category string, item string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	data := r.completionData[category]
+	for _, x := range data {
+		if x == item {
+			return
+		}
+	}
+	data = append(data, item)
+	sort.Strings(data)
+	r.completionData[category] = data
 }

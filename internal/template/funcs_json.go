@@ -91,7 +91,7 @@ func (e *Engine) registerJSONFuncs() {
 
 	e.funcs["mergeJSON"] = func(v1, v2 interface{}) (interface{}, error) {
 		var d1, d2 map[string]interface{}
-		
+
 		// Helper to unmarshal if string
 		toData := func(v interface{}) (map[string]interface{}, error) {
 			var d map[string]interface{}

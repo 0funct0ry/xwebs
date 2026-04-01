@@ -195,10 +195,10 @@ func (r *REPL) RegisterClientCommands(cc ClientContext) {
 			if engine == nil {
 				return fmt.Errorf("template engine not available")
 			}
-			
+
 			tmplCtx := template.NewContext()
 			tmplCtx.Session = r.GetVars()
-			
+
 			res, err := engine.Execute("repl", tmpl, tmplCtx)
 			if err != nil {
 				return fmt.Errorf("rendering template: %w", err)

@@ -10,22 +10,22 @@ import (
 
 // Bookmark represents a saved WebSocket endpoint with optional headers and TLS settings.
 type Bookmark struct {
-	URL      string            `mapstructure:"url"`
-	Headers  map[string]string `mapstructure:"headers"`
-	Insecure bool              `mapstructure:"insecure"`
-	CA       string            `mapstructure:"ca"`
-	Cert     string            `mapstructure:"cert"`
-	Key      string            `mapstructure:"key"`
-	Proxy    string            `mapstructure:"proxy"`
-	PingInterval      time.Duration `mapstructure:"ping-interval"`
-	PongWait          time.Duration `mapstructure:"pong-wait"`
-	Reconnect         bool          `mapstructure:"reconnect"`
-	ReconnectBackoff  time.Duration `mapstructure:"reconnect-backoff"`
-	ReconnectMax      time.Duration `mapstructure:"reconnect-max"`
-	ReconnectAttempts int           `mapstructure:"reconnect-attempts"`
-	MaxMessageSize    int64         `mapstructure:"max-message-size"`
-	MaxFrameSize      int           `mapstructure:"max-frame-size"`
-	Compress          bool          `mapstructure:"compress"`
+	URL               string            `mapstructure:"url"`
+	Headers           map[string]string `mapstructure:"headers"`
+	Insecure          bool              `mapstructure:"insecure"`
+	CA                string            `mapstructure:"ca"`
+	Cert              string            `mapstructure:"cert"`
+	Key               string            `mapstructure:"key"`
+	Proxy             string            `mapstructure:"proxy"`
+	PingInterval      time.Duration     `mapstructure:"ping-interval"`
+	PongWait          time.Duration     `mapstructure:"pong-wait"`
+	Reconnect         bool              `mapstructure:"reconnect"`
+	ReconnectBackoff  time.Duration     `mapstructure:"reconnect-backoff"`
+	ReconnectMax      time.Duration     `mapstructure:"reconnect-max"`
+	ReconnectAttempts int               `mapstructure:"reconnect-attempts"`
+	MaxMessageSize    int64             `mapstructure:"max-message-size"`
+	MaxFrameSize      int               `mapstructure:"max-frame-size"`
+	Compress          bool              `mapstructure:"compress"`
 }
 
 // REPLConfig defines configuration for the interactive shell.
@@ -43,13 +43,13 @@ type AppConfig struct {
 
 // ConnDetails contains all information needed to establish a connection.
 type ConnDetails struct {
-	URL      string
-	Headers  map[string]string
-	Insecure bool
-	CA       string
-	Cert     string
-	Key      string
-	Proxy    string
+	URL               string
+	Headers           map[string]string
+	Insecure          bool
+	CA                string
+	Cert              string
+	Key               string
+	Proxy             string
 	PingInterval      time.Duration
 	PongWait          time.Duration
 	Reconnect         bool

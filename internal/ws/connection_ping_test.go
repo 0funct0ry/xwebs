@@ -15,22 +15,22 @@ import (
 
 func TestConnectionPingPong(t *testing.T) {
 	upgrader := websocket.Upgrader{}
-	
+
 	t.Run("automatic ping is sent", func(t *testing.T) {
 		pingReceived := make(chan bool, 1)
-		
+
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			conn, err := upgrader.Upgrade(w, r, nil)
 			if err != nil {
 				return
 			}
 			defer conn.Close()
-			
+
 			conn.SetPingHandler(func(appData string) error {
 				pingReceived <- true
 				return nil
 			})
-			
+
 			// Keep connection alive for a bit
 			for {
 				if _, _, err := conn.ReadMessage(); err != nil {
@@ -65,12 +65,12 @@ func TestConnectionPingPong(t *testing.T) {
 				return
 			}
 			defer conn.Close()
-			
+
 			// Do NOT respond with pong automatically
 			conn.SetPingHandler(func(appData string) error {
 				return nil
 			})
-			
+
 			for {
 				if _, _, err := conn.ReadMessage(); err != nil {
 					break
@@ -91,26 +91,26 @@ func TestConnectionPingPong(t *testing.T) {
 
 		// Wait for connection to be closed by engine
 		time.Sleep(1 * time.Second)
-		
+
 		assert.True(t, conn.IsClosed(), "connection should be closed after pong timeout")
 	})
 
 	t.Run("manual ping work", func(t *testing.T) {
 		pingPayload := "hello-ping"
 		pingReceived := make(chan string, 1)
-		
+
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			conn, err := upgrader.Upgrade(w, r, nil)
 			if err != nil {
 				return
 			}
 			defer conn.Close()
-			
+
 			conn.SetPingHandler(func(appData string) error {
 				pingReceived <- appData
 				return nil
 			})
-			
+
 			for {
 				if _, _, err := conn.ReadMessage(); err != nil {
 					break
@@ -145,13 +145,13 @@ func TestConnectionPingPong(t *testing.T) {
 				return
 			}
 			defer conn.Close()
-			
+
 			// Send a ping to the client
 			_ = conn.WriteControl(websocket.PingMessage, []byte("server-ping"), time.Now().Add(time.Second))
-			
+
 			// Send a pong to the client
 			_ = conn.WriteControl(websocket.PongMessage, []byte("server-pong"), time.Now().Add(time.Second))
-			
+
 			// Stay alive
 			for {
 				if _, _, err := conn.ReadMessage(); err != nil {

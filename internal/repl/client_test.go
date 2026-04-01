@@ -4,20 +4,20 @@ import (
 	"context"
 	"testing"
 
-	"github.com/0funct0ry/xwebs/internal/ws"
 	"github.com/0funct0ry/xwebs/internal/template"
+	"github.com/0funct0ry/xwebs/internal/ws"
 )
 
 type mockClientContext struct {
-	conn       *ws.Connection
-	dialURL    string
-	closed     bool
-	closeCode  int
+	conn        *ws.Connection
+	dialURL     string
+	closed      bool
+	closeCode   int
 	closeReason string
-	tmplEngine *template.Engine
+	tmplEngine  *template.Engine
 }
 
-func (m *mockClientContext) GetConnection() *ws.Connection { return m.conn }
+func (m *mockClientContext) GetConnection() *ws.Connection     { return m.conn }
 func (m *mockClientContext) SetConnection(conn *ws.Connection) { m.conn = conn }
 func (m *mockClientContext) Dial(ctx context.Context, url string) error {
 	m.dialURL = url
@@ -88,10 +88,10 @@ func TestClientCommands(t *testing.T) {
 		mcc.closed = false
 		mcc.closeCode = 0
 		mcc.closeReason = ""
-		
+
 		// We need a dummy connection to satisfy GetConnection() != nil
-		mcc.conn = &ws.Connection{} 
-		
+		mcc.conn = &ws.Connection{}
+
 		err := r.executeCommand(context.Background(), ":close")
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
@@ -154,7 +154,7 @@ func TestBinaryCommand(t *testing.T) {
 	r, _ := New(ClientMode, nil)
 	mcc := &mockClientContext{}
 	r.RegisterClientCommands(mcc)
-	
+
 	// Create a dummy channel for the mock connection to avoid nil dereference if Write is called
 	// Actually we should mock the connection too if we want to verify Write
 }

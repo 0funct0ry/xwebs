@@ -14,14 +14,14 @@ import (
 )
 
 var (
-	cfgFile   string
-	verbose   bool
-	quiet     bool
-	color     string
-	logLevel  string
-	logFormat string
-	profile   string
-	proxy     string
+	cfgFile     string
+	verbose     bool
+	quiet       bool
+	color       string
+	logLevel    string
+	logFormat   string
+	profile     string
+	proxy       string
 	noShellFunc bool
 )
 

@@ -597,6 +597,19 @@ repl:
 - **Navigation**: Use Up/Down arrows to navigate command history.
 - **Manual Inspection**: Use the `:history [n]` command to view the last `n` entries.
 
+### Tab Completion
+
+The REPL features an intelligent, context-aware tab completion system:
+
+- **Commands & Aliases**: Type `:` and press `Tab` to see all available commands.
+- **Template Functions**: Suggestions for functions (e.g., `upper`, `toJSON`) appear when typing inside `{{ ... }}`.
+- **Live JSON Keys**: As messages are received, the REPL learns the JSON structure and suggests keys for `:sendj` and `:sendt` commands.
+- **Context-Aware Arguments**:
+    - `:connect` suggests bookmarks and aliases from your configuration.
+    - `:set`, `:get`, and `:vars` suggest session variables.
+- **File Paths**: Suggestions for local files and directories where appropriate (e.g., in `:connect`).
+- **Handler Names**: Suggestions for registered handlers (supported in EPIC 05).
+
 ### Named Profiles
 
 Profiles allow you to group settings and apply them as an overlay to the base configuration. Use the `--profile` flag to specify a profile defined in your config file.

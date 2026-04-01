@@ -6,12 +6,12 @@ import (
 
 // ConnectionContext provides metadata about the WebSocket connection.
 type ConnectionContext struct {
-	URL                   string            `json:"url"`
-	Subprotocol           string            `json:"subprotocol"`
-	Headers               map[string]string `json:"headers"`
-	LocalAddr             string            `json:"local_addr"`
-	RemoteAddr            string            `json:"remote_addr"`
-	CompressionEnabled    bool              `json:"compression_enabled"`
+	URL                string            `json:"url"`
+	Subprotocol        string            `json:"subprotocol"`
+	Headers            map[string]string `json:"headers"`
+	LocalAddr          string            `json:"local_addr"`
+	RemoteAddr         string            `json:"remote_addr"`
+	CompressionEnabled bool              `json:"compression_enabled"`
 }
 
 // MessageContext provides details about a specific WebSocket message.

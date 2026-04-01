@@ -8,26 +8,26 @@ import (
 
 // DialOptions configuration for the WebSocket dialer.
 type DialOptions struct {
-	Headers      http.Header
-	Subprotocols []string
-	TLSConfig    *tls.Config
-	CACert       string
-	ClientCert   string
-	ClientKey    string
-	ProxyURL        string
-	ReadBufferSize  int
-	WriteBufferSize int
-	PingInterval       time.Duration
-	PongWait           time.Duration
-	Reconnect          bool
-	ReconnectBackoff   time.Duration
-	ReconnectMax       time.Duration
-	ReconnectAttempts  int
-	Verbose            bool
-	MaxMessageSize     int64
-	MaxFrameSize       int
-	Compress           bool
-	OnDisconnect       func(code int, reason string)
+	Headers           http.Header
+	Subprotocols      []string
+	TLSConfig         *tls.Config
+	CACert            string
+	ClientCert        string
+	ClientKey         string
+	ProxyURL          string
+	ReadBufferSize    int
+	WriteBufferSize   int
+	PingInterval      time.Duration
+	PongWait          time.Duration
+	Reconnect         bool
+	ReconnectBackoff  time.Duration
+	ReconnectMax      time.Duration
+	ReconnectAttempts int
+	Verbose           bool
+	MaxMessageSize    int64
+	MaxFrameSize      int
+	Compress          bool
+	OnDisconnect      func(code int, reason string)
 }
 
 // DialOption is a functional option for the Dial function.
@@ -83,6 +83,7 @@ func WithProxy(proxyURL string) DialOption {
 		o.ProxyURL = proxyURL
 	}
 }
+
 // WithReadBufferSize sets the buffer size for the read channel.
 func WithReadBufferSize(size int) DialOption {
 	return func(o *DialOptions) {

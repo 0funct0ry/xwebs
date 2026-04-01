@@ -311,12 +311,12 @@ func TestEngine_Context(t *testing.T) {
 
 	ctx := NewContext()
 	ctx.Conn = &ConnectionContext{
-		URL: "ws://example.com",
+		URL:     "ws://example.com",
 		Headers: map[string]string{"X-Test": "Value"},
 	}
 	ctx.Msg = &MessageContext{
-		Type: "text",
-		Data: "hello",
+		Type:   "text",
+		Data:   "hello",
 		Length: 5,
 	}
 

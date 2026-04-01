@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -26,8 +27,8 @@ type connectClientContext struct {
 	repl            *repl.REPL
 	originalURL     string
 	originalHeaders map[string]string // Key: Template
-	originalAuth    string             // Auth template
-	originalToken   string             // Token template
+	originalAuth    string            // Auth template
+	originalToken   string            // Token template
 }
 
 func (c *connectClientContext) GetConnection() *ws.Connection {
@@ -307,6 +308,23 @@ Example:
 				cc.repl = r
 				r.RegisterCommonCommands()
 				r.RegisterClientCommands(cc)
+
+				// Populate bookmarks and aliases for completion
+				var cfg config.AppConfig
+				if err := viper.Unmarshal(&cfg); err == nil {
+					var targets []string
+					for alias := range cfg.Aliases {
+						targets = append(targets, alias)
+					}
+					for bookmark := range cfg.Bookmarks {
+						targets = append(targets, bookmark)
+					}
+					r.SetCompletionData("bookmarks", targets)
+				}
+
+				// Populate template functions for completion
+				r.SetCompletionData("template_funcs", tmplEngine.FuncNames())
+
 				defer r.Close()
 			}
 		}
@@ -452,6 +470,17 @@ Example:
 						switch msg.Type {
 						case ws.TextMessage:
 							info(r, isInteractive, "< %s\n", string(msg.Data))
+
+							// If interactive, try to extract JSON keys for completion
+							if isInteractive && r != nil {
+								var data interface{}
+								if err := json.Unmarshal(msg.Data, &data); err == nil {
+									keys := ExtractJSONKeys(data, "")
+									for _, k := range keys {
+										r.AddCompletionItem("json", k)
+									}
+								}
+							}
 						case ws.BinaryMessage:
 							info(r, isInteractive, "< [binary: %x] (%d bytes)\n", msg.Data, len(msg.Data))
 						case ws.PingMessage:
@@ -651,4 +680,25 @@ func warn(r *repl.REPL, isInteractive bool, format string, args ...interface{}) 
 	} else {
 		fmt.Fprintf(os.Stderr, format, args...)
 	}
+}
+
+// ExtractJSONKeys recursively extracts all map keys from a JSON-decoded interface.
+func ExtractJSONKeys(v interface{}, prefix string) []string {
+	var keys []string
+	switch val := v.(type) {
+	case map[string]interface{}:
+		for k, v2 := range val {
+			fullKey := k
+			if prefix != "" {
+				fullKey = prefix + "." + k
+			}
+			keys = append(keys, fullKey)
+			keys = append(keys, ExtractJSONKeys(v2, fullKey)...)
+		}
+	case []interface{}:
+		for _, v2 := range val {
+			keys = append(keys, ExtractJSONKeys(v2, prefix)...)
+		}
+	}
+	return keys
 }

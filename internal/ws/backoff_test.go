@@ -12,14 +12,14 @@ func TestExponentialBackoff(t *testing.T) {
 	max := 10 * time.Second
 
 	tests := []struct {
-		attempt int
+		attempt  int
 		expected time.Duration
 	}{
 		{0, 1 * time.Second},
 		{1, 2 * time.Second},
 		{2, 4 * time.Second},
 		{3, 8 * time.Second},
-		{4, 10 * time.Second}, // Capped
+		{4, 10 * time.Second},  // Capped
 		{10, 10 * time.Second}, // Capped
 	}
 

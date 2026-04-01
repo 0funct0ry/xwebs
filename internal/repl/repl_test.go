@@ -7,10 +7,10 @@ import (
 )
 
 type mockCommand struct {
-	name    string
-	help    string
+	name     string
+	help     string
 	executed bool
-	args    []string
+	args     []string
 }
 
 func (c *mockCommand) Name() string { return c.name }
@@ -56,7 +56,7 @@ func TestREPLCommands(t *testing.T) {
 
 func TestREPLVars(t *testing.T) {
 	r, _ := New(ClientMode, nil)
-	
+
 	r.SetVar("foo", "bar")
 	val := r.GetVar("foo")
 	if val != "bar" {
