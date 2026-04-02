@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/0funct0ry/xwebs/internal/ws"
@@ -69,6 +70,7 @@ func (r *REPL) RegisterClientCommands(cc ClientContext) {
 				return fmt.Errorf("no active connection")
 			}
 			msg := strings.Join(args, " ")
+			r.SetLastSendTime(time.Now())
 			return conn.Write(&ws.Message{Type: ws.TextMessage, Data: []byte(msg)})
 		},
 	})
@@ -85,6 +87,7 @@ func (r *REPL) RegisterClientCommands(cc ClientContext) {
 			if err != nil {
 				return err
 			}
+			r.SetLastSendTime(time.Now())
 			return conn.Write(&ws.Message{Type: ws.PingMessage, Data: data})
 		},
 	})
@@ -156,6 +159,7 @@ func (r *REPL) RegisterClientCommands(cc ClientContext) {
 			if err != nil {
 				return fmt.Errorf("decoding binary data: %w", err)
 			}
+			r.SetLastSendTime(time.Now())
 			return conn.Write(&ws.Message{Type: ws.BinaryMessage, Data: data})
 		},
 	})
@@ -175,6 +179,7 @@ func (r *REPL) RegisterClientCommands(cc ClientContext) {
 			if !json.Valid([]byte(msg)) {
 				return fmt.Errorf("invalid JSON: %s", msg)
 			}
+			r.SetLastSendTime(time.Now())
 			return conn.Write(&ws.Message{Type: ws.TextMessage, Data: []byte(msg)})
 		},
 	})
@@ -203,6 +208,7 @@ func (r *REPL) RegisterClientCommands(cc ClientContext) {
 			if err != nil {
 				return fmt.Errorf("rendering template: %w", err)
 			}
+			r.SetLastSendTime(time.Now())
 			return conn.Write(&ws.Message{Type: ws.TextMessage, Data: []byte(res)})
 		},
 	})

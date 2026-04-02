@@ -36,6 +36,8 @@ Every WebSocket tool does one thing: connect and send messages. That's the equiv
 - **Ping/Pong Observability** — Send and receive WebSocket control frames (ping/pong) with text or binary payloads, visible in the REPL session
 - **Connection Management** — Dynamic `:connect` and `:reconnect` within the active REPL session
 - **Output Formatting & Filtering** — Flexible display options including JSON pretty-printing, hex dumps, and `jq` or Regex message filters
+- **Automation & Scripting** — Multi-step automation with `:source`, `:alias`, `:wait`, and `:assert` commands, plus a `--script` flag for non-interactive execution
+- **RTT & Latency Tracking** — Real-time performance metrics for round-trip time, accessible via `.LastLatencyMs` in templates
 
 ### On the Roadmap (Planned)
 - **Server Mode** — WebSocket server with handler dispatch and administration REPL
@@ -127,7 +129,11 @@ When running in a terminal (TTY), `xwebs connect` enters a rich interactive REPL
 | `:quiet`         | Toggle non-message output suppression        |
 | `:verbose`       | Toggle frame-level metadata display          |
 | `:timestamps`    | Toggle ISO 8601 message timestamps           |
-| `:color <mode>`  | Set coloring mode: `on`, `off`, `auto`       |
+| :color <mode>  | Set coloring mode: `on`, `off`, `auto`       |
+| `:source <f>`   | Execute a `.xwebs` script file               |
+| `:alias <n> <c>`| Create a command alias with positional args    |
+| `:wait <dur>`   | Pause execution (e.g., `1s`, `500ms`)        |
+| `:assert <ex>`  | Validate state with template expressions       |
 
 **Advanced Sending Examples:**
 
@@ -223,7 +229,57 @@ xwebs connect wss://echo.websocket.org --subprotocol v1.xwebs,mqtt
 
 # Using an alias/bookmark (defined in config)
 xwebs connect staging
+
+# Automate a sequence of actions via script
+xwebs connect wss://echo.websocket.org --script integration-test.xwebs
 ```
+
+### Automation & Scripting
+
+`xwebs` features a powerful scripting subsystem that allows you to automate repetitive tasks, perform integration tests, and build repeatable WebSocket workflows.
+
+#### Script Files (`.xwebs`)
+
+A script file is a plain text file where each line is a REPL command. Lines starting with `#` are comments.
+
+Example `health-check.xwebs`:
+```text
+# Login to the service
+:sendj {"type": "login", "user": "test-bot"}
+
+# Wait for the welcome message
+:wait 500ms
+
+# Assert that we are logged in and latency is low
+:assert {{eq (.Last | jq ".status") "ok"}} "Login failed"
+:assert {{lt .LastLatencyMs 100}} "High latency detected: {{.LastLatencyMs}}ms"
+
+# Send a heartbeat and exit
+:ping
+:exit
+```
+
+#### Aliases with Arguments
+
+Aliases support positional argument substitution (`$1`, `$2`, ..., `$@`), allowing you to create custom shorthand commands.
+
+```text
+# Define an alias
+> :alias sendto :sendj {"to":"$1", "msg":"$2"}
+
+# Use the alias
+> :sendto "alice" "hello there"
+# Expands to: :sendj {"to":"alice", "msg":"hello there"}
+```
+
+#### Assertions and Observability
+
+The `:assert` command evaluates a Go template expression. If the expression evaluates to `false` or an empty string, the assertion fails. In `--script` mode, an assertion failure stops the script and causes `xwebs` to exit with code 1.
+
+Templates have access to:
+- `.Last` — The last received message (as a string, use `| jq` to parse)
+- `.LastLatencyMs` — The round-trip time of the last message exchange in milliseconds
+- `.Vars` — Session variables set via `:set`
 
 ### Custom Headers and Authentication
 

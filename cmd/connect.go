@@ -83,6 +83,7 @@ var (
 	formatStr         string
 	filterStr         string
 	timestamps        bool
+	scriptFile        string
 )
 
 var connectCmd = &cobra.Command{
@@ -294,6 +295,11 @@ Example:
 			isInteractive = false
 		}
 
+		// If script is provided, we must use the REPL context even if not a TTY
+		if scriptFile != "" {
+			isInteractive = true
+		}
+
 		if isInteractive {
 			var err error
 			cfg := &repl.Config{}
@@ -354,6 +360,7 @@ Example:
 		inputErrChan := make(chan error, 1)
 		if isInteractive {
 			r.SetOnInput(func(ctx context.Context, text string) error {
+				r.SetLastSendTime(time.Now())
 				inputChan <- text
 				return nil
 			})
@@ -558,6 +565,28 @@ Example:
 					}
 				}()
 
+				// Execute script if provided (after reader/sender are started)
+				if scriptFile != "" {
+					scriptCtx := cmd.Context()
+					err := r.ExecuteCommand(scriptCtx, ":source "+scriptFile)
+					if err != nil {
+						if err == repl.ErrExit {
+							_ = conn.Close()
+							return nil
+						}
+						warn(r, isInteractive, "Script failed: %v\n", err)
+						// If running via --script and not explicitly interactive, stay in REPL or exit
+						if !isTerminal || !interactive {
+							_ = conn.Close()
+							return fmt.Errorf("script failed: %w", err)
+						}
+					} else if !isTerminal || !interactive {
+						// Script completed successfully and we're not in an interactive terminal
+						_ = conn.Close()
+						return nil
+					}
+				}
+
 				// Wait for connection to close, context to be cancelled, or manual dial
 				var closedUnexpectedly bool
 				var forcedDial bool
@@ -567,6 +596,11 @@ Example:
 					if !isTerminal {
 						time.Sleep(1 * time.Second)
 					}
+					_ = conn.Close()
+					<-readDone
+					return nil
+				case <-r.Done():
+					// Script or another command called :exit
 					_ = conn.Close()
 					<-readDone
 					return nil
@@ -669,6 +703,7 @@ func init() {
 	connectCmd.Flags().StringVar(&formatStr, "format", "raw", "initial message display format: json, raw, hex, template")
 	connectCmd.Flags().StringVar(&filterStr, "filter", "", "initial display filter (JQ or /regex/)")
 	connectCmd.Flags().BoolVar(&timestamps, "timestamps", false, "display message timestamps")
+	connectCmd.Flags().StringVar(&scriptFile, "script", "", "execute a .xwebs script file after connecting")
 	rootCmd.AddCommand(connectCmd)
 }
 

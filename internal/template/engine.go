@@ -177,6 +177,7 @@ func (e *Engine) Execute(name, text string, data interface{}) (string, error) {
 		for k, v := range e.session {
 			ctx.Session[k] = v
 		}
+		ctx.Vars = ctx.Session
 
 		// Also populate environment variables if not already set
 		if len(ctx.Env) == 0 && !e.sandboxed {

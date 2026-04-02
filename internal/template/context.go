@@ -44,6 +44,7 @@ type TemplateContext struct {
 	Handler *HandlerContext        `json:"handler,omitempty"`
 	Server  *ServerContext         `json:"server,omitempty"`
 	Session map[string]interface{} `json:"session"`
+	Vars    map[string]interface{} `json:"vars"`
 	Env     map[string]string      `json:"env"`
 
 	// Convenience fields for common operations (mirrors some values in Msg)
@@ -54,6 +55,10 @@ type TemplateContext struct {
 	MessageIndex uint64    `json:"message_index,omitempty"`
 	Timestamp    time.Time `json:"timestamp,omitempty"`
 	Direction    string    `json:"direction,omitempty"`
+
+	// Scripting context
+	Last          string `json:"last,omitempty"`
+	LastLatencyMs int64  `json:"last_latency_ms,omitempty"`
 }
 
 // NewContext creates a new TemplateContext with initialized maps.

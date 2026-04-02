@@ -1,12 +1,16 @@
 package repl
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/0funct0ry/xwebs/internal/template"
 )
 
 // Command defines the interface for a REPL command.
@@ -74,7 +78,8 @@ func (r *REPL) RegisterCommonCommands() {
 		name: "exit",
 		help: "Disconnect and exit",
 		handler: func(ctx context.Context, r *REPL, args []string) error {
-			return r.Close()
+			_ = r.Close()
+			return ErrExit
 		},
 	})
 	r.RegisterAlias("quit", "exit")
@@ -305,6 +310,194 @@ func (r *REPL) RegisterCommonCommands() {
 				r.Printf("color set to %s\n", args[0])
 			default:
 				return fmt.Errorf("usage: :color [on|off|auto]")
+			}
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "source",
+		help: "Execute commands from a file: :source <file>",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("usage: :source <file>")
+			}
+			path := args[0]
+			if r.execDepth >= 10 {
+				return fmt.Errorf("maximum source recursion depth (10) exceeded")
+			}
+			r.execDepth++
+			defer func() { r.execDepth-- }()
+
+			f, err := os.Open(path)
+			if err != nil {
+				return fmt.Errorf("opening script %s: %w", path, err)
+			}
+			defer f.Close()
+
+			scanner := bufio.NewScanner(f)
+			lineNum := 0
+			for scanner.Scan() {
+				lineNum++
+				line := strings.TrimSpace(scanner.Text())
+				if line == "" || strings.HasPrefix(line, "#") {
+					continue
+				}
+
+				// Template expanded before execution
+				tmplCtx := template.NewContext()
+				tmplCtx.Session = r.GetVars()
+				tmplCtx.Env = make(map[string]string)
+				for _, e := range os.Environ() {
+					parts := strings.SplitN(e, "=", 2)
+					if len(parts) == 2 {
+						tmplCtx.Env[parts[0]] = parts[1]
+					}
+				}
+				
+				// Add scripting context
+				if lastMsg := r.GetLastMessage(); lastMsg != nil {
+					tmplCtx.Last = string(lastMsg.Data)
+				}
+				tmplCtx.LastLatencyMs = r.GetLastLatency().Milliseconds()
+
+				expanded, err := r.TemplateEngine.Execute(fmt.Sprintf("%s:%d", path, lineNum), line, tmplCtx)
+				if err != nil {
+					return fmt.Errorf("%s:%d: template error: %w", path, lineNum, err)
+				}
+
+				if err := r.ExecuteCommand(ctx, expanded); err != nil {
+					if err == ErrExit {
+						return ErrExit
+					}
+					return fmt.Errorf("%s:%d: %w", path, lineNum, err)
+				}
+			}
+			return scanner.Err()
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "alias",
+		help: "Define or list command aliases: :alias [name] [cmd]",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if len(args) == 0 {
+				if len(r.scriptAliases) == 0 {
+					r.Printf("No aliases defined.\n")
+					return nil
+				}
+				keys := make([]string, 0, len(r.scriptAliases))
+				for k := range r.scriptAliases {
+					keys = append(keys, k)
+				}
+				sort.Strings(keys)
+				r.Printf("\nAliases:\n")
+				for _, k := range keys {
+					r.Printf("  :%-15s %s\n", k, r.scriptAliases[k])
+				}
+				return nil
+			}
+			if len(args) == 1 {
+				val, ok := r.scriptAliases[args[0]]
+				if !ok {
+					return fmt.Errorf("alias not found: %s", args[0])
+				}
+				r.Printf(":%s = %s\n", args[0], val)
+				return nil
+			}
+			r.scriptAliases[args[0]] = strings.Join(args[1:], " ")
+			r.Printf("alias registered: :%s\n", args[0])
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "unalias",
+		help: "Remove a command alias: :unalias <name>",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("usage: :unalias <name>")
+			}
+			if _, ok := r.scriptAliases[args[0]]; !ok {
+				return fmt.Errorf("alias not found: %s", args[0])
+			}
+			delete(r.scriptAliases, args[0])
+			r.Printf("alias removed: :%s\n", args[0])
+			return nil
+		},
+	})
+
+	waitHandler := func(ctx context.Context, r *REPL, args []string) error {
+		if len(args) < 1 {
+			return fmt.Errorf("usage: :wait <duration>")
+		}
+		d, err := time.ParseDuration(args[0])
+		if err != nil {
+			return fmt.Errorf("invalid duration: %w", err)
+		}
+		select {
+		case <-time.After(d):
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-r.done:
+			return nil
+		}
+	}
+	r.RegisterCommand(&BuiltinCommand{
+		name:    "wait",
+		help:    "Pause execution for a duration: :wait <duration> (e.g. 500ms, 1s)",
+		handler: waitHandler,
+	})
+	r.RegisterCommand(&BuiltinCommand{
+		name:    "sleep",
+		help:    "Alias for :wait",
+		handler: waitHandler,
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "assert",
+		help: "Assert that a template expression is true: :assert <expr> [msg]",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("usage: :assert <expression> [message]")
+			}
+			expr := args[0]
+			msg := ""
+			if len(args) > 1 {
+				msg = strings.Join(args[1:], " ")
+			}
+
+			tmplCtx := template.NewContext()
+			tmplCtx.Session = r.GetVars()
+			// Add scripting context
+			if lastMsg := r.GetLastMessage(); lastMsg != nil {
+				tmplCtx.Last = string(lastMsg.Data)
+			}
+			tmplCtx.LastLatencyMs = r.GetLastLatency().Milliseconds()
+
+			res, err := r.TemplateEngine.Execute("assert", expr, tmplCtx)
+			if err != nil {
+				return fmt.Errorf("assertion template error: %w", err)
+			}
+
+			// Clean result for check
+			res = strings.TrimSpace(strings.ToLower(res))
+			
+			// Fails if empty, "false", or "0"
+			if res == "" || res == "false" || res == "0" {
+				if msg == "" {
+					msg = expr
+				}
+				r.Display.Color = "on" // Temporarily force color for error if auto? No, use colorizedText logic.
+				failMsg := r.Display.colorizedText(fmt.Sprintf("ASSERT FAILED: %s", msg), "red")
+				r.Printf("%s\n", failMsg)
+				return fmt.Errorf("assertion failed: %s", msg)
+			}
+
+			if r.Display.Verbose {
+				successMsg := r.Display.colorizedText(fmt.Sprintf("ASSERT OK: %s", msg), "green")
+				r.Printf("%s\n", successMsg)
 			}
 			return nil
 		},

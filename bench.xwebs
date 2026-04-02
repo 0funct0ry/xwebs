@@ -1,0 +1,4 @@
+:ping "rtt-test"
+:wait 200ms
+:assert {{lt .LastLatencyMs 200}} "High latency: {{.LastLatencyMs}}ms"
+:exit

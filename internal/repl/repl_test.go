@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	"github.com/0funct0ry/xwebs/internal/template"
 )
 
 type mockCommand struct {
@@ -26,12 +28,13 @@ func TestREPLCommands(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create REPL: %v", err)
 	}
+	r.TemplateEngine = template.New(false)
 
 	mock := &mockCommand{name: "test", help: "test command"}
 	r.RegisterCommand(mock)
 
 	t.Run("Execute command", func(t *testing.T) {
-		err := r.executeCommand(context.Background(), ":test arg1 arg2")
+		err := r.ExecuteCommand(context.Background(), ":test arg1 arg2")
 		if err != nil {
 			t.Errorf("Unexpected error executing command: %v", err)
 		}
@@ -44,7 +47,7 @@ func TestREPLCommands(t *testing.T) {
 	})
 
 	t.Run("Unknown command", func(t *testing.T) {
-		err := r.executeCommand(context.Background(), ":unknown")
+		err := r.ExecuteCommand(context.Background(), ":unknown")
 		if err == nil {
 			t.Errorf("Expected error for unknown command")
 		}
@@ -56,6 +59,7 @@ func TestREPLCommands(t *testing.T) {
 
 func TestREPLVars(t *testing.T) {
 	r, _ := New(ClientMode, nil)
+	r.TemplateEngine = template.New(false)
 
 	r.SetVar("foo", "bar")
 	val := r.GetVar("foo")
@@ -71,11 +75,12 @@ func TestREPLVars(t *testing.T) {
 
 func TestRegisterAlias(t *testing.T) {
 	r, _ := New(ClientMode, nil)
+	r.TemplateEngine = template.New(false)
 	mock := &mockCommand{name: "real"}
 	r.RegisterCommand(mock)
 	r.RegisterAlias("fake", "real")
 
-	err := r.executeCommand(context.Background(), ":fake arg1")
+	err := r.ExecuteCommand(context.Background(), ":fake arg1")
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -86,6 +91,7 @@ func TestRegisterAlias(t *testing.T) {
 
 func TestREPLCompletion(t *testing.T) {
 	r, _ := New(ClientMode, nil)
+	r.TemplateEngine = template.New(false)
 	r.RegisterCommand(&mockCommand{name: "status"})
 	r.RegisterCommand(&mockCommand{name: "send"})
 	r.RegisterAlias("quit", "exit")
@@ -145,10 +151,11 @@ func TestREPLCompletion(t *testing.T) {
 
 func TestSessionCommands(t *testing.T) {
 	r, _ := New(ClientMode, nil)
+	r.TemplateEngine = template.New(false)
 	r.RegisterCommonCommands()
 
 	t.Run("set and get", func(t *testing.T) {
-		err := r.executeCommand(context.Background(), ":set mykey myvalue")
+		err := r.ExecuteCommand(context.Background(), ":set mykey myvalue")
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
@@ -156,7 +163,7 @@ func TestSessionCommands(t *testing.T) {
 			t.Errorf("Expected 'myvalue', got %v", r.GetVar("mykey"))
 		}
 
-		err = r.executeCommand(context.Background(), ":get mykey")
+		err = r.ExecuteCommand(context.Background(), ":get mykey")
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
@@ -165,16 +172,61 @@ func TestSessionCommands(t *testing.T) {
 	t.Run("vars", func(t *testing.T) {
 		r.SetVar("a", "1")
 		r.SetVar("b", "2")
-		err := r.executeCommand(context.Background(), ":vars")
+		err := r.ExecuteCommand(context.Background(), ":vars")
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
 	})
 
 	t.Run("env", func(t *testing.T) {
-		err := r.executeCommand(context.Background(), ":env")
+		err := r.ExecuteCommand(context.Background(), ":env")
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
+		}
+	})
+}
+
+func TestScriptingCommands(t *testing.T) {
+	r, _ := New(ClientMode, nil)
+	r.TemplateEngine = template.New(false)
+	r.RegisterCommonCommands()
+	mock := &mockCommand{name: "say"}
+	r.RegisterCommand(mock)
+
+	t.Run("Script Alias with positional args", func(t *testing.T) {
+		err := r.ExecuteCommand(context.Background(), ":alias greet :say hello $1")
+		if err != nil {
+			t.Fatalf("Failed to register alias: %v", err)
+		}
+		
+		err = r.ExecuteCommand(context.Background(), ":greet world")
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+		if !mock.executed || len(mock.args) != 2 || mock.args[1] != "world" {
+			t.Errorf("Alias expansion failed, got args: %v", mock.args)
+		}
+	})
+
+	t.Run("Assert success", func(t *testing.T) {
+		r.SetVar("val", "100")
+		err := r.ExecuteCommand(context.Background(), ":assert {{eq .Vars.val \"100\"}}")
+		if err != nil {
+			t.Errorf("Assert failed: %v", err)
+		}
+	})
+
+	t.Run("Assert failure", func(t *testing.T) {
+		err := r.ExecuteCommand(context.Background(), ":assert {{eq \"1\" \"2\"}} \"mismatch\"")
+		if err == nil {
+			t.Errorf("Expected assert to fail")
+		}
+	})
+
+	t.Run("Wait command", func(t *testing.T) {
+		err := r.ExecuteCommand(context.Background(), ":wait 10ms")
+		if err != nil {
+			t.Errorf("Wait failed: %v", err)
 		}
 	})
 }

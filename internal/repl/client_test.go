@@ -44,7 +44,7 @@ func TestClientCommands(t *testing.T) {
 	r.RegisterClientCommands(mcc)
 
 	t.Run("connect command", func(t *testing.T) {
-		err := r.executeCommand(context.Background(), ":connect ws://example.com")
+		err := r.ExecuteCommand(context.Background(), ":connect ws://example.com")
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
@@ -55,7 +55,7 @@ func TestClientCommands(t *testing.T) {
 
 	t.Run("connect command with template", func(t *testing.T) {
 		r.SetVar("host", "example.org")
-		err := r.executeCommand(context.Background(), ":connect ws://{{.Session.host}}")
+		err := r.ExecuteCommand(context.Background(), ":connect ws://{{.Session.host}}")
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
@@ -65,7 +65,7 @@ func TestClientCommands(t *testing.T) {
 	})
 
 	t.Run("reconnect command", func(t *testing.T) {
-		err := r.executeCommand(context.Background(), ":reconnect")
+		err := r.ExecuteCommand(context.Background(), ":reconnect")
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
@@ -75,7 +75,7 @@ func TestClientCommands(t *testing.T) {
 	})
 
 	t.Run("disconnect command", func(t *testing.T) {
-		err := r.executeCommand(context.Background(), ":disconnect")
+		err := r.ExecuteCommand(context.Background(), ":disconnect")
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
@@ -92,7 +92,7 @@ func TestClientCommands(t *testing.T) {
 		// We need a dummy connection to satisfy GetConnection() != nil
 		mcc.conn = &ws.Connection{}
 
-		err := r.executeCommand(context.Background(), ":close")
+		err := r.ExecuteCommand(context.Background(), ":close")
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
@@ -109,7 +109,7 @@ func TestClientCommands(t *testing.T) {
 
 	t.Run("close command custom code", func(t *testing.T) {
 		mcc.closed = false
-		err := r.executeCommand(context.Background(), ":close 1001")
+		err := r.ExecuteCommand(context.Background(), ":close 1001")
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
@@ -123,7 +123,7 @@ func TestClientCommands(t *testing.T) {
 
 	t.Run("close command custom code and reason", func(t *testing.T) {
 		mcc.closed = false
-		err := r.executeCommand(context.Background(), ":close 4000 Custom Reason")
+		err := r.ExecuteCommand(context.Background(), ":close 4000 Custom Reason")
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
@@ -137,7 +137,7 @@ func TestClientCommands(t *testing.T) {
 
 	t.Run("close command reason only", func(t *testing.T) {
 		mcc.closed = false
-		err := r.executeCommand(context.Background(), ":close Bye for now")
+		err := r.ExecuteCommand(context.Background(), ":close Bye for now")
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
