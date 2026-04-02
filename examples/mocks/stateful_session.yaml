@@ -1,0 +1,16 @@
+scenarios:
+  - name: "Stateful Session Protocol Mock"
+    loop: false
+    steps:
+      - expect:
+          jq: '.action == "login"'
+        respond: '{"status": "AUTHENTICATED", "user": "admin"}'
+        delay: 500ms
+      - expect:
+          jq: '.action == "get_data"'
+        respond: '{"status": "SUCCESS", "data": [10, 20, 30, 40]}'
+        delay: 100ms
+      - expect:
+          jq: '.action == "logout"'
+        respond: '{"status": "LOGGED_OUT"}'
+        delay: 200ms

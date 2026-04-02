@@ -84,6 +84,8 @@ var (
 	filterStr         string
 	timestamps        bool
 	scriptFile        string
+	logFile           string
+	recordFile        string
 )
 
 var connectCmd = &cobra.Command{
@@ -347,6 +349,23 @@ Example:
 					}
 				}
 
+				
+				// Handle --log and --record flags
+				if logFile != "" {
+					if err := r.Logger.Start(logFile); err != nil {
+						fmt.Fprintf(os.Stderr, "Warning: failed to start logging to %s: %v\n", logFile, err)
+					} else {
+						r.Notify("✓ Logging to %s\n", logFile)
+					}
+				}
+				if recordFile != "" {
+					if err := r.Recorder.Start(recordFile, target); err != nil {
+						fmt.Fprintf(os.Stderr, "Warning: failed to start recording to %s: %v\n", recordFile, err)
+					} else {
+						r.Notify("✓ Recording to %s\n", recordFile)
+					}
+				}
+
 				defer r.Close()
 			}
 		}
@@ -473,6 +492,15 @@ Example:
 			if conn != nil {
 				cc.SetConnection(conn)
 				reconnectCount = 0 // Reset on successful connection
+
+				// Log connection event
+				if isInteractive && r != nil && r.Logger.IsActive() {
+					_ = r.Logger.LogEvent("connected", map[string]interface{}{
+						"url":         details.URL,
+						"subprotocol": conn.NegotiatedSubprotocol,
+					})
+				}
+
 				info(r, isInteractive, "Successfully connected to %s\n", details.URL)
 				if conn.NegotiatedSubprotocol != "" {
 					info(r, isInteractive, "Subprotocol: %s\n", conn.NegotiatedSubprotocol)
@@ -507,7 +535,7 @@ Example:
 						
 						// Use REPL's centralized printing logic
 						if isInteractive && r != nil {
-							r.PrintMessage(msg)
+							r.PrintMessage(msg, conn)
 							
 							// If interactive, try to extract JSON keys for completion
 							if msg.Type == ws.TextMessage {
@@ -550,7 +578,14 @@ Example:
 							if !ok {
 								return
 							}
-							msg := &ws.Message{Type: ws.TextMessage, Data: []byte(text)}
+							msg := &ws.Message{
+								Type: ws.TextMessage, 
+								Data: []byte(text),
+								Metadata: ws.MessageMetadata{
+									Direction: "sent",
+									Timestamp: time.Now(),
+								},
+							}
 							if err := conn.Write(msg); err != nil {
 								if isInteractive {
 									r.Errorf("\nError sending message: %v\n", err)
@@ -558,6 +593,9 @@ Example:
 									fmt.Fprintf(os.Stderr, "\nError sending message: %v\n", err)
 								}
 								return
+							}
+							if isInteractive && r != nil {
+								r.PrintMessage(msg, conn)
 							}
 						case <-conn.Done():
 							return
@@ -612,6 +650,16 @@ Example:
 					_ = conn.Close()
 				case <-conn.Done():
 					code, reason := conn.CloseStatus()
+					
+					// Log disconnection event
+					if isInteractive && r != nil && r.Logger.IsActive() {
+						_ = r.Logger.LogEvent("disconnected", map[string]interface{}{
+							"url":    details.URL,
+							"code":   code,
+							"reason": reason,
+						})
+					}
+
 					if err := conn.Err(); err != nil {
 						if websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
 							info(r, isInteractive, "\nConnection lost: %v (code=%d, reason=%q)\n", err, code, reason)
@@ -704,6 +752,8 @@ func init() {
 	connectCmd.Flags().StringVar(&filterStr, "filter", "", "initial display filter (JQ or /regex/)")
 	connectCmd.Flags().BoolVar(&timestamps, "timestamps", false, "display message timestamps")
 	connectCmd.Flags().StringVar(&scriptFile, "script", "", "execute a .xwebs script file after connecting")
+	connectCmd.Flags().StringVar(&logFile, "log", "", "log traffic to file (JSONL)")
+	connectCmd.Flags().StringVar(&recordFile, "record", "", "record session to file for replay")
 	rootCmd.AddCommand(connectCmd)
 }
 

@@ -1,0 +1,53 @@
+# 10-health-check.yaml — Health check with degraded and recovery states
+# Simulates a health endpoint that starts healthy, degrades on the second
+# check, and recovers on the third. Useful for testing CI assertion scripts.
+#
+# Test with:
+#   :mock examples/mock/10-health-check.yaml
+#   :send {"type":"health"}
+#   # expect: healthy
+#   :send {"type":"health"}
+#   # expect: degraded
+#   :send {"type":"health"}
+#   # expect: healthy again
+#
+# With a test script:
+#   :send {"type":"health"}
+#   :wait 500ms
+#   :assert {{eq (.Last | jq ".status") "ok"}} "First check should be healthy"
+
+scenarios:
+  - name: health-lifecycle
+    steps:
+      - expect:
+          jq: '.type == "health"'
+        respond: |
+          {
+            "status": "ok",
+            "uptime": "{{uptime}}",
+            "services": {"db": "ok", "cache": "ok", "queue": "ok"},
+            "ts": "{{now | formatTime "RFC3339"}}"
+          }
+        delay: 20ms
+
+      - expect:
+          jq: '.type == "health"'
+        respond: |
+          {
+            "status": "degraded",
+            "uptime": "{{uptime}}",
+            "services": {"db": "ok", "cache": "timeout", "queue": "ok"},
+            "ts": "{{now | formatTime "RFC3339"}}"
+          }
+        delay: 3s
+
+      - expect:
+          jq: '.type == "health"'
+        respond: |
+          {
+            "status": "ok",
+            "uptime": "{{uptime}}",
+            "services": {"db": "ok", "cache": "ok", "queue": "ok"},
+            "ts": "{{now | formatTime "RFC3339"}}"
+          }
+        delay: 20ms

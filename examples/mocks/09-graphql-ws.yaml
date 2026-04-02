@@ -1,0 +1,33 @@
+# 09-graphql-ws.yaml — GraphQL subscription over WebSocket (graphql-ws protocol)
+# Simulates the graphql-ws handshake (connection_init / connection_ack)
+# followed by a subscription that pushes 3 data events and completes.
+#
+# Test with:
+#   :mock examples/mock/09-graphql-ws.yaml
+#   :send {"type":"connection_init","payload":{"Authorization":"Bearer test"}}
+#   :send {"id":"1","type":"subscribe","payload":{"query":"subscription { orderCreated { id total } }"}}
+
+scenarios:
+  - name: graphql-subscription
+    steps:
+      # Handshake
+      - expect:
+          jq: '.type == "connection_init"'
+        respond: '{"type":"connection_ack"}'
+        delay: 50ms
+
+      # Subscribe
+      - expect:
+          jq: '.type == "subscribe"'
+        respond: '{"id":"{{.Message | jq ".id"}}","type":"next","payload":{"data":{"orderCreated":{"id":"order-101","total":49.99}}}}'
+        delay: 500ms
+
+      # Server pushes 2 more events
+      - after: 1500ms
+        send: '{"id":"1","type":"next","payload":{"data":{"orderCreated":{"id":"order-102","total":129.00}}}}'
+      - after: 2500ms
+        send: '{"id":"1","type":"next","payload":{"data":{"orderCreated":{"id":"order-103","total":12.50}}}}'
+
+      # Complete the subscription
+      - after: 3500ms
+        send: '{"id":"1","type":"complete"}'

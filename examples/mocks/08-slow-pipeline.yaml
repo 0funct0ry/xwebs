@@ -1,0 +1,28 @@
+# 08-slow-pipeline.yaml — Long-running job with progress updates
+# Simulates submitting a job and receiving incremental progress updates
+# before a final completion. Good for testing timeout handling and
+# progress display.
+#
+# Test with:
+#   :mock examples/mock/08-slow-pipeline.yaml
+#   :send {"type":"run_job","job":"data-export","params":{"format":"csv"}}
+#   # expect: accepted, then 4 progress updates, then completed
+
+scenarios:
+  - name: slow-job
+    steps:
+      - expect:
+          jq: '.type == "run_job"'
+        respond: '{"type":"job_accepted","job_id":"job-{{shortid}}","job":"{{.Message | jq ".job"}}"}'
+        delay: 200ms
+
+      - after: 1s
+        send: '{"type":"progress","job_id":"job-001","pct":25,"stage":"reading"}'
+      - after: 2s
+        send: '{"type":"progress","job_id":"job-001","pct":50,"stage":"processing"}'
+      - after: 3s
+        send: '{"type":"progress","job_id":"job-001","pct":75,"stage":"writing"}'
+      - after: 4s
+        send: '{"type":"progress","job_id":"job-001","pct":100,"stage":"finalizing"}'
+      - after: 4500ms
+        send: '{"type":"job_completed","job_id":"job-001","result":{"rows":15420,"size_bytes":2048576,"url":"https://storage.example.com/exports/job-001.csv"}}'

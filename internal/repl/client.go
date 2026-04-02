@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/0funct0ry/xwebs/internal/replay"
 	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/0funct0ry/xwebs/internal/ws"
 )
@@ -71,7 +72,11 @@ func (r *REPL) RegisterClientCommands(cc ClientContext) {
 			}
 			msg := strings.Join(args, " ")
 			r.SetLastSendTime(time.Now())
-			return conn.Write(&ws.Message{Type: ws.TextMessage, Data: []byte(msg)})
+			err := conn.Write(&ws.Message{Type: ws.TextMessage, Data: []byte(msg)})
+			if err == nil {
+				r.PrintMessage(&ws.Message{Type: ws.TextMessage, Data: []byte(msg), Metadata: ws.MessageMetadata{Direction: "sent"}}, conn)
+			}
+			return err
 		},
 	})
 
@@ -88,7 +93,12 @@ func (r *REPL) RegisterClientCommands(cc ClientContext) {
 				return err
 			}
 			r.SetLastSendTime(time.Now())
-			return conn.Write(&ws.Message{Type: ws.PingMessage, Data: data})
+			m := &ws.Message{Type: ws.PingMessage, Data: data}
+			err = conn.Write(m)
+			if err == nil {
+				r.PrintMessage(&ws.Message{Type: ws.PingMessage, Data: data, Metadata: ws.MessageMetadata{Direction: "sent"}}, conn)
+			}
+			return err
 		},
 	})
 
@@ -104,7 +114,12 @@ func (r *REPL) RegisterClientCommands(cc ClientContext) {
 			if err != nil {
 				return err
 			}
-			return conn.Write(&ws.Message{Type: ws.PongMessage, Data: data})
+			m := &ws.Message{Type: ws.PongMessage, Data: data}
+			err = conn.Write(m)
+			if err == nil {
+				r.PrintMessage(&ws.Message{Type: ws.PongMessage, Data: data, Metadata: ws.MessageMetadata{Direction: "sent"}}, conn)
+			}
+			return err
 		},
 	})
 
@@ -160,7 +175,12 @@ func (r *REPL) RegisterClientCommands(cc ClientContext) {
 				return fmt.Errorf("decoding binary data: %w", err)
 			}
 			r.SetLastSendTime(time.Now())
-			return conn.Write(&ws.Message{Type: ws.BinaryMessage, Data: data})
+			m := &ws.Message{Type: ws.BinaryMessage, Data: data}
+			err = conn.Write(m)
+			if err == nil {
+				r.PrintMessage(&ws.Message{Type: ws.BinaryMessage, Data: data, Metadata: ws.MessageMetadata{Direction: "sent"}}, conn)
+			}
+			return err
 		},
 	})
 
@@ -180,7 +200,12 @@ func (r *REPL) RegisterClientCommands(cc ClientContext) {
 				return fmt.Errorf("invalid JSON: %s", msg)
 			}
 			r.SetLastSendTime(time.Now())
-			return conn.Write(&ws.Message{Type: ws.TextMessage, Data: []byte(msg)})
+			m := &ws.Message{Type: ws.TextMessage, Data: []byte(msg)}
+			err := conn.Write(m)
+			if err == nil {
+				r.PrintMessage(&ws.Message{Type: ws.TextMessage, Data: []byte(msg), Metadata: ws.MessageMetadata{Direction: "sent"}}, conn)
+			}
+			return err
 		},
 	})
 
@@ -209,7 +234,11 @@ func (r *REPL) RegisterClientCommands(cc ClientContext) {
 				return fmt.Errorf("rendering template: %w", err)
 			}
 			r.SetLastSendTime(time.Now())
-			return conn.Write(&ws.Message{Type: ws.TextMessage, Data: []byte(res)})
+			err = conn.Write(&ws.Message{Type: ws.TextMessage, Data: []byte(res)})
+			if err == nil {
+				r.PrintMessage(&ws.Message{Type: ws.TextMessage, Data: []byte(res), Metadata: ws.MessageMetadata{Direction: "sent"}}, conn)
+			}
+			return err
 		},
 	})
 
@@ -277,6 +306,140 @@ func (r *REPL) RegisterClientCommands(cc ClientContext) {
 		help: "Disconnect from the current server",
 		handler: func(ctx context.Context, r *REPL, args []string) error {
 			return cc.CloseConnection()
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "log",
+		help: "Log traffic to file: :log <file> | :log off",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if len(args) == 0 {
+				if r.Logger.IsActive() {
+					r.Printf("Logging to: %s\n", r.Logger.Filename())
+				} else {
+					r.Printf("log: off\n")
+				}
+				return nil
+			}
+
+			if args[0] == "off" {
+				count, filename, err := r.Logger.Stop()
+				if err != nil {
+					return err
+				}
+				if filename != "" {
+					r.Printf("✓ Stopped logging (%d entries written to %s)\n", count, filename)
+				}
+				return nil
+			}
+
+			if err := r.Logger.Start(args[0]); err != nil {
+				return err
+			}
+			r.Printf("✓ Logging to %s\n", args[0])
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "record",
+		help: "Record session to file: :record <file> | :record off",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if len(args) == 0 {
+				if r.Recorder.IsActive() {
+					r.Printf("Recording active\n")
+				} else {
+					r.Printf("record: off\n")
+				}
+				return nil
+			}
+
+			if args[0] == "off" {
+				count, filename, err := r.Recorder.Stop()
+				if err != nil {
+					return err
+				}
+				if filename != "" {
+					r.Printf("✓ Stopped recording (%d messages captured to %s)\n", count, filename)
+				}
+				return nil
+			}
+
+			conn := cc.GetConnection()
+			url := ""
+			if conn != nil {
+				url = conn.URL
+			}
+
+			if err := r.Recorder.Start(args[0], url); err != nil {
+				return err
+			}
+			r.Printf("✓ Recording to %s\n", args[0])
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "replay",
+		help: "Replay a recorded session: :replay <file>",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if len(args) == 0 {
+				return fmt.Errorf("usage: :replay <file>")
+			}
+			conn := cc.GetConnection()
+			if conn == nil || conn.IsClosed() {
+				return fmt.Errorf("no active connection")
+			}
+
+			filename := args[0]
+			rep := replay.NewReplayer()
+			
+			r.Printf("▶ Replaying messages from %s...\n", filename)
+			
+			// We use a background context or a derived one that can be cancelled?
+			// The REPL's ExecuteCommand passes a context which is usually cmd.Context()
+			
+			sent, recv, err := rep.Replay(ctx, conn, filename, 1.0, func(elapsed int64, dir string, msg string) {
+				r.Printf("  [%dms]  %s %s\n", elapsed, "→", msg)
+			})
+			
+			if err != nil {
+				return err
+			}
+			
+			r.Printf("✓ Replay complete. %d sent, %d received.\n", sent, recv)
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "mock",
+		help: "Load mock scenario: :mock <file> | :mock off",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if len(args) == 0 {
+				r.Printf("Mock status: %s\n", r.Mocker.GetStatus())
+				return nil
+			}
+
+			if args[0] == "off" {
+				r.Mocker.Stop()
+				r.Printf("✓ Mock unloaded\n")
+				return nil
+			}
+
+			if err := r.Mocker.LoadScenario(args[0]); err != nil {
+				return err
+			}
+			
+			conn := cc.GetConnection()
+			if conn != nil {
+				r.Mocker.StartBackgroundTasks(ctx, conn, func(f string, a ...interface{}) {
+					r.Notify(f+"\n", a...)
+				})
+			}
+			
+			r.Printf("✓ Mock loaded: %s\n", args[0])
+			return nil
 		},
 	})
 }

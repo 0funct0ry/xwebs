@@ -1,0 +1,10 @@
+scenarios:
+  - name: "Self-Initiated Heartbeat Mock"
+    loop: true
+    steps:
+      - send: '{"system": "HEALTH", "status": "OK"}'
+        after: 5s # Send health check every 5 seconds (when looped)
+      - expect:
+          jq: '.type == "ACK"'
+        respond: '{"status": "CONFIRMED"}'
+        delay: 100ms

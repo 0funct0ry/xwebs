@@ -1,0 +1,8 @@
+scenarios:
+  - name: "Simple Greeting Mock"
+    loop: true
+    steps:
+      - expect:
+          jq: '.msg? | contains("hello")'
+        respond: '{"status": "MOCKED", "reply": "Hello from xwebs mock engine!"}'
+        delay: 200ms

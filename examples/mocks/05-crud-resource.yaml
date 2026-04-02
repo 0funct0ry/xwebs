@@ -1,0 +1,33 @@
+# 05-crud-resource.yaml — Create / Read / Update / Delete lifecycle
+# Walks through a full CRUD sequence for a resource. Steps are consumed
+# in order, so send the messages in the expected sequence.
+#
+# Test with:
+#   :mock examples/mock/05-crud-resource.yaml
+#   :send {"action":"create","name":"widget","color":"blue"}
+#   :send {"action":"get","id":"widget-001"}
+#   :send {"action":"update","id":"widget-001","color":"red"}
+#   :send {"action":"delete","id":"widget-001"}
+
+scenarios:
+  - name: crud
+    steps:
+      - expect:
+          jq: '.action == "create"'
+        respond: '{"status":"created","id":"widget-001","name":"{{.Message | jq ".name"}}","color":"{{.Message | jq ".color"}}"}'
+        delay: 80ms
+
+      - expect:
+          jq: '.action == "get"'
+        respond: '{"status":"ok","id":"widget-001","name":"widget","color":"blue","created_at":"{{now | formatTime "RFC3339"}}"}'
+        delay: 30ms
+
+      - expect:
+          jq: '.action == "update"'
+        respond: '{"status":"updated","id":"widget-001","color":"{{.Message | jq ".color"}}","updated_at":"{{now | formatTime "RFC3339"}}"}'
+        delay: 50ms
+
+      - expect:
+          jq: '.action == "delete"'
+        respond: '{"status":"deleted","id":"widget-001"}'
+        delay: 30ms

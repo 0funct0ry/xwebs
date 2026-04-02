@@ -76,6 +76,9 @@ type Connection struct {
 	_closeReason  string
 	_onDisconnect func(code int, reason string)
 	_closing      chan struct{}
+
+	_subscribers []chan *Message
+	_subMu       sync.RWMutex
 }
 
 // Start launches the read and write loops for the connection.
@@ -191,8 +194,33 @@ func (c *Connection) CompressionRequested() bool {
 }
 
 // Read returns the channel for incoming messages.
+// This is a shorthand for Subscribe() for the primary consumer.
 func (c *Connection) Read() <-chan *Message {
 	return c._readCh
+}
+
+// Subscribe returns a new channel that will receive all incoming messages.
+func (c *Connection) Subscribe() <-chan *Message {
+	c._subMu.Lock()
+	defer c._subMu.Unlock()
+
+	ch := make(chan *Message, 1024)
+	c._subscribers = append(c._subscribers, ch)
+	return ch
+}
+
+// Unsubscribe removes a message channel from the connection's subscribers.
+func (c *Connection) Unsubscribe(ch <-chan *Message) {
+	c._subMu.Lock()
+	defer c._subMu.Unlock()
+
+	for i, sub := range c._subscribers {
+		if sub == ch {
+			c._subscribers = append(c._subscribers[:i], c._subscribers[i+1:]...)
+			close(sub)
+			return
+		}
+	}
 }
 
 // Write sends a message to the write channel.
@@ -217,7 +245,13 @@ func (c *Connection) Write(msg *Message) error {
 
 func (c *Connection) readLoop() {
 	defer func() {
-		close(c._readCh)
+		c._subMu.Lock()
+		for _, sub := range c._subscribers {
+			close(sub)
+		}
+		c._subscribers = nil
+		c._subMu.Unlock()
+
 		c.forceClose()
 		if c._onDisconnect != nil {
 			c._mu.Lock()
@@ -248,11 +282,18 @@ func (c *Connection) readLoop() {
 		if c._verbose {
 			fmt.Fprintf(os.Stderr, "  [ws] received ping from %s (%d bytes)\n", c.URL, len(data))
 		}
-		// Forward to read channel
-		select {
-		case c._readCh <- &Message{Type: PingMessage, Data: []byte(data)}:
-		case <-c._done:
+		// Forward to all subscribers
+		msg := &Message{Type: PingMessage, Data: []byte(data)}
+		c._subMu.RLock()
+		for _, sub := range c._subscribers {
+			select {
+			case sub <- msg:
+			case <-c._done:
+			default:
+				// Slow consumer, skip it
+			}
 		}
+		c._subMu.RUnlock()
 		// Must send pong back when overriding default handler
 		return c.Conn.WriteControl(websocket.PongMessage, []byte(data), time.Now().Add(time.Second))
 	})
@@ -268,11 +309,18 @@ func (c *Connection) readLoop() {
 		if c._verbose {
 			fmt.Fprintf(os.Stderr, "  [ws] received pong from %s (%d bytes)\n", c.URL, len(data))
 		}
-		// Forward to read channel
-		select {
-		case c._readCh <- &Message{Type: PongMessage, Data: []byte(data)}:
-		case <-c._done:
+		// Forward to all subscribers
+		msg := &Message{Type: PongMessage, Data: []byte(data)}
+		c._subMu.RLock()
+		for _, sub := range c._subscribers {
+			select {
+			case sub <- msg:
+			case <-c._done:
+			default:
+				// Slow consumer, skip it
+			}
 		}
+		c._subMu.RUnlock()
 		return nil
 	})
 
@@ -346,11 +394,17 @@ func (c *Connection) readLoop() {
 			},
 		}
 
-		select {
-		case c._readCh <- msg:
-		case <-c._done:
-			return
+		// Broadcast to all subscribers
+		c._subMu.RLock()
+		for _, sub := range c._subscribers {
+			select {
+			case sub <- msg:
+			case <-c._done:
+			default:
+				// Skip slow consumers to avoid blocking the readLoop
+			}
 		}
+		c._subMu.RUnlock()
 	}
 }
 
@@ -506,6 +560,9 @@ func NewConnection(conn *websocket.Conn, url string, resp *http.Response, opts *
 		_closeCode:            1000, // Default to normal closure
 		ID:                    fmt.Sprintf("conn-%d", time.Now().UnixNano()), // Simple unique ID
 	}
+
+	// Initialize subscriber list with the default read channel
+	c._subscribers = append(c._subscribers, c._readCh)
 
 	if c.IsCompressionEnabled() {
 		conn.EnableWriteCompression(true)

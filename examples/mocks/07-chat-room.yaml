@@ -1,0 +1,43 @@
+# 07-chat-room.yaml — Multi-step chat room simulation
+# Simulates joining a room, receiving a member list, chatting, and
+# getting a server-pushed "user joined" event from another user.
+#
+# Test with:
+#   :mock examples/mock/07-chat-room.yaml
+#   :send {"type":"join","room":"general","user":"alice"}
+#   :send {"type":"message","room":"general","text":"hello everyone"}
+
+scenarios:
+  - name: chat-room
+    steps:
+      # Step 1: Join room — get confirmation + member list
+      - expect:
+          jq: '.type == "join"'
+        respond: |
+          {
+            "type": "joined",
+            "room": "{{.Message | jq ".room"}}",
+            "members": ["bob", "carol"],
+            "you": "{{.Message | jq ".user"}}"
+          }
+        delay: 100ms
+
+      # Step 2: After 1.5s, another user joins (server push)
+      - after: 1500ms
+        send: '{"type":"user_joined","room":"general","user":"dave"}'
+
+      # Step 3: Client sends a message — get delivery confirmation
+      - expect:
+          jq: '.type == "message"'
+        respond: |
+          {
+            "type": "message_ack",
+            "id": "{{shortid}}",
+            "room": "{{.Message | jq ".room"}}",
+            "ts": "{{now | formatTime "RFC3339"}}"
+          }
+        delay: 30ms
+
+      # Step 4: After 800ms, another user replies (server push)
+      - after: 800ms
+        send: '{"type":"message","room":"general","user":"bob","text":"hey alice!","id":"msg-002","ts":"{{now | formatTime "RFC3339"}}"}'

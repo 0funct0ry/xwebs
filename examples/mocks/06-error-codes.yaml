@@ -1,0 +1,36 @@
+# 06-error-codes.yaml — Various error responses
+# Simulates a server that returns different error types depending on the request.
+# Useful for testing client-side error handling logic.
+#
+# Test with:
+#   :mock examples/mock/06-error-codes.yaml
+#   :send {"action":"forbidden"}
+#   :send {"action":"not_found","id":"xyz"}
+#   :send {"action":"rate_limited"}
+#   :send {"action":"server_error"}
+
+scenarios:
+  - name: forbidden
+    steps:
+      - expect:
+          jq: '.action == "forbidden"'
+        respond: '{"error":"forbidden","code":403,"message":"Insufficient permissions"}'
+
+  - name: not-found
+    steps:
+      - expect:
+          jq: '.action == "not_found"'
+        respond: '{"error":"not_found","code":404,"message":"Resource {{.Message | jq ".id"}} does not exist"}'
+
+  - name: rate-limited
+    steps:
+      - expect:
+          jq: '.action == "rate_limited"'
+        respond: '{"error":"rate_limited","code":429,"retry_after":30,"message":"Too many requests"}'
+
+  - name: server-error
+    steps:
+      - expect:
+          jq: '.action == "server_error"'
+        respond: '{"error":"internal","code":500,"message":"Something went wrong","request_id":"{{uuid}}"}'
+        delay: 2s

@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/0funct0ry/xwebs/internal/mock"
 	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/0funct0ry/xwebs/internal/ws"
 	"github.com/chzyer/readline"
@@ -63,6 +64,15 @@ type REPL struct {
 	lastLatency time.Duration
 	// lastSendTime tracks when the last command was sent
 	lastSendTime time.Time
+
+	// Session management
+	Logger   *Logger
+	Recorder *Recorder
+	Mocker   *mock.Mocker
+
+	// lastInput stores the most recently typed line to suppress redundant markers
+	lastInput   string
+	lastInputMu sync.Mutex
 
 	done chan struct{}
 }
@@ -133,6 +143,9 @@ func New(mode Mode, cfg *Config) (*REPL, error) {
 	}
 	r.rl = rl
 	r.Display = NewFormattingState()
+	r.Logger = NewLogger()
+	r.Recorder = NewRecorder()
+	r.Mocker = mock.NewMocker()
 
 	return r, nil
 }
@@ -181,7 +194,10 @@ func (r *REPL) Notify(format string, args ...interface{}) {
 }
 
 // PrintMessage formats and prints a WebSocket message if filtering allows.
-func (r *REPL) PrintMessage(msg *ws.Message) {
+func (r *REPL) PrintMessage(msg *ws.Message, conn *ws.Connection) {
+	if msg.Metadata.Timestamp.IsZero() {
+		msg.Metadata.Timestamp = time.Now()
+	}
 	r.mu.Lock()
 	r.lastMsg = msg
 	if !r.lastSendTime.IsZero() && msg.Metadata.Direction == "received" {
@@ -190,8 +206,37 @@ func (r *REPL) PrintMessage(msg *ws.Message) {
 	}
 	r.mu.Unlock()
 
+	// Handle logging and recording
+	if r.Logger.IsActive() {
+		_ = r.Logger.LogMessage(msg)
+	}
+	if r.Recorder.IsActive() {
+		_ = r.Recorder.RecordMessage(msg)
+	}
+
+	// Handle mocking
+	if msg.Metadata.Direction == "received" && r.Mocker.IsActive() {
+		// If mock handles it, we might still want to print the original message
+		// based on story requirements, usually mocks respond to incoming.
+		// We'll pass a logger function to Mocker for observability.
+		r.Mocker.MatchAndRespond(context.Background(), msg, conn, func(f string, a ...interface{}) {
+			r.Notify(f+"\n", a...)
+		})
+	}
+
 	formatted, ok := r.Display.FormatMessage(msg, r.GetVars(), r.TemplateEngine)
 	if ok {
+		// Suppression logic: if this is a sent message that exactly matches the last typed input, 
+		// we skip the terminal display to avoid redundancy, but we still log/record it (done above).
+		if msg.Metadata.Direction == "sent" && msg.Type == ws.TextMessage {
+			r.lastInputMu.Lock()
+			li := r.lastInput
+			r.lastInputMu.Unlock()
+			if string(msg.Data) == li {
+				return
+			}
+		}
+
 		r.Printf("%s\n", formatted)
 	}
 }
@@ -234,6 +279,9 @@ func (r *REPL) Run(ctx context.Context) error {
 					r.Errorf("Error: %v\n", err)
 				}
 			} else if r.onInput != nil {
+				r.lastInputMu.Lock()
+				r.lastInput = line
+				r.lastInputMu.Unlock()
 				if err := r.onInput(ctx, line); err != nil {
 					r.Errorf("Error: %v\n", err)
 				}

@@ -37,13 +37,13 @@ Every WebSocket tool does one thing: connect and send messages. That's the equiv
 - **Connection Management** — Dynamic `:connect` and `:reconnect` within the active REPL session
 - **Output Formatting & Filtering** — Flexible display options including JSON pretty-printing, hex dumps, and `jq` or Regex message filters
 - **Automation & Scripting** — Multi-step automation with `:source`, `:alias`, `:wait`, and `:assert` commands, plus a `--script` flag for non-interactive execution
+- **Observability & Testing** — High-fidelity JSONL logging, session recording/replay, and scenario-based mocking with `gojq` matching
 - **RTT & Latency Tracking** — Real-time performance metrics for round-trip time, accessible via `.LastLatencyMs` in templates
 
 ### On the Roadmap (Planned)
 - **Server Mode** — WebSocket server with handler dispatch and administration REPL
 - **Handler Pipeline** — Bind message patterns to shell commands and actions
 - **Relay & Broadcast** — MITM proxy and pub/sub fan-out modes
-- **Mock & Replay** — Scenario-driven testing and session recording
 - **Web UI** — React-based dashboard for visual message inspection and Compose
 
 ## Installation
@@ -134,6 +134,10 @@ When running in a terminal (TTY), `xwebs connect` enters a rich interactive REPL
 | `:alias <n> <c>`| Create a command alias with positional args    |
 | `:wait <dur>`   | Pause execution (e.g., `1s`, `500ms`)        |
 | `:assert <ex>`  | Validate state with template expressions       |
+| `:log <file>`   | Log traffic to JSONL (one object per line)   |
+| `:record <f>`   | Start relative-time session recording        |
+| `:replay <f>`   | Play back a session recording with timing    |
+| `:mock <f>`     | Load YAML-based mock scenario                |
 
 **Advanced Sending Examples:**
 
@@ -232,6 +236,61 @@ xwebs connect staging
 
 # Automate a sequence of actions via script
 xwebs connect wss://echo.websocket.org --script integration-test.xwebs
+
+# Connect and log traffic immediately
+```
+xwebs connect wss://echo.websocket.org --log traffic.jsonl
+```
+
+### Observability & Testing
+
+`xwebs` includes a complete suite of tools for monitoring, capturing, and simulating WebSocket traffic. 
+
+#### JSONL Logging & Recording
+
+- **Logging**: Capture every message and connection event in a machine-readable JSONL format. Logging captures raw, unformatted data regardless of display settings.
+- **Recording**: Similar to logging, but captures relative timing, allowing for exact playback of test sessions.
+
+```bash
+# Start logging from the command line
+xwebs connect wss://api.example.com --log session_debug.jsonl
+
+# Record a session to use as a test fixture later
+xwebs connect wss://echo.websocket.org --record my_recording.jsonl
+```
+
+#### Deterministic Replay
+
+Play back any recorded session using the `:replay` command. `xwebs` automatically offsets session timing to start immediately and waits for a grace period at the end to capture responses.
+
+```text
+> :replay my_recording.jsonl
+▶ Replaying messages from my_recording.jsonl...
+  [142ms]  → {"action": "ping"}
+⬇ {"status": "pong"}
+✓ Replay complete. 1 sent, 1 received.
+```
+
+#### Scenario-Based Mocking
+
+The mocking engine allows you to simulate complex server behaviors using YAML scenarios. Mocks support `gojq` pattern matching, delays, and server-initiated pushes (`after`).
+
+```yaml
+# examples/mocks/simple_greeting.yaml
+scenarios:
+  - name: "Greeting Mock"
+    loop: true
+    steps:
+      - expect:
+          jq: '.msg? | contains("hello")'
+        respond: '{"status": "MOCKED", "reply": "Hello from xwebs!"}'
+        delay: 500ms
+```
+
+To load a mock:
+```text
+> :mock examples/mocks/simple_greeting.yaml
+✓ Mock loaded: examples/mocks/simple_greeting.yaml
 ```
 
 ### Automation & Scripting
@@ -658,6 +717,8 @@ Global Flags:
       --color string      color output mode: auto, on, off (default "auto")
       --log-level string   logging level: debug, info, warn, error (default "info")
       --log-format string  log format: text, json (default "text")
+      --log string         log all traffic to a JSONL file
+      --record string      record session to a JSONL file with timing
   -h, --help               help for xwebs
 ```
 

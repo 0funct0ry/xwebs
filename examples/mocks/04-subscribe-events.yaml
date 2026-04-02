@@ -1,0 +1,21 @@
+# 04-subscribe-events.yaml — Channel subscription with server-pushed events
+# Client subscribes to a channel, server confirms, then pushes 3 events on a timer.
+#
+# Test with:
+#   :mock examples/mock/04-subscribe-events.yaml
+#   :send {"type":"subscribe","channel":"trades"}
+#   # expect: subscribed confirmation, then 3 events at 1s intervals
+
+scenarios:
+  - name: subscribe-and-push
+    steps:
+      - expect:
+          jq: '.type == "subscribe"'
+        respond: '{"type":"subscribed","channel":"{{.Message | jq ".channel"}}","ts":"{{now | formatTime "RFC3339"}}"}'
+        delay: 50ms
+      - after: 1s
+        send: '{"type":"event","channel":"trades","data":{"price":142.50,"volume":1200},"seq":1}'
+      - after: 2s
+        send: '{"type":"event","channel":"trades","data":{"price":143.10,"volume":800},"seq":2}'
+      - after: 3s
+        send: '{"type":"event","channel":"trades","data":{"price":141.90,"volume":2400},"seq":3}'

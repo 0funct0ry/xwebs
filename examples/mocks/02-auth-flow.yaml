@@ -1,0 +1,25 @@
+# 02-auth-flow.yaml — Token-based authentication handshake
+# Simulates a server that requires auth before accepting commands.
+# Invalid tokens get rejected; valid tokens get a session ID.
+#
+# Test with:
+#   :mock examples/mock/02-auth-flow.yaml
+#   :send {"type":"auth","token":"bad"}
+#   # expect: auth_error
+#   :send {"type":"auth","token":"secret-123"}
+#   # expect: auth_ok with session ID
+
+scenarios:
+  - name: auth-reject
+    steps:
+      - expect:
+          jq: '.type == "auth" and .token != "secret-123"'
+        respond: '{"type":"auth_error","reason":"invalid_token"}'
+        delay: 50ms
+
+  - name: auth-accept
+    steps:
+      - expect:
+          jq: '.type == "auth" and .token == "secret-123"'
+        respond: '{"type":"auth_ok","session":"{{uuid}}","expires_in":3600}'
+        delay: 100ms

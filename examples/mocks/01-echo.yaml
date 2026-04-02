@@ -1,0 +1,15 @@
+# 01-echo.yaml — Simple echo mock
+# The server echoes back whatever you send, wrapped in a response envelope.
+#
+# Test with:
+#   xwebs connect ws://localhost:8080 --interactive
+#   :mock examples/mock/01-echo.yaml
+#   :send {"msg":"hello"}
+#   # expect: {"type":"echo","payload":{"msg":"hello"}}
+
+scenarios:
+  - name: echo
+    steps:
+      - expect:
+          match: "*"
+        respond: '{"type":"echo","payload":{{.Message}}}'

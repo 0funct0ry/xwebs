@@ -1,0 +1,20 @@
+# 03-ping-pong.yaml — Application-level ping/pong with server info
+# Server responds to ping messages with a pong containing server metadata.
+#
+# Test with:
+#   :mock examples/mock/03-ping-pong.yaml
+#   :send {"type":"ping"}
+#   # expect: pong with server_time, uptime, hostname
+
+scenarios:
+  - name: ping-pong
+    steps:
+      - expect:
+          jq: '.type == "ping"'
+        respond: |
+          {
+            "type": "pong",
+            "server_time": "{{now | formatTime "RFC3339"}}",
+            "uptime": "{{uptime}}",
+            "hostname": "{{hostname}}"
+          }
