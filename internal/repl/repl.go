@@ -76,6 +76,9 @@ type REPL struct {
 	lastInput   string
 	lastInputMu sync.Mutex
 	
+	// multiLineBuffer stores partial lines for \ continuation
+	multiLineBuffer []string
+
 	// Command execution context management
 	cmdMu      sync.Mutex
 	cmdCancel  context.CancelFunc
@@ -86,11 +89,14 @@ type REPL struct {
 
 // Config defines the configuration for the REPL.
 type Config struct {
-	Prompt          string
-	HistoryFile     string
-	HistoryLimit    int
-	InterruptPrompt string
-	EOFPrompt       string
+	Prompt             string
+	HistoryFile        string
+	HistoryLimit       int
+	InterruptPrompt    string
+	EOFPrompt          string
+	ContinuationPrompt string
+	Stdin              io.ReadCloser
+	Stdout             io.WriteCloser
 }
 
 // New creates a new REPL instance.
@@ -106,6 +112,9 @@ func New(mode Mode, cfg *Config) (*REPL, error) {
 	}
 	if cfg.EOFPrompt == "" {
 		cfg.EOFPrompt = "exit"
+	}
+	if cfg.ContinuationPrompt == "" {
+		cfg.ContinuationPrompt = "... "
 	}
 
 	if cfg.HistoryFile == "" {
@@ -130,6 +139,8 @@ func New(mode Mode, cfg *Config) (*REPL, error) {
 		EOFPrompt:       cfg.EOFPrompt,
 		HistoryFile:     cfg.HistoryFile,
 		HistoryLimit:    cfg.HistoryLimit,
+		Stdin:           cfg.Stdin,
+		Stdout:          cfg.Stdout,
 	}
 
 	r := &REPL{
@@ -289,6 +300,11 @@ func (r *REPL) Run(ctx context.Context) error {
 			line, err := r.rl.Readline()
 			if err != nil {
 				if err == readline.ErrInterrupt {
+					if len(r.multiLineBuffer) > 0 {
+						r.multiLineBuffer = nil
+						r.rl.SetPrompt(r.config.Prompt)
+						continue
+					}
 					// Clear the current line and continue the loop
 					continue
 				}
@@ -298,13 +314,32 @@ func (r *REPL) Run(ctx context.Context) error {
 				return err
 			}
 
-			line = strings.TrimSpace(line)
-			if line == "" {
+			// Handle multi-line continuation with \
+			trimmedRight := strings.TrimRight(line, " \t")
+			if strings.HasSuffix(trimmedRight, "\\") {
+				r.multiLineBuffer = append(r.multiLineBuffer, strings.TrimSuffix(trimmedRight, "\\"))
+				r.rl.SetPrompt(r.config.ContinuationPrompt)
 				continue
 			}
 
-			if strings.HasPrefix(line, ":") {
-				if err := r.ExecuteCommand(ctx, line); err != nil {
+			// Combine buffer if any
+			var finalInput string
+			if len(r.multiLineBuffer) > 0 {
+				r.multiLineBuffer = append(r.multiLineBuffer, line)
+				finalInput = strings.Join(r.multiLineBuffer, "\n")
+				r.multiLineBuffer = nil
+				r.rl.SetPrompt(r.config.Prompt)
+			} else {
+				finalInput = line
+			}
+
+			trimmed := strings.TrimSpace(finalInput)
+			if trimmed == "" {
+				continue
+			}
+
+			if strings.HasPrefix(trimmed, ":") {
+				if err := r.ExecuteCommand(ctx, trimmed); err != nil {
 					if err == ErrExit {
 						return nil
 					}
@@ -312,9 +347,9 @@ func (r *REPL) Run(ctx context.Context) error {
 				}
 			} else if r.onInput != nil {
 				r.lastInputMu.Lock()
-				r.lastInput = line
+				r.lastInput = trimmed
 				r.lastInputMu.Unlock()
-				if err := r.onInput(ctx, line); err != nil {
+				if err := r.onInput(ctx, finalInput); err != nil {
 					r.Errorf("Error: %v\n", err)
 				}
 			}

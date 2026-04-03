@@ -143,6 +143,20 @@ When running in a terminal (TTY), `xwebs connect` enters a rich interactive REPL
 | `:replay <f>`   | Play back a session recording with timing    |
 | `:mock <f>`     | Load YAML-based mock scenario                |
 
+**Multi-line Input:**
+
+For complex payloads or templates, you can use the backslash `\` as a line continuation character. The REPL will switch to a continuation prompt (`... `) and preserve your indentation until the message is complete.
+
+```text
+> { \
+...   "event": "update", \
+...   "data": { \
+...     "id": 1 \
+...   } \
+... }
+< {"status":"received"}
+```
+
 **Advanced Sending Examples:**
 
 ```text
