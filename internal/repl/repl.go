@@ -143,13 +143,14 @@ func New(mode Mode, cfg *Config) (*REPL, error) {
 		done:           make(chan struct{}),
 	}
 
+	r.Display = NewFormattingState()
+	rlConfig.Painter = NewHighlighter(r.Display)
 	rlConfig.AutoComplete = r
 	rl, err := readline.NewEx(rlConfig)
 	if err != nil {
 		return nil, fmt.Errorf("initializing readline: %w", err)
 	}
 	r.rl = rl
-	r.Display = NewFormattingState()
 	r.Logger = NewLogger()
 	r.Recorder = NewRecorder()
 	r.Mocker = mock.NewMocker()

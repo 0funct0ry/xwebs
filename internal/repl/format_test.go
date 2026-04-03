@@ -24,12 +24,26 @@ func TestFormattingState_FormatMessage(t *testing.T) {
 	}
 
 	t.Run("Default Raw", func(t *testing.T) {
+		state.Color = "off"
+		state.Format = FormatRaw
 		formatted, ok := state.FormatMessage(msg, nil, nil)
 		assert.True(t, ok)
 		assert.Equal(t, "⬇ {\"foo\": \"bar\", \"num\": 123}", formatted)
 	})
 
+	t.Run("Raw Highlighted", func(t *testing.T) {
+		state.Color = "on"
+		state.Format = FormatRaw
+		formatted, ok := state.FormatMessage(msg, nil, nil)
+		assert.True(t, ok)
+		// Check for some ANSI codes (Cyan for key, Green for string, Yellow for number)
+		assert.Contains(t, formatted, "\x1b[36m\"foo\":\x1b[0m")
+		assert.Contains(t, formatted, "\x1b[32m\"bar\"\x1b[0m")
+		assert.Contains(t, formatted, "\x1b[33m123\x1b[0m")
+	})
+
 	t.Run("JSON Pretty", func(t *testing.T) {
+		state.Color = "off"
 		state.Format = FormatJSON
 		formatted, ok := state.FormatMessage(msg, nil, nil)
 		assert.True(t, ok)
@@ -38,6 +52,7 @@ func TestFormattingState_FormatMessage(t *testing.T) {
 	})
 
 	t.Run("Hex Dump", func(t *testing.T) {
+		state.Color = "off"
 		state.Format = FormatHex
 		formatted, ok := state.FormatMessage(msg, nil, nil)
 		assert.True(t, ok)

@@ -184,7 +184,7 @@ func (s *FormattingState) formatBody(msg *ws.Message, vars map[string]interface{
 		}
 		pretty, _ := json.MarshalIndent(data, "", "  ")
 		if s.isColorEnabled() {
-			return s.highlightJSON(pretty)
+			return s.highlightOutputJSON(string(pretty))
 		}
 		return string(pretty)
 
@@ -237,6 +237,9 @@ func (s *FormattingState) formatBody(msg *ws.Message, vars map[string]interface{
 		return res
 
 	default:
+		if s.isColorEnabled() {
+			return s.highlightOutputJSON(string(msg.Data))
+		}
 		return string(msg.Data)
 	}
 }
@@ -308,29 +311,3 @@ func (s *FormattingState) colorizedText(text string, color string) string {
 	}
 }
 
-func (s *FormattingState) highlightJSON(data []byte) string {
-	// Very basic JSON highlighter using regex for simplicity
-	
-	// Key: cyan
-	// String: green
-	// Number: yellow
-	// Bool/Null: red
-	
-	tokens := regexp.MustCompile(`(".*?"\s*:)|(".*?")|(\b\d+\b)|(\b(true|false|null)\b)`)
-	
-	res := tokens.ReplaceAllFunc(data, func(match []byte) []byte {
-		m := string(match)
-		if strings.HasSuffix(m, ":") {
-			return []byte("\033[36m" + m + "\033[0m")
-		}
-		if strings.HasPrefix(m, "\"") {
-			return []byte("\033[32m" + m + "\033[0m")
-		}
-		if regexp.MustCompile(`^\d+$`).MatchString(m) {
-			return []byte("\033[33m" + m + "\033[0m")
-		}
-		return []byte("\033[31m" + m + "\033[0m")
-	})
-	
-	return string(res)
-}

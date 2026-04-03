@@ -39,6 +39,7 @@ Every WebSocket tool does one thing: connect and send messages. That's the equiv
 - **Automation & Scripting** — Multi-step automation with `:source`, `:alias`, `:wait`, and `:assert` commands, plus a `--script` flag for non-interactive execution
 - **Observability & Testing** — High-fidelity JSONL logging, session recording/replay, and scenario-based mocking with `gojq` matching
 - **RTT & Latency Tracking** — Real-time performance metrics for round-trip time, accessible via `.LastLatencyMs` in templates
+- **Real-time Syntax Highlighting** — Visual feedback for JSON and Go template expressions as typed in the REPL
 
 ### On the Roadmap (Planned)
 - **Server Mode** — WebSocket server with handler dispatch and administration REPL
