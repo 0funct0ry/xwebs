@@ -229,4 +229,16 @@ func TestScriptingCommands(t *testing.T) {
 			t.Errorf("Wait failed: %v", err)
 		}
 	})
+
+	t.Run("Exit and Quit", func(t *testing.T) {
+		err := r.ExecuteCommand(context.Background(), ":exit")
+		if err != ErrExit {
+			t.Errorf("Expected ErrExit, got %v", err)
+		}
+
+		err = r.ExecuteCommand(context.Background(), ":quit")
+		if err != ErrExit {
+			t.Errorf("Expected ErrExit, got %v", err)
+		}
+	})
 }

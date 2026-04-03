@@ -88,7 +88,7 @@ func (r *REPL) RegisterCommonCommands() {
 		name: "clear",
 		help: "Clear the screen",
 		handler: func(ctx context.Context, r *REPL, args []string) error {
-			fmt.Printf("\033[H\033[2J") // Standard ANSI clear
+			r.Printf("\033[H\033[2J") // Standard ANSI clear
 			return nil
 		},
 	})
