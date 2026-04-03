@@ -15,6 +15,8 @@ import (
 	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/0funct0ry/xwebs/internal/ws"
 	"github.com/chzyer/readline"
+	"os/signal"
+	"syscall"
 )
 
 // ErrExit is returned when a command requests to exit the REPL.
@@ -73,6 +75,11 @@ type REPL struct {
 	// lastInput stores the most recently typed line to suppress redundant markers
 	lastInput   string
 	lastInputMu sync.Mutex
+	
+	// Command execution context management
+	cmdMu      sync.Mutex
+	cmdCancel  context.CancelFunc
+	cmdActive  bool
 
 	done chan struct{}
 }
@@ -245,6 +252,32 @@ func (r *REPL) PrintMessage(msg *ws.Message, conn *ws.Connection) {
 func (r *REPL) Run(ctx context.Context) error {
 	defer r.Close()
 
+	// Handle SIGINT for command interruption
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(sigCh)
+
+	go func() {
+		for {
+			select {
+			case <-sigCh:
+				r.cmdMu.Lock()
+				cancel := r.cmdCancel
+				active := r.cmdActive
+				r.cmdMu.Unlock()
+
+				if active && cancel != nil {
+					// Interrupt the current command
+					cancel()
+				}
+			case <-r.done:
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -255,9 +288,7 @@ func (r *REPL) Run(ctx context.Context) error {
 			line, err := r.rl.Readline()
 			if err != nil {
 				if err == readline.ErrInterrupt {
-					if len(line) == 0 {
-						return nil
-					}
+					// Clear the current line and continue the loop
 					continue
 				}
 				if err == io.EOF {
@@ -346,9 +377,28 @@ func (r *REPL) ExecuteCommand(ctx context.Context, line string) error {
 		return fmt.Errorf("unknown command: %s", cmdName)
 	}
 
-	if err := cmd.Execute(ctx, r, args); err != nil {
+	// Create a command-specific context that can be canceled by SIGINT
+	cmdCtx, cancel := context.WithCancel(ctx)
+	r.cmdMu.Lock()
+	r.cmdCancel = cancel
+	r.cmdActive = true
+	r.cmdMu.Unlock()
+
+	defer func() {
+		r.cmdMu.Lock()
+		r.cmdActive = false
+		r.cmdCancel = nil
+		r.cmdMu.Unlock()
+		cancel()
+	}()
+
+	if err := cmd.Execute(cmdCtx, r, args); err != nil {
 		if err == ErrExit {
 			return ErrExit
+		}
+		// If command was canceled by us, return nil to continue REPL
+		if cmdCtx.Err() == context.Canceled {
+			return nil
 		}
 		return fmt.Errorf("command error: %w", err)
 	}

@@ -123,6 +123,9 @@ When running in a terminal (TTY), `xwebs connect` enters a rich interactive REPL
 | :env           | List all environment variables               |
 | :clear         | Clear the terminal screen                    |
 | :history [n]    | Display last N command history               |
+| :bench <n> <m>  | Benchmark latency for N iterations           |
+| :flood <msg>    | Stress test server with high-rate messages   |
+| :watch          | Monitor connection statistics in real-time   |
 | :exit            | Disconnect and quit the application          |
 | `:format <type>` | Set display format: `json`, `raw`, `hex`, `template` |
 | `:filter <expr>` | Set a display filter (`.jq`, `/regex/`, or `off`) |

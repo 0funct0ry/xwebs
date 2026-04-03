@@ -442,6 +442,60 @@ func (r *REPL) RegisterClientCommands(cc ClientContext) {
 			return nil
 		},
 	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "bench",
+		help: "Benchmark sequential latency: :bench <n> <message>",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if len(args) < 2 {
+				return fmt.Errorf("usage: :bench <n> <message>")
+			}
+			n, err := strconv.Atoi(args[0])
+			if err != nil {
+				return fmt.Errorf("invalid count: %w", err)
+			}
+			msg := strings.Join(args[1:], " ")
+			r.RunBenchmark(ctx, cc.GetConnection(), n, msg)
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "flood",
+		help: "Flood messages to server: :flood <message> [--rate <msgs/sec>]",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if len(args) == 0 {
+				return fmt.Errorf("usage: :flood <message> [--rate <msgs/sec>]")
+			}
+			
+			var rate float64
+			var messageParts []string
+			for i := 0; i < len(args); i++ {
+				if args[i] == "--rate" && i+1 < len(args) {
+					var err error
+					rate, err = strconv.ParseFloat(args[i+1], 64)
+					if err != nil {
+						return fmt.Errorf("invalid rate: %w", err)
+					}
+					i++
+				} else {
+					messageParts = append(messageParts, args[i])
+				}
+			}
+			msg := strings.Join(messageParts, " ")
+			r.RunFlood(ctx, cc.GetConnection(), msg, rate)
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "watch",
+		help: "Monitor connection statistics in real-time",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			r.RunWatch(ctx, cc.GetConnection())
+			return nil
+		},
+	})
 }
 
 // parsePayload is a helper to parse CLI arguments into a byte slice,

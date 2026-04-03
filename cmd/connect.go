@@ -377,6 +377,15 @@ Example:
 		// Start the input reader exactly once
 		inputChan := make(chan string)
 		inputErrChan := make(chan error, 1)
+		
+		// Determine the context to use for the main session loop
+		var sessionCtx context.Context
+		if isInteractive {
+			sessionCtx = context.Background()
+		} else {
+			sessionCtx = cmd.Context()
+		}
+
 		if isInteractive {
 			r.SetOnInput(func(ctx context.Context, text string) error {
 				r.SetLastSendTime(time.Now())
@@ -384,7 +393,8 @@ Example:
 				return nil
 			})
 			go func() {
-				if err := r.Run(cmd.Context()); err != nil {
+				// Use the persistent sessionCtx for the REPL loop
+				if err := r.Run(sessionCtx); err != nil {
 					inputErrChan <- err
 				}
 				close(inputChan)
@@ -459,7 +469,7 @@ Example:
 					info(r, isInteractive, "Proxy: %s\n", details.Proxy)
 				}
 
-				conn, err = ws.Dial(cmd.Context(), details.URL, opts...)
+				conn, err = ws.Dial(sessionCtx, details.URL, opts...)
 				if err != nil {
 					warn(r, isInteractive, "Connection failed: %v\n", err)
 					if !details.Reconnect || (details.ReconnectAttempts > 0 && reconnectCount >= details.ReconnectAttempts) {
@@ -482,7 +492,7 @@ Example:
 							}
 							reconnectCount = 0
 							continue
-						case <-cmd.Context().Done():
+						case <-sessionCtx.Done():
 							return nil
 						}
 					}
@@ -605,7 +615,7 @@ Example:
 
 				// Execute script if provided (after reader/sender are started)
 				if scriptFile != "" {
-					scriptCtx := cmd.Context()
+					scriptCtx := sessionCtx
 					err := r.ExecuteCommand(scriptCtx, ":source "+scriptFile)
 					if err != nil {
 						if err == repl.ErrExit {
@@ -672,7 +682,7 @@ Example:
 						info(r, isInteractive, "\nConnection closed gracefully: %d %s\n", code, reason)
 						closedUnexpectedly = false
 					}
-				case <-cmd.Context().Done():
+				case <-sessionCtx.Done():
 					infoln(r, isInteractive, "\nDisconnecting...")
 					_ = conn.Close()
 					return nil
@@ -696,7 +706,7 @@ Example:
 						}
 						reconnectCount = 0
 						continue
-					case <-cmd.Context().Done():
+					case <-sessionCtx.Done():
 						return nil
 					}
 				}
@@ -712,9 +722,12 @@ Example:
 					}
 					reconnectCount = 0
 					continue
-				case <-cmd.Context().Done():
+				case <-sessionCtx.Done():
 					return nil
-				case <-inputChan:
+				case _, ok := <-inputChan:
+					if !ok {
+						return nil
+					}
 					// This case handles bare input when disconnected - we just ignore it
 					// but we need to read it from inputChan so it doesn't block the REPL
 					infoln(r, isInteractive, "No active connection. Use :connect <url> or :reconnect.")
