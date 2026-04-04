@@ -59,9 +59,22 @@ func TestValidateConfigErrors(t *testing.T) {
 			wantErr: "missing a name",
 		},
 		{
-			name:    "missing pattern",
+			name:    "missing pattern or regex",
 			content: "handlers: [{name: 'foo', actions: [{action: 'shell', command: 'ls'}]}]",
-			wantErr: "missing a match pattern",
+			wantErr: "missing a match condition (pattern or regex)",
+		},
+		{
+			name:    "regex shorthand",
+			content: `
+handlers:
+  - name: "regex_shorthand"
+    match:
+      regex: "^user:.*"
+    actions:
+      - action: "log"
+        message: "matched"
+`,
+			wantErr: "", // Should not error
 		},
 		{
 			name:    "missing actions and lifecycle",
@@ -88,8 +101,12 @@ func TestValidateConfigErrors(t *testing.T) {
 			tmpfile.Close()
 
 			_, err := LoadConfig(tmpfile.Name())
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.wantErr)
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+			} else {
+				assert.NoError(t, err)
+			}
 		})
 	}
 }

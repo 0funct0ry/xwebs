@@ -56,6 +56,18 @@ func (r *Registry) Match(msg *ws.Message) ([]*Handler, error) {
 }
 
 func (r *Registry) matchHandler(h *Handler, msg string) (bool, error) {
+	// Trim whitespace for more resilient matching in interactive sessions (e.g. echo servers with newlines)
+	trimmedMsg := strings.TrimSpace(msg)
+
+	// Support regex shorthand: match.regex: "pattern"
+	if h.Match.Regex != "" {
+		matched, err := regexp.MatchString(h.Match.Regex, trimmedMsg)
+		if err != nil {
+			return false, fmt.Errorf("regex shorthand error: %w", err)
+		}
+		return matched, nil
+	}
+
 	if h.Match.Pattern == "" {
 		return false, nil
 	}
@@ -65,7 +77,7 @@ func (r *Registry) matchHandler(h *Handler, msg string) (bool, error) {
 		// Trim whitespace for more resilient matching in interactive sessions
 		return strings.TrimSpace(msg) == h.Match.Pattern, nil
 	case "regex":
-		matched, err := regexp.MatchString(h.Match.Pattern, msg)
+		matched, err := regexp.MatchString(h.Match.Pattern, trimmedMsg)
 		if err != nil {
 			return false, fmt.Errorf("regex error: %w", err)
 		}

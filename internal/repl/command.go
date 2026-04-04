@@ -519,8 +519,12 @@ func (r *REPL) RegisterCommonCommands() {
 			r.Printf("\nLoaded Handlers (priority order):\n")
 			for i, h := range handlers {
 				priorityStr := fmt.Sprintf("p=%d", h.Priority)
-				matcherStr := fmt.Sprintf("%s:%s", h.Match.Type, h.Match.Pattern)
-				if h.Match.Type == "" {
+				matcherStr := ""
+				if h.Match.Regex != "" {
+					matcherStr = "regex:" + h.Match.Regex
+				} else if h.Match.Type != "" {
+					matcherStr = fmt.Sprintf("%s:%s", h.Match.Type, h.Match.Pattern)
+				} else {
 					matcherStr = "text:" + h.Match.Pattern
 				}
 

@@ -30,6 +30,8 @@ func TestRegistry_Match(t *testing.T) {
 	reg.AddHandlers([]Handler{
 		{Name: "text_match", Match: Matcher{Type: "text", Pattern: "hello"}},
 		{Name: "regex_match", Match: Matcher{Type: "regex", Pattern: "^foo.*"}},
+		{Name: "regex_shorthand", Match: Matcher{Regex: "^user:[a-z0-9]+$"}},
+		{Name: "regex_complex", Match: Matcher{Regex: `\d{3}-\d{3}-\d{4}`}},
 		{Name: "glob_txt", Match: Matcher{Type: "glob", Pattern: "*.txt"}},
 		{Name: "glob_deploy", Match: Matcher{Type: "glob", Pattern: "*deploy*"}},
 		{Name: "glob_exact", Match: Matcher{Type: "glob", Pattern: "exact_match"}},
@@ -43,6 +45,11 @@ func TestRegistry_Match(t *testing.T) {
 	}{
 		{"text", "hello", []string{"text_match"}},
 		{"regex", "foobar", []string{"regex_match"}},
+		{"regex_shorthand match", "user:alex123", []string{"regex_shorthand"}},
+		{"regex_shorthand with newline", "user:alex123\n", []string{"regex_shorthand"}},
+		{"regex_shorthand no match", "user:ALEX123", nil},
+		{"regex_complex match", "123-456-7890", []string{"regex_complex"}},
+		{"regex_complex no match", "12-456-7890", nil},
 		{"glob standard", "test.txt", []string{"glob_txt"}},
 		{"glob with slash", "some/path/to/test.txt", []string{"glob_txt"}},
 		{"glob substring match", "system is ready to deploy now", []string{"glob_deploy"}},

@@ -37,3 +37,14 @@ handlers:
       - action: "shell"
         command: "uptime"
         silent: false
+
+  - name: "system_monitor"
+    priority: 15
+    match:
+      regex: "^status:(cpu|mem|disk)$"
+    actions:
+      - action: "log"
+        message: "Monitoring system component: {{.Message}}"
+      - action: "shell"
+        command: "top -l 1 | grep -E '^CPU|^PhysMem'"
+        silent: false

@@ -24,8 +24,9 @@ type Handler struct {
 
 // Matcher specifies how to match an incoming WebSocket message.
 type Matcher struct {
-	Type    string `yaml:"type"`    // "text", "json", "regex", "glob" (default "text")
-	Pattern string `yaml:"pattern"` // The pattern to match against (can be a template)
+	Type    string `yaml:"type,omitempty"`    // "text", "json", "regex", "glob" (default "text")
+	Pattern string `yaml:"pattern,omitempty"` // The pattern to match against
+	Regex   string `yaml:"regex,omitempty"`   // Shorthand for regex matching
 }
 
 // Action defines an operation to perform when a handler matches or a lifecycle event occurs.
@@ -45,10 +46,8 @@ func (c *Config) Validate() error {
 		}
 		
 		// Match is required if there are actions (normal handler)
-		// But if it only has lifecycle events, maybe match is not required?
-		// Usually a handler is either matching messages or lifecycle events.
-		if h.Match.Pattern == "" && len(h.Actions) > 0 {
-			return fmt.Errorf("handler %q is missing a match pattern", h.Name)
+		if h.Match.Pattern == "" && h.Match.Regex == "" && len(h.Actions) > 0 {
+			return fmt.Errorf("handler %q is missing a match condition (pattern or regex)", h.Name)
 		}
 
 		if len(h.Actions) == 0 && len(h.OnConnect) == 0 && len(h.OnDisconnect) == 0 && len(h.OnError) == 0 {
