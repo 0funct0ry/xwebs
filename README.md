@@ -227,6 +227,21 @@ xwebs connect wss://stream.example.com --until '.type == "shutdown"'
 xwebs connect wss://api.example.com --expect '/ready/' --timeout 5s || exit 1
 ```
 
+**Unix Pipelines:**
+
+`xwebs` is designed to be a "good citizen" in Unix pipelines. When `stdout` is redirected or piped (non-TTY):
+- **Clean Output**: Automatic suppression of direction indicators (⬆/⬇), timestamps, and status messages on `stdout`.
+- **Metadata Redirection**: Handshake details and informational logs are automatically redirected to `stderr`.
+- **Exclusive Data Stream**: Only received messages are written to `stdout` by default (sent messages are suppressed unless `--verbose` is used).
+
+```bash
+# Seamless integration with jq
+xwebs connect wss://api.example.com --once | jq .status
+
+# Process a stream of events
+xwebs connect wss://stream.example.com | grep "ERROR" | tee errors.log
+```
+
 ### Output Formatting & Filtering
 
 `xwebs` provides advanced control over how messages are displayed in your terminal. This is purely a display concern and does not affect the data sent or received.

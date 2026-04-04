@@ -38,6 +38,8 @@ type FormattingState struct {
 	Timestamps   bool
 	TimestampUTC bool
 	Color        string // "on", "off", "auto"
+	NoIndicators bool   // Suppress direction symbols and prefixes for clean output
+	IsTTY        bool   // Whether the output is a TTY (for color auto-detection)
 
 	// Compiled state
 	jqFilter    *gojq.Query
@@ -99,6 +101,21 @@ func (s *FormattingState) FormatMessage(msg *ws.Message, vars map[string]interfa
 	}
 	if s.Format == FormatJSONL {
 		return s.formatBody(msg, vars, engine), true
+	}
+
+	if s.NoIndicators {
+		// Clean output mode: received messages only by default
+		if msg.Metadata.Direction == "sent" && !s.Verbose {
+			return "", false
+		}
+		
+		body := s.formatBody(msg, vars, engine)
+		// Specifically for NoIndicators (pipes), if format is JSON and unmarshal failed, 
+		// formatBody returns empty string or prefix. We'll skip if it's empty.
+		if body == "" {
+			return "", false
+		}
+		return body, true
 	}
 
 	var sb strings.Builder
@@ -185,6 +202,10 @@ func (s *FormattingState) formatBody(msg *ws.Message, vars map[string]interface{
 	case FormatJSON:
 		var data interface{}
 		if err := json.Unmarshal(msg.Data, &data); err != nil {
+			if s.NoIndicators {
+				// Avoid polluting JSON stream with "not JSON" errors
+				return ""
+			}
 			return s.colorizedText("[not JSON] ", "dim") + string(msg.Data)
 		}
 		pretty, _ := json.MarshalIndent(data, "", "  ")
@@ -295,9 +316,8 @@ func (s *FormattingState) isColorEnabled() bool {
 	if s.Color == "off" {
 		return false
 	}
-	// TODO: Handle "auto" using TTY detection if needed, 
-	// for now we simple track the state.
-	return true 
+	// "auto" mode: follow TTY status
+	return s.IsTTY
 }
 
 func (s *FormattingState) colorizedText(text string, color string) string {

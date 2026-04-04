@@ -24,6 +24,7 @@ func TestREPLMultiLineRun(t *testing.T) {
 		ContinuationPrompt: "... ",
 		Stdin:              rPipe,
 		Stdout:             wPipe,
+		Terminal:           true,
 	}
 	r, err := New(ClientMode, cfg)
 	if err != nil {

@@ -195,6 +195,9 @@ Example:
 		stat, _ := os.Stdin.Stat()
 		isTerminal := (stat.Mode() & os.ModeCharDevice) != 0
 
+		statOut, _ := os.Stdout.Stat()
+		isStdoutTerminal := (statOut.Mode() & os.ModeCharDevice) != 0
+
 		// Only start the interactive REPL loop if we are actually in a terminal and not Automating,
 		// or if explicitly requested via --interactive.
 		actuallyInteractive := isTerminal && !isAutomation
@@ -353,6 +356,7 @@ Example:
 				}
 				cfg.Stdout = f
 			}
+			cfg.Terminal = actuallyInteractive
 
 			r, err = repl.New(repl.ClientMode, cfg)
 			if err != nil {
@@ -387,6 +391,17 @@ Example:
 				r.Display.Verbose = verbose
 				r.Display.Timestamps = timestamps
 				r.Display.Color = color
+				
+				// Enable clean output (no indicators) if the interactive REPL loop is not active
+				if !actuallyInteractive {
+					r.Display.NoIndicators = true
+					// Default to quiet if redirected, unless explicitly set
+					if !cmd.Flags().Changed("quiet") && !cmd.Flags().Changed("verbose") {
+						r.Display.Quiet = true
+						quiet = true
+					}
+				}
+
 				if filterStr != "" {
 					if err := r.Display.SetFilter(filterStr); err != nil {
 						fmt.Fprintf(os.Stderr, "Warning: invalid initial filter: %v\n", err)
@@ -591,6 +606,7 @@ Example:
 						fs.Verbose = verbose
 						fs.Timestamps = timestamps
 						fs.Color = color
+						fs.NoIndicators = !actuallyInteractive
 						if filterStr != "" {
 							_ = fs.SetFilter(filterStr)
 						}
@@ -633,7 +649,13 @@ Example:
 						} else {
 							// Fallback if neither interactive nor fs initialized
 							if !quiet || (msg.Type != ws.PingMessage && msg.Type != ws.PongMessage) {
-								fmt.Printf("< %s\n", string(msg.Data))
+								if isStdoutTerminal {
+									fmt.Fprintf(os.Stderr, "< ")
+									fmt.Printf("%s\n", string(msg.Data))
+								} else {
+									// Raw output for pipelines
+									fmt.Printf("%s\n", string(msg.Data))
+								}
 							}
 						}
 
@@ -950,46 +972,25 @@ var (
 	caFile       string
 )
 
-
 func info(r *repl.REPL, isInteractive bool, format string, args ...interface{}) {
 	if isInteractive && r != nil {
-		if r.Display.Quiet {
-			return
-		}
-		cfg := r.GetConfig()
-		if cfg != nil && cfg.Stdout != nil {
-			_, _ = fmt.Fprintf(cfg.Stdout, format, args...)
-			return
-		}
 		r.Notify(format, args...)
 	} else if !quiet {
-		fmt.Printf(format, args...)
+		// Non-interactive status always goes to stderr to keep stdout pure for data
+		fmt.Fprintf(os.Stderr, format, args...)
 	}
 }
 
 func infoln(r *repl.REPL, isInteractive bool, text string) {
 	if isInteractive && r != nil {
-		if r.Display.Quiet {
-			return
-		}
-		cfg := r.GetConfig()
-		if cfg != nil && cfg.Stdout != nil {
-			_, _ = fmt.Fprintln(cfg.Stdout, text)
-			return
-		}
 		r.Notify("%s\n", text)
 	} else if !quiet {
-		fmt.Println(text)
+		fmt.Fprintln(os.Stderr, text)
 	}
 }
 
 func warn(r *repl.REPL, isInteractive bool, format string, args ...interface{}) {
 	if isInteractive && r != nil {
-		cfg := r.GetConfig()
-		if cfg != nil && cfg.Stdout != nil {
-			_, _ = fmt.Fprintf(cfg.Stdout, format, args...)
-			return
-		}
 		r.Errorf(format, args...)
 	} else {
 		fmt.Fprintf(os.Stderr, format, args...)

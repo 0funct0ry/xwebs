@@ -24,7 +24,7 @@ func (c *mockCommand) Execute(ctx context.Context, r *REPL, args []string) error
 }
 
 func TestREPLCommands(t *testing.T) {
-	r, err := New(ClientMode, nil)
+	r, err := New(ClientMode, &Config{Terminal: true})
 	if err != nil {
 		t.Fatalf("Failed to create REPL: %v", err)
 	}
@@ -58,7 +58,7 @@ func TestREPLCommands(t *testing.T) {
 }
 
 func TestREPLVars(t *testing.T) {
-	r, _ := New(ClientMode, nil)
+	r, _ := New(ClientMode, &Config{Terminal: true})
 	r.TemplateEngine = template.New(false)
 
 	r.SetVar("foo", "bar")
@@ -74,7 +74,7 @@ func TestREPLVars(t *testing.T) {
 }
 
 func TestRegisterAlias(t *testing.T) {
-	r, _ := New(ClientMode, nil)
+	r, _ := New(ClientMode, &Config{Terminal: true})
 	r.TemplateEngine = template.New(false)
 	mock := &mockCommand{name: "real"}
 	r.RegisterCommand(mock)
@@ -90,7 +90,7 @@ func TestRegisterAlias(t *testing.T) {
 }
 
 func TestREPLCompletion(t *testing.T) {
-	r, _ := New(ClientMode, nil)
+	r, _ := New(ClientMode, &Config{Terminal: true})
 	r.TemplateEngine = template.New(false)
 	r.RegisterCommand(&mockCommand{name: "status"})
 	r.RegisterCommand(&mockCommand{name: "send"})
@@ -150,7 +150,7 @@ func TestREPLCompletion(t *testing.T) {
 }
 
 func TestSessionCommands(t *testing.T) {
-	r, _ := New(ClientMode, nil)
+	r, _ := New(ClientMode, &Config{Terminal: true})
 	r.TemplateEngine = template.New(false)
 	r.RegisterCommonCommands()
 
@@ -187,7 +187,7 @@ func TestSessionCommands(t *testing.T) {
 }
 
 func TestScriptingCommands(t *testing.T) {
-	r, _ := New(ClientMode, nil)
+	r, _ := New(ClientMode, &Config{Terminal: true})
 	r.TemplateEngine = template.New(false)
 	r.RegisterCommonCommands()
 	mock := &mockCommand{name: "say"}

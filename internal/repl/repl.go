@@ -84,6 +84,7 @@ type REPL struct {
 	cmdCancel  context.CancelFunc
 	cmdActive  bool
 
+	isStdoutTTY bool
 	done chan struct{}
 }
 
@@ -97,6 +98,7 @@ type Config struct {
 	ContinuationPrompt string
 	Stdin              io.ReadCloser
 	Stdout             io.WriteCloser
+	Terminal           bool // Whether to initialize the terminal (readline)
 }
 
 // New creates a new REPL instance.
@@ -167,14 +169,37 @@ func New(mode Mode, cfg *Config) (*REPL, error) {
 		done:           make(chan struct{}),
 	}
 
-	r.Display = NewFormattingState()
-	rlConfig.Painter = NewHighlighter(r.Display)
-	rlConfig.AutoComplete = r
-	rl, err := readline.NewEx(rlConfig)
-	if err != nil {
-		return nil, fmt.Errorf("initializing readline: %w", err)
+	// Detect if Stdout is a TTY
+	r.isStdoutTTY = true
+	if cfg.Stdout != nil {
+		if f, ok := cfg.Stdout.(*os.File); ok {
+			if stat, err := f.Stat(); err == nil {
+				if (stat.Mode() & os.ModeCharDevice) == 0 {
+					r.isStdoutTTY = false
+				}
+			}
+		}
+	} else {
+		if stat, err := os.Stdout.Stat(); err == nil {
+			if (stat.Mode() & os.ModeCharDevice) == 0 {
+				r.isStdoutTTY = false
+			}
+		}
 	}
-	r.rl = rl
+
+	r.Display = NewFormattingState()
+	r.Display.IsTTY = r.isStdoutTTY
+	
+	if cfg.Terminal {
+		rlConfig.Painter = NewHighlighter(r.Display)
+		rlConfig.AutoComplete = r
+		rl, err := readline.NewEx(rlConfig)
+		if err != nil {
+			return nil, fmt.Errorf("initializing readline: %w", err)
+		}
+		r.rl = rl
+	}
+	
 	r.Logger = NewLogger()
 	r.Recorder = NewRecorder()
 	r.Mocker = mock.NewMocker()
@@ -206,8 +231,16 @@ func (r *REPL) Close() error {
 		close(r.done)
 	}
 	// Close readline and wait for it to finish.
-	err := r.rl.Close()
-	return err
+	if r.rl != nil {
+		err := r.rl.Close()
+		return err
+	}
+	return nil
+}
+
+// IsStdoutTTY returns true if the REPL's output is a terminal.
+func (r *REPL) IsStdoutTTY() bool {
+	return r.isStdoutTTY
 }
 
 // Printf prints a formatted string to the REPL output.
@@ -225,8 +258,6 @@ func (r *REPL) Printf(format string, args ...interface{}) {
 func (r *REPL) Errorf(format string, args ...interface{}) {
 	if r.rl != nil && r.IsInteractive {
 		_, _ = r.rl.Write([]byte(fmt.Sprintf(format, args...)))
-	} else if r.config != nil && r.config.Stdout != nil {
-		_, _ = fmt.Fprintf(r.config.Stdout, format, args...)
 	} else {
 		_, _ = fmt.Fprintf(os.Stderr, format, args...)
 	}
@@ -234,9 +265,16 @@ func (r *REPL) Errorf(format string, args ...interface{}) {
 
 // Notify prints a notification (e.g. connection event) if quiet mode is not active.
 func (r *REPL) Notify(format string, args ...interface{}) {
-	if !r.Display.Quiet {
-		r.Printf(format, args...)
+	if r.Display.Quiet {
+		return
 	}
+	// If we are not in interactive mode, send notifications to stderr 
+	// to avoid polluting data streams on stdout.
+	if !r.IsInteractive {
+		_, _ = fmt.Fprintf(os.Stderr, format, args...)
+		return
+	}
+	r.Printf(format, args...)
 }
 
 // PrintMessage formats and prints a WebSocket message if filtering allows.
@@ -289,6 +327,9 @@ func (r *REPL) PrintMessage(msg *ws.Message, conn *ws.Connection) {
 
 // Run starts the REPL input loop.
 func (r *REPL) Run(ctx context.Context) error {
+	if r.rl == nil {
+		return fmt.Errorf("REPL cannot run without an initialized terminal (Config.Terminal must be true)")
+	}
 	defer r.Close()
 
 	// Handle SIGINT for command interruption
