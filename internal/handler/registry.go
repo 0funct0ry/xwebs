@@ -3,7 +3,6 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
-	"path"
 	"regexp"
 	"sort"
 	"strings"
@@ -72,16 +71,32 @@ func (r *Registry) matchHandler(h *Handler, msg string) (bool, error) {
 		}
 		return matched, nil
 	case "glob":
-		matched, err := path.Match(h.Match.Pattern, msg)
-		if err != nil {
-			return false, fmt.Errorf("glob error: %w", err)
-		}
-		return matched, nil
+		return r.matchGlob(h.Match.Pattern, msg)
 	case "json":
 		return r.matchJSON(h.Match.Pattern, msg)
 	default:
 		return false, fmt.Errorf("unknown matcher type: %s", h.Match.Type)
 	}
+}
+
+func (r *Registry) matchGlob(pattern, msg string) (bool, error) {
+	// Convert glob pattern to regex
+	// 1. Quote all regex metacharacters
+	regexStr := regexp.QuoteMeta(pattern)
+	
+	// 2. Unescape and convert glob wildcards
+	// QuoteMeta escapes '*' as '\*' and '?' as '\?'
+	regexStr = strings.ReplaceAll(regexStr, "\\*", ".*")
+	regexStr = strings.ReplaceAll(regexStr, "\\?", ".")
+
+	// 3. Anchor and enable single-line mode (so '.' matches newlines)
+	regexStr = "^(?s:" + regexStr + ")$"
+
+	matched, err := regexp.MatchString(regexStr, msg)
+	if err != nil {
+		return false, fmt.Errorf("glob to regex error: %w", err)
+	}
+	return matched, nil
 }
 
 func (r *Registry) matchJSON(query, msg string) (bool, error) {

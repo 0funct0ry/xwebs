@@ -30,18 +30,26 @@ func TestRegistry_Match(t *testing.T) {
 	reg.AddHandlers([]Handler{
 		{Name: "text_match", Match: Matcher{Type: "text", Pattern: "hello"}},
 		{Name: "regex_match", Match: Matcher{Type: "regex", Pattern: "^foo.*"}},
-		{Name: "glob_match", Match: Matcher{Type: "glob", Pattern: "*.txt"}},
+		{Name: "glob_txt", Match: Matcher{Type: "glob", Pattern: "*.txt"}},
+		{Name: "glob_deploy", Match: Matcher{Type: "glob", Pattern: "*deploy*"}},
+		{Name: "glob_exact", Match: Matcher{Type: "glob", Pattern: "exact_match"}},
 		{Name: "json_match", Match: Matcher{Type: "json", Pattern: ".id == 1"}},
 	})
 
 	tests := []struct {
-		name    string
-		input   string
+		name   string
+		input  string
 		expect []string
 	}{
 		{"text", "hello", []string{"text_match"}},
 		{"regex", "foobar", []string{"regex_match"}},
-		{"glob", "test.txt", []string{"glob_match"}},
+		{"glob standard", "test.txt", []string{"glob_txt"}},
+		{"glob with slash", "some/path/to/test.txt", []string{"glob_txt"}},
+		{"glob substring match", "system is ready to deploy now", []string{"glob_deploy"}},
+		{"glob newline match", "line1\ndeploying system\nline3", []string{"glob_deploy"}},
+		{"glob no match substring", "system is ready", nil},
+		{"glob exact match", "exact_match", []string{"glob_exact"}},
+		{"glob exact no partial match", "exact_match_extra", nil},
 		{"json", `{"id": 1}`, []string{"json_match"}},
 		{"no match", "no match", nil},
 	}
