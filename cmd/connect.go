@@ -119,13 +119,18 @@ Example:
 		tmplEngine := template.New(false) // Not sandboxed for CLI usage
 		
 		// Load handlers if specified
+		var reg *handler.Registry
+		var dispatcher *handler.Dispatcher
 		if handlersFile != "" {
-			_, err := handler.LoadConfig(handlersFile)
+			cfg, err := handler.LoadConfig(handlersFile)
 			if err != nil {
 				return fmt.Errorf("loading handlers: %w", err)
 			}
+			reg = handler.NewRegistry()
+			reg.AddHandlers(cfg.Handlers)
+			
 			if !quiet {
-				fmt.Fprintf(os.Stderr, "✓ Loaded handlers from %s\n", handlersFile)
+				fmt.Fprintf(os.Stderr, "✓ Loaded %d handlers from %s\n", len(cfg.Handlers), handlersFile)
 			}
 		}
 
@@ -437,6 +442,7 @@ Example:
 					}
 				}
 
+				r.Handlers = reg
 				defer r.Close()
 			}
 		}
@@ -603,6 +609,21 @@ Example:
 				}
 				if conn.IsCompressionEnabled() {
 					infoln(r, isInteractive, "Compression: permessage-deflate")
+				}
+
+				// Start dispatcher if handlers are loaded
+				if reg != nil {
+					dispatcher = handler.NewDispatcher(reg, conn, tmplEngine, verbose)
+					if isInteractive && r != nil {
+						dispatcher.Log = func(f string, a ...interface{}) {
+							r.Printf(f, a...)
+						}
+						dispatcher.Error = func(f string, a ...interface{}) {
+							r.Errorf(f, a...)
+						}
+					}
+					dispatcher.Start(sessionCtx)
+					dispatcher.HandleConnect()
 				}
 
 				// Message reader goroutine to display incoming messages
@@ -866,6 +887,9 @@ Example:
 						if websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
 							info(r, isInteractive, "\nConnection lost: %v (code=%d, reason=%q)\n", err, code, reason)
 							closedUnexpectedly = true
+							if dispatcher != nil {
+								dispatcher.HandleError(err)
+							}
 						} else {
 							info(r, isInteractive, "\nConnection closed: %d %s\n", code, reason)
 							closedUnexpectedly = false
@@ -873,6 +897,9 @@ Example:
 					} else {
 						info(r, isInteractive, "\nConnection closed gracefully: %d %s\n", code, reason)
 						closedUnexpectedly = false
+					}
+					if dispatcher != nil {
+						dispatcher.HandleDisconnect()
 					}
 				case <-sessionCtx.Done():
 					infoln(r, isInteractive, "\nDisconnecting...")

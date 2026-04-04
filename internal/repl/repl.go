@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/0funct0ry/xwebs/internal/handler"
 	"github.com/0funct0ry/xwebs/internal/mock"
 	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/0funct0ry/xwebs/internal/ws"
@@ -71,6 +72,7 @@ type REPL struct {
 	Logger   *Logger
 	Recorder *Recorder
 	Mocker   *mock.Mocker
+	Handlers *handler.Registry
 
 	// lastInput stores the most recently typed line to suppress redundant markers
 	lastInput   string

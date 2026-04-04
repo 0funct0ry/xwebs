@@ -247,17 +247,16 @@ xwebs connect wss://stream.example.com | grep "ERROR" | tee errors.log
 `xwebs` allows you to define declarative message handlers in a YAML configuration file. This is useful for building reactive WebSocket clients and servers without writing custom Go code.
 
 **Key Features:**
-- **Variables**: Define global variables accessible in all actions and matchers via `{{.Vars.name}}`.
+- **Priority-Based Execution**: Handlers can be assigned a `priority` (higher numbers execute first). Handlers with the same priority run in the order they appear in the file.
 - **Match Conditions**: Match incoming messages by type (`text`, `json`, `regex`, `glob`) and pattern.
 - **Actions**: Trigger actions like `shell` commands, `send` messages, `builtin` commands, or `log` to files.
-- **Lifecycle Events**: Bind actions to `on_connect`, `on_disconnect`, and `on_error` events per handler.
-- **Template Support**: All message and command fields support full Go templates.
+- **Lifecycle Events**: Bind actions to `on_connect`, `on_disconnect`, and `on_error` events.
+- **Template Support**: All message and command fields support full Go templates with access to `.Msg`, `.Conn`, `.Vars`, etc.
+- **REPL Observability**: Use the `:handlers` command in the REPL to see the loaded handlers in their execution order.
 
 **Usage:**
 ```bash
 # Load handlers from a YAML file
-xwebs connect wss://echo.websocket.org --handlers my_handlers.yaml
-# Or use the long flag (shorthand -H is reserved for headers)
 xwebs connect wss://echo.websocket.org --handlers my_handlers.yaml
 ```
 
@@ -267,13 +266,22 @@ variables:
   log_file: "session.log"
 
 handlers:
+  - name: "priority_handler"
+    priority: 100
+    match:
+      type: "text"
+      pattern: "emergency"
+    actions:
+      - action: "log"
+        message: "EMERGENCY MSG RECEIVED!"
+
   - name: "auto_ping"
     on_connect:
       - action: "shell"
         command: "echo 'Started session at {{now}}' > {{.Vars.log_file}}"
     match:
       type: "json"
-      pattern: "$.type == 'ping'"
+      pattern: ".type == \"ping\""
     actions:
       - action: "send"
         message: '{"type": "pong", "ts": "{{nowUnix}}"}'

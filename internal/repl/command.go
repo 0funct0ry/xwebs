@@ -502,4 +502,47 @@ func (r *REPL) RegisterCommonCommands() {
 			return nil
 		},
 	})
+	r.RegisterCommand(&BuiltinCommand{
+		name: "handlers",
+		help: "List all loaded handlers in priority order",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if r.Handlers == nil {
+				r.Printf("No handlers loaded.\n")
+				return nil
+			}
+			handlers := r.Handlers.Handlers()
+			if len(handlers) == 0 {
+				r.Printf("No handlers registered.\n")
+				return nil
+			}
+
+			r.Printf("\nLoaded Handlers (priority order):\n")
+			for i, h := range handlers {
+				priorityStr := fmt.Sprintf("p=%d", h.Priority)
+				matcherStr := fmt.Sprintf("%s:%s", h.Match.Type, h.Match.Pattern)
+				if h.Match.Type == "" {
+					matcherStr = "text:" + h.Match.Pattern
+				}
+
+				r.Printf("  %2d. %-20s [%s] match=%s\n", i+1, h.Name, priorityStr, matcherStr)
+				for _, a := range h.Actions {
+					desc := a.Command
+					if desc == "" {
+						desc = a.Message
+					}
+					r.Printf("      - %-8s %s\n", a.Type, desc)
+				}
+				if len(h.OnConnect) > 0 {
+					r.Printf("      (on_connect: %d actions)\n", len(h.OnConnect))
+				}
+				if len(h.OnDisconnect) > 0 {
+					r.Printf("      (on_disconnect: %d actions)\n", len(h.OnDisconnect))
+				}
+				if len(h.OnError) > 0 {
+					r.Printf("      (on_error: %d actions)\n", len(h.OnError))
+				}
+			}
+			return nil
+		},
+	})
 }

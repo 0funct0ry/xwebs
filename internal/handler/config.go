@@ -14,6 +14,7 @@ type Config struct {
 // Handler defines a single message handler with a name, match conditions, and actions.
 type Handler struct {
 	Name         string   `yaml:"name"`
+	Priority     int      `yaml:"priority,omitempty"`
 	Match        Matcher  `yaml:"match"`
 	Actions      []Action `yaml:"actions"`
 	OnConnect    []Action `yaml:"on_connect,omitempty"`
