@@ -27,8 +27,10 @@ type connectClientContext struct {
 	repl            *repl.REPL
 	originalURL     string
 	originalHeaders map[string]string // Key: Template
-	originalAuth    string            // Auth template
-	originalToken   string            // Token template
+	originalAuth      string            // Auth template
+	originalToken     string            // Token template
+	automationPending bool              // Flag to avoid premature --once exit
+	receivedOnce      chan struct{}     // Pulse when --once condition is met
 }
 
 func (c *connectClientContext) GetConnection() *ws.Connection {
@@ -86,6 +88,16 @@ var (
 	scriptFile        string
 	logFile           string
 	recordFile        string
+	once              bool
+	sendMsgs          []string
+	expectMsgs        []string
+	untilMsg          string
+	inputFile         string
+	outputFile        string
+	jsonl             bool
+	watchPattern      string
+	timeout           time.Duration
+	exitOn            []string
 )
 
 var connectCmd = &cobra.Command{
@@ -168,11 +180,35 @@ Example:
 			details.Compress = compress
 		}
 
+		// Automation flags detection
+		isAutomation := once || len(sendMsgs) > 0 || len(expectMsgs) > 0 || untilMsg != "" || inputFile != "" || jsonl || watchPattern != "" || timeout > 0 || scriptFile != ""
+
+		if jsonl {
+			formatStr = "jsonl"
+			quiet = true
+		}
+		if watchPattern != "" {
+			filterStr = watchPattern
+			quiet = true
+		}
+		
+		stat, _ := os.Stdin.Stat()
+		isTerminal := (stat.Mode() & os.ModeCharDevice) != 0
+
+		// Only start the interactive REPL loop if we are actually in a terminal and not Automating,
+		// or if explicitly requested via --interactive.
+		actuallyInteractive := isTerminal && !isAutomation
+		if cmd.Flags().Changed("interactive") {
+			actuallyInteractive = interactive
+		}
+
 		cc := &connectClientContext{
-			dialChan:        make(chan string, 1),
-			tmplEngine:      tmplEngine,
-			originalURL:     target,
-			originalHeaders: make(map[string]string),
+			dialChan:          make(chan string, 1),
+			tmplEngine:        tmplEngine,
+			originalURL:       target,
+			originalHeaders:   make(map[string]string),
+			receivedOnce:      make(chan struct{}),
+			automationPending: isAutomation,
 		}
 
 		// Store original header templates
@@ -286,13 +322,12 @@ Example:
 		if details.Cert != "" || details.Key != "" {
 			opts = append(opts, ws.WithClientCert(details.Cert, details.Key))
 		}
-
-		stat, _ := os.Stdin.Stat()
-		isTerminal := (stat.Mode() & os.ModeCharDevice) != 0
-
 		isInteractive = isTerminal
-		if isTerminal && cmd.Flags().Changed("interactive") {
+		if cmd.Flags().Changed("interactive") {
 			isInteractive = interactive
+		} else if isAutomation && !isTerminal {
+			// If automation is used and it's not a TTY, we use REPL context but not interactive loop
+			isInteractive = true
 		} else if !isTerminal {
 			isInteractive = false
 		}
@@ -311,12 +346,21 @@ Example:
 				cfg.HistoryLimit = appCfg.REPL.HistoryLimit
 			}
 
+			if outputFile != "" {
+				f, err := os.Create(outputFile)
+				if err != nil {
+					return fmt.Errorf("creating output file %s: %w", outputFile, err)
+				}
+				cfg.Stdout = f
+			}
+
 			r, err = repl.New(repl.ClientMode, cfg)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to initialize REPL: %v\n", err)
 				isInteractive = false
 			} else {
 				cc.repl = r
+				r.IsInteractive = actuallyInteractive
 				r.TemplateEngine = tmplEngine
 				r.RegisterCommonCommands()
 				r.RegisterClientCommands(cc)
@@ -380,13 +424,28 @@ Example:
 		
 		// Determine the context to use for the main session loop
 		var sessionCtx context.Context
+		var sessionCancel context.CancelFunc
+
 		if isInteractive {
 			sessionCtx = context.Background()
 		} else {
 			sessionCtx = cmd.Context()
 		}
 
-		if isInteractive {
+		if timeout > 0 {
+			sessionCtx, sessionCancel = context.WithTimeout(sessionCtx, timeout)
+			defer sessionCancel()
+		}
+
+
+		if colorsStr := cmd.Flag("color").Value.String(); colorsStr == "" {
+			// Auto-detect color if not specified
+			if outputFile != "" {
+				color = "off"
+			}
+		}
+
+		if actuallyInteractive {
 			r.SetOnInput(func(ctx context.Context, text string) error {
 				r.SetLastSendTime(time.Now())
 				inputChan <- text
@@ -537,10 +596,12 @@ Example:
 						}
 					}
 
+					ch := conn.Subscribe()
+					defer conn.Unsubscribe(ch)
 					for {
-						msg, ok := <-conn.Read()
+						msg, ok := <-ch
 						if !ok {
-							return
+							break
 						}
 						
 						// Use REPL's centralized printing logic
@@ -557,22 +618,51 @@ Example:
 									}
 								}
 							}
-						} else if fs != nil {
+						} else if fs != nil && r != nil {
 							// Non-interactive mode (pipeline) with formatting
 							if formatStr == "jsonl" {
 								// Special case for machine-readable output
 								output, _ := json.Marshal(msg)
-								fmt.Println(string(output))
+								r.Printf("%s\n", string(output))
 							} else {
 								formatted, ok := fs.FormatMessage(msg, nil, cc.tmplEngine)
 								if ok {
-									fmt.Println(formatted)
+									r.Printf("%s\n", formatted)
 								}
 							}
 						} else {
 							// Fallback if neither interactive nor fs initialized
 							if !quiet || (msg.Type != ws.PingMessage && msg.Type != ws.PongMessage) {
 								fmt.Printf("< %s\n", string(msg.Data))
+							}
+						}
+
+						// Handle --once flag: exit after first received message
+						// We skip greetings if we are in the middle of an automation pulse (automationPending)
+						if once && !cc.automationPending && msg.Metadata.Direction == "received" {
+							select {
+							case <-cc.receivedOnce:
+								// Already triggered
+							default:
+								close(cc.receivedOnce)
+							}
+							_ = conn.Close()
+							return
+						}
+
+						// Handle --until flag: exit if message matches pattern
+						if untilMsg != "" && msg.Metadata.Direction == "received" {
+							// Reuse FormattingState filtering logic for until if available,
+							// or do a simple check. To be robust, we'll check if it matches.
+							// For simplicity, we can just check if fs.FormatMessage would have shown it 
+							// if it had the filter set. But fs might not be used if isInteractive.
+							// Let's just use a temporary FormattingState for matching.
+							matchFS := repl.NewFormattingState()
+							if err := matchFS.SetFilter(untilMsg); err == nil {
+								if _, matched := matchFS.FormatMessage(msg, nil, nil); matched {
+									_ = conn.Close()
+									return
+								}
 							}
 						}
 					}
@@ -613,26 +703,93 @@ Example:
 					}
 				}()
 
-				// Execute script if provided (after reader/sender are started)
+				// Execute automation pipeline if provided
+				automationCtx := sessionCtx
+				cc.automationPending = true
+				
+				// 1. Send messages from --send
+				for _, m := range sendMsgs {
+					if err := r.ExecuteCommand(automationCtx, ":send "+m); err != nil {
+						warn(r, isInteractive, "Send failed: %v\n", err)
+						if !actuallyInteractive { 
+							cc.automationPending = false
+							return err 
+						}
+					}
+				}
+
+				// 2. Send content from --input file
+				if inputFile != "" {
+					content, err := os.ReadFile(inputFile)
+					if err != nil {
+						warn(r, isInteractive, "Failed to read input file %s: %v\n", inputFile, err)
+						if !actuallyInteractive { 
+							cc.automationPending = false
+							return err 
+						}
+					} else {
+						if err := r.ExecuteCommand(automationCtx, ":send "+string(content)); err != nil {
+							warn(r, isInteractive, "Send from file failed: %v\n", err)
+							if !actuallyInteractive { 
+								cc.automationPending = false
+								return err 
+							}
+						}
+					}
+				}
+
+				// 3. Wait for expectations from --expect
+				for _, e := range expectMsgs {
+					if err := r.ExecuteCommand(automationCtx, ":expect "+e); err != nil {
+						warn(r, isInteractive, "Expectation failed: %v\n", err)
+						if !actuallyInteractive { 
+							cc.automationPending = false
+							return err 
+						}
+					}
+				}
+
+				// Automation sequence finished
+				cc.automationPending = false
+
+				// 4. Execute script if provided
 				if scriptFile != "" {
-					scriptCtx := sessionCtx
-					err := r.ExecuteCommand(scriptCtx, ":source "+scriptFile)
+					err := r.ExecuteCommand(automationCtx, ":source "+scriptFile)
 					if err != nil {
 						if err == repl.ErrExit {
 							_ = conn.Close()
 							return nil
 						}
 						warn(r, isInteractive, "Script failed: %v\n", err)
-						// If running via --script and not explicitly interactive, stay in REPL or exit
-						if !isTerminal || !interactive {
+						if !actuallyInteractive {
 							_ = conn.Close()
 							return fmt.Errorf("script failed: %w", err)
 						}
-					} else if !isTerminal || !interactive {
-						// Script completed successfully and we're not in an interactive terminal
+					} else if !actuallyInteractive {
 						_ = conn.Close()
 						return nil
 					}
+				}
+
+				// If in automation mode and not interactive, we might want to exit now 
+				// if no more pending actions and not --watch.
+				if isAutomation && !actuallyInteractive && watchPattern == "" {
+					// 5. If --once is active, wait for the response to be received and printed
+					if once {
+						select {
+						case <-cc.receivedOnce:
+							// Proceed to close
+						case <-time.After(2 * time.Second):
+							// Fallback timeout to avoid hanging if no response arrives
+						case <-sessionCtx.Done():
+						}
+					} else if untilMsg == "" {
+						// Give a small grace period for any late responses if --once was not used
+						time.Sleep(500 * time.Millisecond)
+					}
+					
+					_ = conn.Close()
+					<-readDone
 				}
 
 				// Wait for connection to close, context to be cancelled, or manual dial
@@ -659,6 +816,7 @@ Example:
 					forcedDial = true
 					_ = conn.Close()
 				case <-conn.Done():
+					<-readDone
 					code, reason := conn.CloseStatus()
 					
 					// Log disconnection event
@@ -713,7 +871,7 @@ Example:
 			}
 
 			// Idle state or manually disconnected: wait for new dial or exit
-			if isInteractive {
+			if actuallyInteractive {
 				infoln(r, isInteractive, "\nEnter :connect <url> or :reconnect to start a new session (or :exit to quit)")
 				select {
 				case newURL := <-cc.dialChan:
@@ -737,6 +895,10 @@ Example:
 				// Non-interactive exits if connection is closed and no reconnect happened
 				break
 			}
+		}
+		// Final grace period to ensure all output is flushed before process exit
+		if !actuallyInteractive {
+			time.Sleep(200 * time.Millisecond)
 		}
 		return nil
 	},
@@ -767,6 +929,16 @@ func init() {
 	connectCmd.Flags().StringVar(&scriptFile, "script", "", "execute a .xwebs script file after connecting")
 	connectCmd.Flags().StringVar(&logFile, "log", "", "log traffic to file (JSONL)")
 	connectCmd.Flags().StringVar(&recordFile, "record", "", "record session to file for replay")
+	connectCmd.Flags().BoolVar(&once, "once", false, "exit after the first message is received")
+	connectCmd.Flags().StringArrayVar(&sendMsgs, "send", []string{}, "send a message upon connection (can be used multiple times)")
+	connectCmd.Flags().StringArrayVar(&expectMsgs, "expect", []string{}, "wait for a message matching a pattern (can be used multiple times)")
+	connectCmd.Flags().StringVar(&untilMsg, "until", "", "exit when a message matches this pattern")
+	connectCmd.Flags().StringVar(&inputFile, "input", "", "send content from a file upon connection")
+	connectCmd.Flags().StringVar(&outputFile, "output", "", "redirect formatted output to a file")
+	connectCmd.Flags().BoolVar(&jsonl, "jsonl", false, "shortcut for --format jsonl")
+	connectCmd.Flags().StringVar(&watchPattern, "watch", "", "monitor and print updates matching a pattern")
+	connectCmd.Flags().DurationVar(&timeout, "timeout", 0, "global timeout for the connection/pipeline")
+	connectCmd.Flags().StringArrayVar(&exitOn, "exit-on", []string{}, "exit conditions: match, disconnect, timeout, error")
 	rootCmd.AddCommand(connectCmd)
 }
 
@@ -781,6 +953,14 @@ var (
 
 func info(r *repl.REPL, isInteractive bool, format string, args ...interface{}) {
 	if isInteractive && r != nil {
+		if r.Display.Quiet {
+			return
+		}
+		cfg := r.GetConfig()
+		if cfg != nil && cfg.Stdout != nil {
+			_, _ = fmt.Fprintf(cfg.Stdout, format, args...)
+			return
+		}
 		r.Notify(format, args...)
 	} else if !quiet {
 		fmt.Printf(format, args...)
@@ -789,6 +969,14 @@ func info(r *repl.REPL, isInteractive bool, format string, args ...interface{}) 
 
 func infoln(r *repl.REPL, isInteractive bool, text string) {
 	if isInteractive && r != nil {
+		if r.Display.Quiet {
+			return
+		}
+		cfg := r.GetConfig()
+		if cfg != nil && cfg.Stdout != nil {
+			_, _ = fmt.Fprintln(cfg.Stdout, text)
+			return
+		}
 		r.Notify("%s\n", text)
 	} else if !quiet {
 		fmt.Println(text)
@@ -797,6 +985,11 @@ func infoln(r *repl.REPL, isInteractive bool, text string) {
 
 func warn(r *repl.REPL, isInteractive bool, format string, args ...interface{}) {
 	if isInteractive && r != nil {
+		cfg := r.GetConfig()
+		if cfg != nil && cfg.Stdout != nil {
+			_, _ = fmt.Fprintf(cfg.Stdout, format, args...)
+			return
+		}
 		r.Errorf(format, args...)
 	} else {
 		fmt.Fprintf(os.Stderr, format, args...)

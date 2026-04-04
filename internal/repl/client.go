@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/0funct0ry/xwebs/internal/replay"
 	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/0funct0ry/xwebs/internal/ws"
+	"github.com/itchyny/gojq"
 )
 
 // ClientContext provides access to the active connection and environment for client-mode commands.
@@ -496,6 +498,113 @@ func (r *REPL) RegisterClientCommands(cc ClientContext) {
 			return nil
 		},
 	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "expect",
+		help: "Wait for a message matching a pattern: :expect <pattern> [--timeout <d>]",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			conn := cc.GetConnection()
+			if conn == nil || conn.IsClosed() {
+				return fmt.Errorf("no active connection")
+			}
+
+			if len(args) == 0 {
+				return fmt.Errorf("usage: :expect <pattern> [--timeout <d>]")
+			}
+
+			var pattern string
+			var timeout time.Duration
+			for i := 0; i < len(args); i++ {
+				if args[i] == "--timeout" && i+1 < len(args) {
+					var err error
+					timeout, err = time.ParseDuration(args[i+1])
+					if err != nil {
+						return fmt.Errorf("invalid timeout: %w", err)
+					}
+					i++
+				} else {
+					if pattern != "" {
+						pattern += " "
+					}
+					pattern += args[i]
+				}
+			}
+
+			if timeout > 0 {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(ctx, timeout)
+				defer cancel()
+			}
+
+			// Parse pattern (Regex or JQ)
+			var jqFilter *gojq.Query
+			var regexFilter *regexp.Regexp
+
+			if strings.HasPrefix(pattern, "/") && strings.HasSuffix(pattern, "/") && len(pattern) > 2 {
+				re, err := regexp.Compile(pattern[1 : len(pattern)-1])
+				if err != nil {
+					return fmt.Errorf("invalid regex: %w", err)
+				}
+				regexFilter = re
+			} else {
+				query, err := gojq.Parse(pattern)
+				if err != nil {
+					// If not valid JQ, treat as literal substring match
+					// But for now, let's follow the REPL filter convention
+					return fmt.Errorf("invalid pattern (must be /regex/ or .jq.expr): %w", err)
+				}
+				jqFilter = query
+			}
+
+			matches := func(msg *ws.Message) bool {
+				if regexFilter != nil {
+					return regexFilter.Match(msg.Data)
+				}
+				if jqFilter != nil {
+					var data interface{}
+					if err := json.Unmarshal(msg.Data, &data); err != nil {
+						return false
+					}
+					iter := jqFilter.Run(data)
+					v, ok := iter.Next()
+					if !ok {
+						return false
+					}
+					if err, ok := v.(error); ok {
+						_ = err
+						return false
+					}
+					return v != nil && v != false
+				}
+				return false
+			}
+
+			sub := conn.Subscribe()
+			defer conn.Unsubscribe(sub)
+
+			for {
+				select {
+				case msg, ok := <-sub:
+					if !ok {
+						return fmt.Errorf("connection closed while waiting")
+					}
+					if msg.Metadata.Direction == "received" && matches(msg) {
+						if r.Display.Verbose {
+							r.Notify("✓ Expectation matched: %s\n", pattern)
+						}
+						return nil
+					}
+				case <-ctx.Done():
+					if ctx.Err() == context.DeadlineExceeded {
+						return fmt.Errorf("timeout waiting for %s", pattern)
+					}
+					return ctx.Err()
+				}
+			}
+		},
+	})
+
+	r.RegisterAlias("until", "expect")
 }
 
 // parsePayload is a helper to parse CLI arguments into a byte slice,

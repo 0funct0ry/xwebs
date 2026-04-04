@@ -23,6 +23,8 @@ const (
 	FormatHex DisplayFormat = "hex"
 	// FormatTemplate renders a custom Go template.
 	FormatTemplate DisplayFormat = "template"
+	// FormatJSONL displays the full message metadata and data as a single JSON line.
+	FormatJSONL DisplayFormat = "jsonl"
 )
 
 // FormattingState contains the current REPL display settings.
@@ -94,6 +96,9 @@ func (s *FormattingState) FormatMessage(msg *ws.Message, vars map[string]interfa
 		if !s.matchesFilter(msg) {
 			return "", false
 		}
+	}
+	if s.Format == FormatJSONL {
+		return s.formatBody(msg, vars, engine), true
 	}
 
 	var sb strings.Builder
@@ -235,6 +240,10 @@ func (s *FormattingState) formatBody(msg *ws.Message, vars map[string]interface{
 			return s.colorizedText(fmt.Sprintf("[template error: %v] ", err), "red") + string(msg.Data)
 		}
 		return res
+
+	case FormatJSONL:
+		output, _ := json.Marshal(msg)
+		return string(output)
 
 	default:
 		if s.isColorEnabled() {

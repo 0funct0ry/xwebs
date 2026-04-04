@@ -36,8 +36,8 @@ const (
 type REPL struct {
 	mode   Mode
 	rl     *readline.Instance
-	config *Config
-
+	config        *Config
+	IsInteractive bool // Flag to indicate if real-time interactive REPL is active
 	commands       map[string]Command
 	aliases        map[string]string
 	scriptAliases map[string]string
@@ -143,6 +143,19 @@ func New(mode Mode, cfg *Config) (*REPL, error) {
 		Stdout:          cfg.Stdout,
 	}
 
+	// Avoid sending terminal control sequences if Stdout is redirected to a file.
+	if cfg.Stdout != nil {
+		if f, ok := cfg.Stdout.(*os.File); ok {
+			if stat, err := f.Stat(); err == nil {
+				if (stat.Mode() & os.ModeCharDevice) == 0 {
+					// Fallback readline internally to os.Stderr if output is a file, 
+					// so r.Printf can write to the file cleanly via fmt.Fprintf.
+					rlConfig.Stdout = os.Stderr
+				}
+			}
+		}
+	}
+
 	r := &REPL{
 		mode:           mode,
 		config:         cfg,
@@ -169,6 +182,11 @@ func New(mode Mode, cfg *Config) (*REPL, error) {
 	return r, nil
 }
 
+// GetConfig returns the REPL configuration.
+func (r *REPL) GetConfig() *Config {
+	return r.config
+}
+
 // SetOnInput sets the fallback handler for input that is not a command.
 func (r *REPL) SetOnInput(f func(ctx context.Context, text string) error) {
 	r.onInput = f
@@ -187,22 +205,31 @@ func (r *REPL) Close() error {
 	default:
 		close(r.done)
 	}
-	// Close readline in a goroutine to avoid deadlocking if Readline() is currently blocking
-	// and Close() is called from another thread.
-	go func() {
-		_ = r.rl.Close()
-	}()
-	return nil
+	// Close readline and wait for it to finish.
+	err := r.rl.Close()
+	return err
 }
 
-// Printf prints a formatted string to the REPL output, ensuring it doesn't break the current prompt.
+// Printf prints a formatted string to the REPL output.
 func (r *REPL) Printf(format string, args ...interface{}) {
-	_, _ = r.rl.Write([]byte(fmt.Sprintf(format, args...)))
+	if r.rl != nil && r.IsInteractive {
+		_, _ = r.rl.Write([]byte(fmt.Sprintf(format, args...)))
+	} else if r.config != nil && r.config.Stdout != nil {
+		_, _ = fmt.Fprintf(r.config.Stdout, format, args...)
+	} else {
+		_, _ = fmt.Fprintf(os.Stdout, format, args...)
+	}
 }
 
 // Errorf prints a formatted error string to the REPL stderr.
 func (r *REPL) Errorf(format string, args ...interface{}) {
-	_, _ = r.rl.Write([]byte(fmt.Sprintf(format, args...)))
+	if r.rl != nil && r.IsInteractive {
+		_, _ = r.rl.Write([]byte(fmt.Sprintf(format, args...)))
+	} else if r.config != nil && r.config.Stdout != nil {
+		_, _ = fmt.Fprintf(r.config.Stdout, format, args...)
+	} else {
+		_, _ = fmt.Fprintf(os.Stderr, format, args...)
+	}
 }
 
 // Notify prints a notification (e.g. connection event) if quiet mode is not active.

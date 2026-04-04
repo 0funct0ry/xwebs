@@ -1,6 +1,7 @@
 package ws
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -27,9 +28,24 @@ const (
 
 // Message represents a WebSocket message.
 type Message struct {
-	Type     MessageType
-	Data     []byte
-	Metadata MessageMetadata
+	Type     MessageType     `json:"Type"`
+	Data     []byte          `json:"Data"`
+	Metadata MessageMetadata `json:"Metadata"`
+}
+
+// MarshalJSON customizes the JSON output, converting Data to a string for text messages.
+func (m *Message) MarshalJSON() ([]byte, error) {
+	type Alias Message
+	if m.Type == TextMessage {
+		return json.Marshal(&struct {
+			*Alias
+			Data string `json:"Data"`
+		}{
+			Alias: (*Alias)(m),
+			Data:  string(m.Data),
+		})
+	}
+	return json.Marshal((*Alias)(m))
 }
 
 // MessageMetadata contains frame-level information and transport context.

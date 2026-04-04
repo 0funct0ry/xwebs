@@ -193,19 +193,38 @@ Connection Status:
 > :exit
 ```
 
-**Non-Interactive & Pipeline Mode:**
+**Non-Interactive & Automation Mode:**
 
-`xwebs` automatically detects when it is not running in a terminal (TTY) or when it is part of a shell pipeline. In this mode, prompts and extraneous output are suppressed, making it perfect for scripting and piping clean data. **Note: If data is piped, the tool forces non-interactive mode and ignores the `--interactive` flag.**
+`xwebs` features a powerful non-interactive mode designed for scripts, CI/CD pipelines, and automated testing. You can send messages, wait for specific responses, and exit based on conditions without ever entering the REPL.
+
+**Automation Flags:**
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--send <msg>` | Send a message upon connection (repeatable) | `--send '{"type":"ping"}'` |
+| `--input <file>` | Send content from a file upon connection | `--input request.json` |
+| `--expect <pat>` | Wait for a message matching Regex or JQ (repeatable) | `--expect '/ready/'` |
+| `--until <pat>` | Exit as soon as a message matches this pattern | `--until '.status == "success"'` |
+| `--once` | Exit after the first message is received | `--once` |
+| `--jsonl` | Output all traffic as machine-readable JSONL | `--jsonl` |
+| `--output <file>` | Redirect formatted output to a file | `--output results.log` |
+| `--timeout <dur>` | Set a global timeout for the entire session | `--timeout 30s` |
+| `--watch <pat>` | Keep connection open and print only matches | `--watch '.event == "trade"'` |
+
+**Examples:**
 
 ```bash
-# Pipe data directly; no "> " prompts will be shown
-echo "{\"hello\": \"world\"}" | xwebs connect wss://echo.websocket.org
+# Send a login message and wait for a success response
+xwebs connect wss://api.example.com --send '{"type":"login"}' --expect '.status == "success"' --once
 
-# Force non-interactive mode explicitly in a TTY
-xwebs connect wss://api.example.com --interactive=false
+# Pipe a file to a connection and capture the first response
+cat request.json | xwebs connect wss://echo.websocket.org --once
 
-# JSONL output for machine-readable streams
-xwebs connect wss://echo.websocket.org --format jsonl
+# Monitor a stream for specific events and exit on a match
+xwebs connect wss://stream.example.com --until '.type == "shutdown"'
+
+# Health check with timeout and exit code
+xwebs connect wss://api.example.com --expect '/ready/' --timeout 5s || exit 1
 ```
 
 ### Output Formatting & Filtering
