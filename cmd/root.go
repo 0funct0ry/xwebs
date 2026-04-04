@@ -14,8 +14,9 @@ import (
 )
 
 var (
-	cfgFile     string
-	verbose     bool
+	cfgFile      string
+	handlersFile string
+	verbose      bool
 	quiet       bool
 	color       string
 	logLevel    string
@@ -40,6 +41,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&logFormat, "log-format", "text", "log format: text, json")
 	rootCmd.PersistentFlags().StringVar(&profile, "profile", "", "profile name for configuration")
 	rootCmd.PersistentFlags().StringVar(&proxy, "proxy", "", "proxy URL (http, https, socks5)")
+	rootCmd.PersistentFlags().StringVar(&handlersFile, "handlers", "", "handlers configuration file path (YAML)")
 	rootCmd.PersistentFlags().BoolVar(&noShellFunc, "no-shell-func", false, "disable dangerous template functions (shell, env, fileRead, etc.)")
 
 	_ = rootCmd.PersistentFlags().MarkDeprecated("toggle", "this flag is no longer used")
@@ -100,6 +102,7 @@ func initConfig() {
 	_ = viper.BindPFlag("log-format", rootCmd.PersistentFlags().Lookup("log-format"))
 	_ = viper.BindPFlag("profile", rootCmd.PersistentFlags().Lookup("profile"))
 	_ = viper.BindPFlag("proxy", rootCmd.PersistentFlags().Lookup("proxy"))
+	_ = viper.BindPFlag("handlers", rootCmd.PersistentFlags().Lookup("handlers"))
 	_ = viper.BindPFlag("no-shell-func", rootCmd.PersistentFlags().Lookup("no-shell-func"))
 
 	// Sync global variables from Viper and update flag defaults for help text
@@ -128,6 +131,7 @@ func initConfig() {
 	syncFlag("log-level", &logLevel)
 	syncFlag("log-format", &logFormat)
 	syncFlag("proxy", &proxy)
+	syncFlag("handlers", &handlersFile)
 	syncFlag("no-shell-func", &noShellFunc)
 }
 
@@ -186,6 +190,9 @@ For more information, visit: https://github.com/0funct0ry/xwebs`,
 			}
 			if noShellFunc {
 				fmt.Fprintf(os.Stderr, "  - Sandboxed:  %v\n", noShellFunc)
+			}
+			if handlersFile != "" {
+				fmt.Fprintf(os.Stderr, "  - Handlers:   %s\n", handlersFile)
 			}
 			fmt.Fprintf(os.Stderr, "\n")
 		}

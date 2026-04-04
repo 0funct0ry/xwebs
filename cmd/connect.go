@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/0funct0ry/xwebs/internal/config"
+	"github.com/0funct0ry/xwebs/internal/handler"
 	"github.com/0funct0ry/xwebs/internal/repl"
 	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/0funct0ry/xwebs/internal/ws"
@@ -116,6 +117,17 @@ Example:
 		var isInteractive bool
 		target := args[0]
 		tmplEngine := template.New(false) // Not sandboxed for CLI usage
+		
+		// Load handlers if specified
+		if handlersFile != "" {
+			_, err := handler.LoadConfig(handlersFile)
+			if err != nil {
+				return fmt.Errorf("loading handlers: %w", err)
+			}
+			if !quiet {
+				fmt.Fprintf(os.Stderr, "✓ Loaded handlers from %s\n", handlersFile)
+			}
+		}
 
 		// Evaluate target URL as template if it contains {{
 		if strings.Contains(target, "{{") {

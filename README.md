@@ -38,12 +38,12 @@ Every WebSocket tool does one thing: connect and send messages. That's the equiv
 - **Output Formatting & Filtering** — Flexible display options including JSON pretty-printing, hex dumps, and `jq` or Regex message filters
 - **Automation & Scripting** — Multi-step automation with `:source`, `:alias`, `:wait`, and `:assert` commands, plus a `--script` flag for non-interactive execution
 - **Observability & Testing** — High-fidelity JSONL logging, session recording/replay, and scenario-based mocking with `gojq` matching
+- **Message Handlers** — Declarative YAML-based message matching and action execution with lifecycle support
 - **RTT & Latency Tracking** — Real-time performance metrics for round-trip time, accessible via `.LastLatencyMs` in templates
 - **Real-time Syntax Highlighting** — Visual feedback for JSON and Go template expressions as typed in the REPL
 
 ### On the Roadmap (Planned)
 - **Server Mode** — WebSocket server with handler dispatch and administration REPL
-- **Handler Pipeline** — Bind message patterns to shell commands and actions
 - **Relay & Broadcast** — MITM proxy and pub/sub fan-out modes
 - **Web UI** — React-based dashboard for visual message inspection and Compose
 
@@ -240,6 +240,43 @@ xwebs connect wss://api.example.com --once | jq .status
 
 # Process a stream of events
 xwebs connect wss://stream.example.com | grep "ERROR" | tee errors.log
+```
+
+### Message Handlers (YAML)
+
+`xwebs` allows you to define declarative message handlers in a YAML configuration file. This is useful for building reactive WebSocket clients and servers without writing custom Go code.
+
+**Key Features:**
+- **Variables**: Define global variables accessible in all actions and matchers via `{{.Vars.name}}`.
+- **Match Conditions**: Match incoming messages by type (`text`, `json`, `regex`, `glob`) and pattern.
+- **Actions**: Trigger actions like `shell` commands, `send` messages, `builtin` commands, or `log` to files.
+- **Lifecycle Events**: Bind actions to `on_connect`, `on_disconnect`, and `on_error` events per handler.
+- **Template Support**: All message and command fields support full Go templates.
+
+**Usage:**
+```bash
+# Load handlers from a YAML file
+xwebs connect wss://echo.websocket.org --handlers my_handlers.yaml
+# Or use the long flag (shorthand -H is reserved for headers)
+xwebs connect wss://echo.websocket.org --handlers my_handlers.yaml
+```
+
+**Example `handlers.yaml`:**
+```yaml
+variables:
+  log_file: "session.log"
+
+handlers:
+  - name: "auto_ping"
+    on_connect:
+      - action: "shell"
+        command: "echo 'Started session at {{now}}' > {{.Vars.log_file}}"
+    match:
+      type: "json"
+      pattern: "$.type == 'ping'"
+    actions:
+      - action: "send"
+        message: '{"type": "pong", "ts": "{{nowUnix}}"}'
 ```
 
 ### Output Formatting & Filtering

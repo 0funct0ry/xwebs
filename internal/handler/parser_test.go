@@ -1,0 +1,95 @@
+package handler
+
+import (
+	"os"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestLoadConfig(t *testing.T) {
+	content := `
+variables:
+  foo: bar
+handlers:
+  - name: "test_handler"
+    match:
+      type: "text"
+      pattern: "hello"
+    actions:
+      - action: "shell"
+        command: "echo hello"
+    on_connect:
+      - action: "send"
+        message: "welcome"
+`
+	tmpfile, err := os.CreateTemp("", "handlers.yaml")
+	require.NoError(t, err)
+	defer os.Remove(tmpfile.Name())
+
+	_, err = tmpfile.Write([]byte(content))
+	require.NoError(t, err)
+	tmpfile.Close()
+
+	cfg, err := LoadConfig(tmpfile.Name())
+	require.NoError(t, err)
+
+	assert.Equal(t, "bar", cfg.Variables["foo"])
+	require.Len(t, cfg.Handlers, 1)
+	assert.Equal(t, "test_handler", cfg.Handlers[0].Name)
+	assert.Equal(t, "text", cfg.Handlers[0].Match.Type)
+	assert.Equal(t, "hello", cfg.Handlers[0].Match.Pattern)
+	require.Len(t, cfg.Handlers[0].Actions, 1)
+	assert.Equal(t, "shell", cfg.Handlers[0].Actions[0].Type)
+	assert.Equal(t, "echo hello", cfg.Handlers[0].Actions[0].Command)
+	require.Len(t, cfg.Handlers[0].OnConnect, 1)
+	assert.Equal(t, "send", cfg.Handlers[0].OnConnect[0].Type)
+}
+
+func TestValidateConfigErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		wantErr string
+	}{
+		{
+			name:    "missing name",
+			content: "handlers: [{match: {pattern: '*'}}]",
+			wantErr: "missing a name",
+		},
+		{
+			name:    "missing pattern",
+			content: "handlers: [{name: 'foo', actions: [{action: 'shell', command: 'ls'}]}]",
+			wantErr: "missing a match pattern",
+		},
+		{
+			name:    "missing actions and lifecycle",
+			content: "handlers: [{name: 'foo', match: {pattern: '*'}}]",
+			wantErr: "no actions or lifecycle events",
+		},
+		{
+			name:    "invalid action type",
+			content: "handlers: [{name: 'foo', match: {pattern: '*'}, actions: [{action: 'invalid'}]}]",
+			wantErr: "unknown action type: invalid",
+		},
+		{
+			name:    "missing shell command",
+			content: "handlers: [{name: 'foo', match: {pattern: '*'}, actions: [{action: 'shell'}]}]",
+			wantErr: "shell action missing command",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpfile, _ := os.CreateTemp("", "invalid_handlers.yaml")
+			defer os.Remove(tmpfile.Name())
+			_, _ = tmpfile.Write([]byte(tt.content))
+			tmpfile.Close()
+
+			_, err := LoadConfig(tmpfile.Name())
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
+}

@@ -1,0 +1,39 @@
+# Example Handlers Configuration for xwebs
+# This file demonstrates the structure of handlers.yaml
+
+variables:
+  log_file: "messages.log"
+  user_id: "dev-01"
+
+handlers:
+  - name: "logger"
+    on_connect:
+      - action: "shell"
+        command: "echo '[{{now}}] Connected to {{.URL}} as {{.Vars.user_id}}' >> {{.Vars.log_file}}"
+    match:
+      type: "text"
+      pattern: "*"
+    actions:
+      - action: "log"
+        message: "Received: {{.Data}}"
+        target: "stdout"
+    on_disconnect:
+      - action: "shell"
+        command: "echo '[{{now}}] Disconnected from {{.URL}}' >> {{.Vars.log_file}}"
+
+  - name: "auto_responder"
+    match:
+      type: "json"
+      pattern: "$.type == 'ping'"
+    actions:
+      - action: "send"
+        message: '{"type": "pong", "timestamp": "{{now}}"}'
+
+  - name: "system_info"
+    match:
+      type: "text"
+      pattern: "status"
+    actions:
+      - action: "shell"
+        command: "uptime"
+        silent: false
