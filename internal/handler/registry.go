@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/0funct0ry/xwebs/internal/ws"
 	"github.com/itchyny/gojq"
 	"github.com/spf13/cast"
@@ -44,13 +45,13 @@ func (r *Registry) sort() {
 }
 
 // Match returns all handlers that match the given message, in priority order.
-func (r *Registry) Match(msg *ws.Message) ([]*Handler, error) {
+func (r *Registry) Match(msg *ws.Message, engine *template.Engine, ctx *template.TemplateContext) ([]*Handler, error) {
 	var matches []*Handler
 	msgStr := string(msg.Data)
 
 	for i := range r.handlers {
 		h := &r.handlers[i]
-		matched, err := r.matchHandler(h, msgStr)
+		matched, err := r.matchHandler(h, msgStr, engine, ctx)
 		if err != nil {
 			return nil, fmt.Errorf("matching handler %q: %w", h.Name, err)
 		}
@@ -62,7 +63,7 @@ func (r *Registry) Match(msg *ws.Message) ([]*Handler, error) {
 	return matches, nil
 }
 
-func (r *Registry) matchHandler(h *Handler, msg string) (bool, error) {
+func (r *Registry) matchHandler(h *Handler, msg string, engine *template.Engine, ctx *template.TemplateContext) (bool, error) {
 	// Trim whitespace for more resilient matching in interactive sessions (e.g. echo servers with newlines)
 	trimmedMsg := strings.TrimSpace(msg)
 
@@ -90,6 +91,11 @@ func (r *Registry) matchHandler(h *Handler, msg string) (bool, error) {
 		return r.matchJSONSchema(h.Match.JSONSchema, h.BaseDir, trimmedMsg)
 	}
 
+	// Support template: match.template: "{{ eq .msg.data.type 'alert' }}"
+	if h.Match.Template != "" {
+		return r.matchTemplate(engine, ctx, h.Match.Template)
+	}
+
 	if h.Match.Pattern == "" {
 		return false, nil
 	}
@@ -110,6 +116,8 @@ func (r *Registry) matchHandler(h *Handler, msg string) (bool, error) {
 		return r.matchJSON(h.Match.Pattern, trimmedMsg)
 	case "json_schema":
 		return r.matchJSONSchema(h.Match.Pattern, h.BaseDir, trimmedMsg)
+	case "template":
+		return r.matchTemplate(engine, ctx, h.Match.Pattern)
 	default:
 		return false, fmt.Errorf("unknown matcher type: %s", h.Match.Type)
 	}
@@ -277,6 +285,29 @@ func (r *Registry) matchJSONSchema(schemaPath, baseDir, msg string) (bool, error
 	}
 
 	return result.Valid(), nil
+}
+
+func (r *Registry) matchTemplate(engine *template.Engine, ctx *template.TemplateContext, tmpl string) (bool, error) {
+	if engine == nil || ctx == nil {
+		return false, nil
+	}
+
+	result, err := engine.Execute("match", tmpl, ctx)
+	if err != nil {
+		return false, fmt.Errorf("template match error: %w", err)
+	}
+
+	// Truthiness logic:
+	// - empty string is false
+	// - "false" is false (case insensitive)
+	// - "0" is false
+	// - "null" is false
+	trimmed := strings.ToLower(strings.TrimSpace(result))
+	if trimmed == "" || trimmed == "false" || trimmed == "0" || trimmed == "null" {
+		return false, nil
+	}
+
+	return true, nil
 }
 
 // Handlers returns the list of registered handlers in their current order.

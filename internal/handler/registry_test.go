@@ -3,6 +3,7 @@ package handler
 import (
 	"testing"
 
+	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/0funct0ry/xwebs/internal/ws"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,6 +45,9 @@ func TestRegistry_Match(t *testing.T) {
 		{Name: "json_path_bool", Match: Matcher{JSONPath: "user.active", Equals: true}},
 		{Name: "json_path_root", Match: Matcher{JSONPath: "$", Equals: "root_val"}},
 		{Name: "json_path_nested", Match: Matcher{JSONPath: "$.meta.version", Equals: 1.2}},
+		{Name: "template_match", Match: Matcher{Template: `{{ eq .Message "match_me" }}`}},
+		{Name: "template_complex", Match: Matcher{Template: `{{ if (contains "alert" .Message) }}true{{ end }}`}},
+		{Name: "template_falsy", Match: Matcher{Template: `{{ if (contains "quiet" .Message) }}false{{ end }}`}},
 	})
 
 	tests := []struct {
@@ -82,13 +86,20 @@ func TestRegistry_Match(t *testing.T) {
 		{"json_path root match", `"root_val"`, []string{"json_path_root"}},
 		{"json_path nested match", `{"meta": {"version": 1.2}}`, []string{"json_path_nested"}},
 		{"json_path missing path", `{"user": {}}`, nil},
+		{"template simple", "match_me", []string{"template_match"}},
+		{"template complex truthy", "this is an alert!", []string{"template_complex"}},
+		{"template falsy", "quiet please", nil},
 		{"no match", "no match", nil},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			engine := template.New(false)
+			ctx := template.NewContext()
+			ctx.Message = tt.input
+			
 			msg := &ws.Message{Data: []byte(tt.input)}
-			matches, err := reg.Match(msg)
+			matches, err := reg.Match(msg, engine, ctx)
 			require.NoError(t, err)
 			
 			var names []string

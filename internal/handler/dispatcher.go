@@ -86,7 +86,11 @@ func (d *Dispatcher) handleMessage(msg *ws.Message) {
 		d.errorf("  [handler] debug: matching message %q (%v bytes)\n", msgStr, len(msg.Data))
 	}
 
-	matches, err := d.registry.Match(msg)
+	// Populate context once for all handlers matching this message
+	tmplCtx := template.NewContext()
+	d.populateContext(tmplCtx, msg)
+
+	matches, err := d.registry.Match(msg, d.templateEngine, tmplCtx)
 	if err != nil {
 		if d.verbose {
 			d.errorf("  [handler] error matching message: %v\n", err)
@@ -102,15 +106,11 @@ func (d *Dispatcher) handleMessage(msg *ws.Message) {
 		if d.verbose {
 			d.errorf("  [handler] executing handler %q (priority %d)\n", h.Name, h.Priority)
 		}
-		d.executeActions(h.Actions, msg)
+		d.executeActions(h.Actions, tmplCtx)
 	}
 }
 
-func (d *Dispatcher) executeActions(actions []Action, msg *ws.Message) {
-	// Root context for the handler execution
-	tmplCtx := template.NewContext()
-	d.populateContext(tmplCtx, msg)
-
+func (d *Dispatcher) executeActions(actions []Action, tmplCtx *template.TemplateContext) {
 	for _, a := range actions {
 		if err := d.executeAction(a, tmplCtx); err != nil {
 			d.errorf("  [handler] action error: %v\n", err)

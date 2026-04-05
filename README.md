@@ -248,7 +248,7 @@ xwebs connect wss://stream.example.com | grep "ERROR" | tee errors.log
 
 **Key Features:**
 - **Priority-Based Execution**: Handlers can be assigned a `priority` (higher numbers execute first). Handlers with the same priority run in the order they appear in the file.
-- **Match Conditions**: Match incoming messages by type (`text`, `json`, `regex`, `glob`, `jq`, `json_schema`) and pattern. You can also use **shorthands** for concise matching: `match.regex: "pattern"`, `match.jq: "query"`, `match.json_path: "path"`, or `match.json_schema: "path/to/schema.json"`. The `glob` matcher converts `*` and `?` to logical regexes, intuitively supporting full and substring matching across newlines and slashes.
+- **Match Conditions**: Match incoming messages by type (`text`, `json`, `regex`, `glob`, `jq`, `json_schema`, `template`) and pattern. You can also use **shorthands** for concise matching: `match.regex: "pattern"`, `match.jq: "query"`, `match.json_path: "path"`, `match.json_schema: "path/to/schema.json"`, or `match.template: "expression"`. The `glob` matcher converts `*` and `?` to logical regexes, intuitively supporting full and substring matching across newlines and slashes. The `template` matcher evaluates a Go template and matches if the result is truthy (non-empty, non-false, non-zero).
 - **Actions**: Trigger actions like `shell` commands, `send` messages, `builtin` commands, or `log` to files.
 - **Lifecycle Events**: Bind actions to `on_connect`, `on_disconnect`, and `on_error` events.
 - **Template Support**: All message and command fields support full Go templates with access to `.Msg`, `.Conn`, `.Vars`, etc.
@@ -300,6 +300,13 @@ handlers:
     actions:
       - action: "log"
         message: "Matched user 1001 via JSONPath!"
+
+  - name: "complex_template_matcher"
+    match:
+      template: '{{ contains "alert" .Message }}'
+    actions:
+      - action: log
+        message: "ALERT DETECTED via template matching!"
 ```
 
 ### Output Formatting & Filtering

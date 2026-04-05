@@ -59,9 +59,22 @@ func TestValidateConfigErrors(t *testing.T) {
 			wantErr: "missing a name",
 		},
 		{
-			name:    "missing pattern, regex, jq, json_path, or json_schema",
+			name:    "missing pattern, regex, jq, json_path, json_schema, or template",
 			content: "handlers: [{name: 'foo', actions: [{action: 'shell', command: 'ls'}]}]",
-			wantErr: "missing a match condition (pattern, regex, jq, json_path, or json_schema)",
+			wantErr: "missing a match condition (pattern, regex, jq, json_path, json_schema, or template)",
+		},
+		{
+			name:    "template shorthand",
+			content: `
+handlers:
+  - name: "template_shorthand"
+    match:
+      template: "{{ eq .Message 'ping' }}"
+    actions:
+      - action: "log"
+        message: "matched"
+`,
+			wantErr: "", // Should not error
 		},
 		{
 			name:    "jq shorthand",

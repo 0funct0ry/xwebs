@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/0funct0ry/xwebs/internal/ws"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -75,7 +76,11 @@ func TestJSONSchemaMatcher(t *testing.T) {
 			msg := &ws.Message{
 				Data: []byte(tt.message),
 			}
-			matches, err := reg.Match(msg)
+			engine := template.New(false)
+			ctx := template.NewContext()
+			ctx.Message = tt.message
+			
+			matches, err := reg.Match(msg, engine, ctx)
 			require.NoError(t, err)
 			
 			if tt.want {
@@ -109,7 +114,11 @@ func TestJSONSchemaMatcherAbsolute(t *testing.T) {
 	reg.AddHandlers([]Handler{h})
 
 	msg := &ws.Message{Data: []byte("123")}
-	matches, err := reg.Match(msg)
+	engine := template.New(false)
+	ctx := template.NewContext()
+	ctx.Message = "123"
+	
+	matches, err := reg.Match(msg, engine, ctx)
 	require.NoError(t, err)
 	assert.Len(t, matches, 1)
 }
