@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -128,9 +129,14 @@ func (d *Dispatcher) populateContext(tmplCtx *template.TemplateContext, msg *ws.
 			typeStr = "pong"
 		}
 
+		var parsedData interface{}
+		if err := json.Unmarshal(msg.Data, &parsedData); err != nil {
+			parsedData = string(msg.Data)
+		}
+
 		tmplCtx.Msg = &template.MessageContext{
 			Type:      typeStr,
-			Data:      string(msg.Data),
+			Data:      parsedData,
 			Raw:       msg.Data,
 			Length:    len(msg.Data),
 			Timestamp: msg.Metadata.Timestamp,

@@ -1,0 +1,20 @@
+# JSON Schema Matcher Examples
+# This file demonstrates how to validate incoming messages against a JSON Schema file.
+
+handlers:
+  - name: "valid_query_handler"
+    match:
+      json_schema: "user_schema.json"
+    actions:
+      - action: "log"
+        message: "Validated {{.Msg.Data.type}} message for user ID {{.Msg.Data.id}}"
+      - action: "shell"
+        command: "echo 'Received valid {{.Msg.Data.type}}' >> audit.log"
+
+  - name: "query_type_matcher"
+    match:
+      type: "json_schema"
+      pattern: "user_schema.json"
+    actions:
+      - action: "log"
+        message: "Matched via explicit json_schema type"

@@ -35,6 +35,14 @@ Demonstrates focused field-based matching with `json_path` and `equals`.
 | `root_value_match`   | `$`              | `"PING"`     | `"PING"`                                |
 | `nested_array_field` | `meta.tags[0]`   | `"urgent"`   | `{"meta": {"tags": ["urgent", "low"]}}` |
 
+### 4. JSON Schema Matchers (`json_schema_handlers.yaml`)
+Validates incoming messages against a structured JSON Schema file.
+
+| Handler Name          | Schema File        | Example Server Message                    |
+|-----------------------|--------------------|-------------------------------------------|
+| `valid_query_handler` | `user_schema.json` | `{"type": "query", "id": 1, ...}`         |
+| `query_type_matcher`  | `user_schema.json` | `{"type": "update", "id": 10, ...}`       |
+
 ## Usage
 
 To use any of these handler files, run `xwebs` with the `--handlers` flag:

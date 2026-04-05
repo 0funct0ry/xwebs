@@ -16,11 +16,11 @@ type ConnectionContext struct {
 
 // MessageContext provides details about a specific WebSocket message.
 type MessageContext struct {
-	Type      string    `json:"type"`      // "text", "binary", "ping", "pong"
-	Data      string    `json:"data"`      // string representation of the data
-	Raw       []byte    `json:"raw"`       // raw byte slice
-	Length    int       `json:"length"`    // size of the data in bytes
-	Timestamp time.Time `json:"timestamp"` // when the message was received/sent
+	Type      string      `json:"type"`      // "text", "binary", "ping", "pong"
+	Data      interface{} `json:"data"`      // parsed data if JSON, otherwise string
+	Raw       []byte      `json:"raw"`       // raw byte slice
+	Length    int         `json:"length"`    // size of the data in bytes
+	Timestamp time.Time   `json:"timestamp"` // when the message was received/sent
 }
 
 // HandlerContext captures the results of a handler execution.

@@ -3,24 +3,30 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/0funct0ry/xwebs/internal/ws"
 	"github.com/itchyny/gojq"
 	"github.com/spf13/cast"
+	"github.com/xeipuuv/gojsonschema"
 )
 
 // Registry manages a collection of message handlers.
 type Registry struct {
 	handlers []Handler
+	schemas  map[string]*gojsonschema.Schema
+	mu       sync.RWMutex
 }
 
 // NewRegistry creates a new handler registry.
 func NewRegistry() *Registry {
 	return &Registry{
 		handlers: make([]Handler, 0),
+		schemas:  make(map[string]*gojsonschema.Schema),
 	}
 }
 
@@ -79,6 +85,11 @@ func (r *Registry) matchHandler(h *Handler, msg string) (bool, error) {
 		return r.matchJSONPath(h.Match.JSONPath, h.Match.Equals, trimmedMsg)
 	}
 
+	// Support json_schema: match.json_schema: "path/to/schema.json"
+	if h.Match.JSONSchema != "" {
+		return r.matchJSONSchema(h.Match.JSONSchema, h.BaseDir, trimmedMsg)
+	}
+
 	if h.Match.Pattern == "" {
 		return false, nil
 	}
@@ -97,6 +108,8 @@ func (r *Registry) matchHandler(h *Handler, msg string) (bool, error) {
 		return r.matchGlob(h.Match.Pattern, trimmedMsg)
 	case "json", "jq":
 		return r.matchJSON(h.Match.Pattern, trimmedMsg)
+	case "json_schema":
+		return r.matchJSONSchema(h.Match.Pattern, h.BaseDir, trimmedMsg)
 	default:
 		return false, fmt.Errorf("unknown matcher type: %s", h.Match.Type)
 	}
@@ -215,6 +228,55 @@ func (r *Registry) compareValues(actual, expected interface{}) bool {
 		// Fallback to string comparison for objects/slices (though plan says primitives)
 		return fmt.Sprintf("%v", actual) == fmt.Sprintf("%v", expected)
 	}
+}
+
+func (r *Registry) matchJSONSchema(schemaPath, baseDir, msg string) (bool, error) {
+	// Resolve schema path
+	fullPath := schemaPath
+	if !filepath.IsAbs(fullPath) && baseDir != "" {
+		fullPath = filepath.Join(baseDir, schemaPath)
+	}
+	
+	// Ensure absolute path for canonical file:// URI
+	if !filepath.IsAbs(fullPath) {
+		if abs, err := filepath.Abs(fullPath); err == nil {
+			fullPath = abs
+		}
+	}
+
+	// Check cache
+	r.mu.RLock()
+	schema, ok := r.schemas[fullPath]
+	r.mu.RUnlock()
+
+	if !ok {
+		// Compile and cache
+		r.mu.Lock()
+		// Double check after lock
+		schema, ok = r.schemas[fullPath]
+		if !ok {
+			// Load from file
+			schemaLoader := gojsonschema.NewReferenceLoader("file://" + fullPath)
+			var err error
+			schema, err = gojsonschema.NewSchema(schemaLoader)
+			if err != nil {
+				r.mu.Unlock()
+				return false, fmt.Errorf("loading JSON schema from %s: %w", fullPath, err)
+			}
+			r.schemas[fullPath] = schema
+		}
+		r.mu.Unlock()
+	}
+
+	// Validate message
+	documentLoader := gojsonschema.NewStringLoader(msg)
+	result, err := schema.Validate(documentLoader)
+	if err != nil {
+		// If it's not valid JSON at all, it fails validation
+		return false, nil
+	}
+
+	return result.Valid(), nil
 }
 
 // Handlers returns the list of registered handlers in their current order.

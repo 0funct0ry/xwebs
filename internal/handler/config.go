@@ -9,6 +9,7 @@ import (
 type Config struct {
 	Variables map[string]interface{} `yaml:"variables"`
 	Handlers  []Handler              `yaml:"handlers"`
+	BaseDir   string                 `yaml:"-"` // Directory from which the config was loaded
 }
 
 // Handler defines a single message handler with a name, match conditions, and actions.
@@ -20,16 +21,18 @@ type Handler struct {
 	OnConnect    []Action `yaml:"on_connect,omitempty"`
 	OnDisconnect []Action `yaml:"on_disconnect,omitempty"`
 	OnError      []Action `yaml:"on_error,omitempty"`
+	BaseDir      string   `yaml:"-"` // Directory from which the handler was loaded
 }
 
 // Matcher specifies how to match an incoming WebSocket message.
 type Matcher struct {
-	Type    string `yaml:"type,omitempty"`    // "text", "json", "regex", "glob", "jq" (default "text")
-	Pattern string `yaml:"pattern,omitempty"` // The pattern to match against
-	Regex   string `yaml:"regex,omitempty"`   // Shorthand for regex matching
-	JQ       string      `yaml:"jq,omitempty"`       // Shorthand for jq matching
-	JSONPath string      `yaml:"json_path,omitempty"` // JSONPath to extract value
-	Equals   interface{} `yaml:"equals,omitempty"`    // Value to compare with (string or number)
+	Type       string      `yaml:"type,omitempty"`        // "text", "json", "regex", "glob", "jq", "json_schema" (default "text")
+	Pattern    string      `yaml:"pattern,omitempty"`     // The pattern to match against
+	Regex      string      `yaml:"regex,omitempty"`       // Shorthand for regex matching
+	JQ         string      `yaml:"jq,omitempty"`          // Shorthand for jq matching
+	JSONPath   string      `yaml:"json_path,omitempty"`   // JSONPath to extract value
+	Equals     interface{} `yaml:"equals,omitempty"`      // Value to compare with (string or number)
+	JSONSchema string      `yaml:"json_schema,omitempty"` // Path to JSON Schema file
 }
 
 // Action defines an operation to perform when a handler matches or a lifecycle event occurs.
@@ -49,8 +52,8 @@ func (c *Config) Validate() error {
 		}
 		
 		// Match is required if there are actions (normal handler)
-		if h.Match.Pattern == "" && h.Match.Regex == "" && h.Match.JQ == "" && h.Match.JSONPath == "" && len(h.Actions) > 0 {
-			return fmt.Errorf("handler %q is missing a match condition (pattern, regex, jq, or json_path)", h.Name)
+		if h.Match.Pattern == "" && h.Match.Regex == "" && h.Match.JQ == "" && h.Match.JSONPath == "" && h.Match.JSONSchema == "" && len(h.Actions) > 0 {
+			return fmt.Errorf("handler %q is missing a match condition (pattern, regex, jq, json_path, or json_schema)", h.Name)
 		}
 
 		if len(h.Actions) == 0 && len(h.OnConnect) == 0 && len(h.OnDisconnect) == 0 && len(h.OnError) == 0 {

@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 )
@@ -17,6 +18,17 @@ func LoadConfig(path string) (*Config, error) {
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("parsing handler config YAML: %w", err)
+	}
+
+	// Set base directory for relative path resolution (e.g. for JSON Schema)
+	// Ensure it is an absolute path to satisfy gojsonschema's canonical requirement
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, fmt.Errorf("resolving absolute path for %s: %w", path, err)
+	}
+	cfg.BaseDir = filepath.Dir(absPath)
+	for i := range cfg.Handlers {
+		cfg.Handlers[i].BaseDir = cfg.BaseDir
 	}
 
 	if err := cfg.Validate(); err != nil {

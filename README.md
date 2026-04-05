@@ -248,7 +248,7 @@ xwebs connect wss://stream.example.com | grep "ERROR" | tee errors.log
 
 **Key Features:**
 - **Priority-Based Execution**: Handlers can be assigned a `priority` (higher numbers execute first). Handlers with the same priority run in the order they appear in the file.
-- **Match Conditions**: Match incoming messages by type (`text`, `json`, `regex`, `glob`, `jq`) and pattern. You can also use **shorthands** for concise matching: `match.regex: "pattern"`, `match.jq: "query"`, or `match.json_path: "path"` combined with `match.equals: value`. The `glob` matcher converts `*` and `?` to logical regexes, intuitively supporting full and substring matching across newlines and slashes.
+- **Match Conditions**: Match incoming messages by type (`text`, `json`, `regex`, `glob`, `jq`, `json_schema`) and pattern. You can also use **shorthands** for concise matching: `match.regex: "pattern"`, `match.jq: "query"`, `match.json_path: "path"`, or `match.json_schema: "path/to/schema.json"`. The `glob` matcher converts `*` and `?` to logical regexes, intuitively supporting full and substring matching across newlines and slashes.
 - **Actions**: Trigger actions like `shell` commands, `send` messages, `builtin` commands, or `log` to files.
 - **Lifecycle Events**: Bind actions to `on_connect`, `on_disconnect`, and `on_error` events.
 - **Template Support**: All message and command fields support full Go templates with access to `.Msg`, `.Conn`, `.Vars`, etc.
