@@ -1,43 +1,63 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
-	"os/exec"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/0funct0ry/xwebs/internal/shell"
 	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/0funct0ry/xwebs/internal/ws"
 )
 
+// Connection defines the required interface for a WebSocket connection.
+type Connection interface {
+	Write(msg *ws.Message) error
+	Subscribe() <-chan *ws.Message
+	Unsubscribe(ch <-chan *ws.Message)
+	Done() <-chan struct{}
+	IsCompressionEnabled() bool
+	GetURL() string
+	GetSubprotocol() string
+}
+
 // Dispatcher coordinates the execution of handlers for a connection.
 type Dispatcher struct {
 	registry       *Registry
-	conn           *ws.Connection
+	conn           Connection
 	templateEngine *template.Engine
 	verbose        bool
 	Log            func(string, ...interface{})
 	Error          func(string, ...interface{})
+
+	variables map[string]interface{}
+	handlerMu map[string]*sync.Mutex
+	globalMu  sync.RWMutex
 }
 
 // NewDispatcher creates a new dispatcher.
-func NewDispatcher(registry *Registry, conn *ws.Connection, engine *template.Engine, verbose bool) *Dispatcher {
+func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine, verbose bool, vars map[string]interface{}) *Dispatcher {
 	return &Dispatcher{
 		registry:       registry,
 		conn:           conn,
 		templateEngine: engine,
 		verbose:        verbose,
+		variables:      vars,
 		Log: func(f string, a ...interface{}) {
 			fmt.Printf(f, a...)
 		},
 		Error: func(f string, a ...interface{}) {
 			fmt.Fprintf(os.Stderr, f, a...)
 		},
+		handlerMu: make(map[string]*sync.Mutex),
 	}
 }
 
@@ -51,6 +71,26 @@ func (d *Dispatcher) errorf(f string, a ...interface{}) {
 	if d.Error != nil {
 		d.Error(f, a...)
 	}
+}
+
+// getHandlerMu returns the mutex for a specific handler, creating it if necessary.
+func (d *Dispatcher) getHandlerMu(name string) *sync.Mutex {
+	d.globalMu.RLock()
+	mu, ok := d.handlerMu[name]
+	d.globalMu.RUnlock()
+	if ok {
+		return mu
+	}
+
+	d.globalMu.Lock()
+	defer d.globalMu.Unlock()
+	// Double check after acquiring write lock
+	if mu, ok := d.handlerMu[name]; ok {
+		return mu
+	}
+	mu = &sync.Mutex{}
+	d.handlerMu[name] = mu
+	return mu
 }
 
 // Start begins the dispatch loop.
@@ -73,14 +113,14 @@ func (d *Dispatcher) Start(ctx context.Context) {
 				}
 				// Only handle received messages for matching
 				if msg.Metadata.Direction == "received" {
-					d.handleMessage(msg)
+					d.handleMessage(ctx, msg)
 				}
 			}
 		}
 	}()
 }
 
-func (d *Dispatcher) handleMessage(msg *ws.Message) {
+func (d *Dispatcher) handleMessage(ctx context.Context, msg *ws.Message) {
 	msgStr := string(msg.Data)
 	if d.verbose {
 		d.errorf("  [handler] debug: matching message %q (%v bytes)\n", msgStr, len(msg.Data))
@@ -88,7 +128,7 @@ func (d *Dispatcher) handleMessage(msg *ws.Message) {
 
 	// Populate context once for all handlers matching this message
 	tmplCtx := template.NewContext()
-	d.populateContext(tmplCtx, msg)
+	d.populateTemplateContext(tmplCtx, msg)
 
 	matches, err := d.registry.Match(msg, d.templateEngine, tmplCtx)
 	if err != nil {
@@ -106,19 +146,120 @@ func (d *Dispatcher) handleMessage(msg *ws.Message) {
 		if d.verbose {
 			d.errorf("  [handler] executing handler %q (priority %d)\n", h.Name, h.Priority)
 		}
-		d.executeActions(h.Actions, tmplCtx)
-	}
-}
+		
+		go func(handler Handler) {
+			if err := d.Execute(ctx, &handler, msg); err != nil {
+				d.errorf("  [handler] error executing %q: %v\n", handler.Name, err)
+			}
+		}(*h)
 
-func (d *Dispatcher) executeActions(actions []Action, tmplCtx *template.TemplateContext) {
-	for _, a := range actions {
-		if err := d.executeAction(a, tmplCtx); err != nil {
-			d.errorf("  [handler] action error: %v\n", err)
+		// If the handler is exclusive, stop processing further handlers.
+		if h.Exclusive {
+			break
 		}
 	}
 }
 
-func (d *Dispatcher) populateContext(tmplCtx *template.TemplateContext, msg *ws.Message) {
+// Execute runs the actions defined in a handler.
+func (d *Dispatcher) Execute(ctx context.Context, h *Handler, msg *ws.Message) error {
+	// Handle concurrency control
+	if h.Concurrent != nil && !*h.Concurrent {
+		mu := d.getHandlerMu(h.Name)
+		mu.Lock()
+		defer mu.Unlock()
+	}
+
+	tmplCtx := template.NewContext()
+	d.populateTemplateContext(tmplCtx, msg)
+	// Add pipeline steps map
+	tmplCtx.Steps = make(map[string]*template.HandlerContext)
+
+	// Determine execution path
+	if len(h.Actions) > 0 {
+		// Legacy action list
+		for _, action := range h.Actions {
+			if err := d.ExecuteAction(ctx, &action, tmplCtx, msg); err != nil {
+				return err
+			}
+		}
+	} else if len(h.Pipeline) > 0 {
+		// New pipeline model
+		if err := d.executePipeline(ctx, h.Pipeline, tmplCtx, msg); err != nil {
+			return err
+		}
+		// If respond is present after pipeline, execute it
+		if h.Respond != "" {
+			action := Action{Type: "send", Message: h.Respond}
+			if err := d.ExecuteAction(ctx, &action, tmplCtx, msg); err != nil {
+				return err
+			}
+		}
+	} else {
+		// Concise top-level model (run or builtin)
+		if h.Run != "" {
+			action := Action{Type: "shell", Run: h.Run, Timeout: h.Timeout}
+			if err := d.ExecuteAction(ctx, &action, tmplCtx, msg); err != nil {
+				return err
+			}
+		} else if h.Builtin != "" {
+			action := Action{Type: "builtin", Command: h.Builtin, Timeout: h.Timeout}
+			if err := d.ExecuteAction(ctx, &action, tmplCtx, msg); err != nil {
+				return err
+			}
+		}
+
+		// Always execute respond if present (possibly after run/builtin)
+		if h.Respond != "" {
+			action := Action{Type: "send", Message: h.Respond}
+			if err := d.ExecuteAction(ctx, &action, tmplCtx, msg); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// executePipeline runs a sequence of steps.
+func (d *Dispatcher) executePipeline(ctx context.Context, pipeline []PipelineStep, tmplCtx *template.TemplateContext, msg *ws.Message) error {
+	for _, step := range pipeline {
+		action := Action{Timeout: step.Timeout}
+		if step.Run != "" {
+			action.Type = "shell"
+			action.Run = step.Run
+		} else if step.Builtin != "" {
+			action.Type = "builtin"
+			action.Command = step.Builtin
+		}
+
+		if err := d.ExecuteAction(ctx, &action, tmplCtx, msg); err != nil {
+			return err
+		}
+
+		// Store result if named
+		if step.As != "" {
+			tmplCtx.Steps[step.As] = &template.HandlerContext{
+				Stdout:   tmplCtx.Stdout,
+				Stderr:   tmplCtx.Stderr,
+				ExitCode: tmplCtx.ExitCode,
+				Duration: time.Duration(tmplCtx.DurationMs) * time.Millisecond,
+			}
+		}
+	}
+	return nil
+}
+
+func (d *Dispatcher) populateTemplateContext(tmplCtx *template.TemplateContext, msg *ws.Message) {
+	// Inject global variables
+	if d.variables != nil {
+		if tmplCtx.Vars == nil {
+			tmplCtx.Vars = make(map[string]interface{})
+		}
+		for k, v := range d.variables {
+			tmplCtx.Vars[k] = v
+		}
+	}
+
 	if msg != nil {
 		typeStr := "text"
 		if msg.Type == ws.BinaryMessage {
@@ -152,17 +293,28 @@ func (d *Dispatcher) populateContext(tmplCtx *template.TemplateContext, msg *ws.
 	}
 
 	// Populate connection context
-	tmplCtx.Conn = &template.ConnectionContext{
-		URL:                d.conn.URL,
-		Subprotocol:        d.conn.NegotiatedSubprotocol,
-		CompressionEnabled: d.conn.IsCompressionEnabled(),
+	if d.conn != nil {
+		tmplCtx.URL = d.conn.GetURL()
+		u, err := url.Parse(d.conn.GetURL())
+		if err == nil {
+			tmplCtx.Host = u.Host
+			tmplCtx.Path = u.Path
+			tmplCtx.Scheme = u.Scheme
+		}
+		tmplCtx.Subprotocol = d.conn.GetSubprotocol()
+		
+		tmplCtx.Conn = &template.ConnectionContext{
+			URL:                d.conn.GetURL(),
+			Subprotocol:        d.conn.GetSubprotocol(),
+			CompressionEnabled: d.conn.IsCompressionEnabled(),
+		}
 	}
 }
 
-func (d *Dispatcher) executeAction(a Action, tmplCtx *template.TemplateContext) error {
+func (d *Dispatcher) ExecuteAction(ctx context.Context, a *Action, tmplCtx *template.TemplateContext, msg *ws.Message) error {
 	switch strings.ToLower(a.Type) {
 	case "shell":
-		return d.executeShell(a, tmplCtx)
+		return d.executeShell(ctx, a, tmplCtx)
 	case "send":
 		return d.executeSend(a, tmplCtx)
 	case "log":
@@ -174,46 +326,71 @@ func (d *Dispatcher) executeAction(a Action, tmplCtx *template.TemplateContext) 
 	}
 }
 
-func (d *Dispatcher) executeShell(a Action, ctx *template.TemplateContext) error {
-	cmdStr, err := d.templateEngine.Execute("shell", a.Command, ctx)
+func (d *Dispatcher) executeShell(ctx context.Context, a *Action, tmplCtx *template.TemplateContext) error {
+	runStr := a.Run
+	if runStr == "" {
+		runStr = a.Command
+	}
+
+	cmdStr, err := d.templateEngine.Execute("shell", runStr, tmplCtx)
 	if err != nil {
 		return fmt.Errorf("template error in shell command: %w", err)
 	}
 
-	start := time.Now()
-	cmd := exec.Command("sh", "-c", cmdStr)
-	
-	var stdout, stderr strings.Builder
-	if !a.Silent {
-		cmd.Stdout = io.MultiWriter(&stdout, &funcWriter{f: d.log})
-		cmd.Stderr = io.MultiWriter(&stderr, &funcWriter{f: d.errorf})
-	} else {
-		cmd.Stdout = &stdout
-		cmd.Stderr = &stderr
-	}
-
-	err = cmd.Run()
-	duration := time.Since(start)
-
-	// Update context with execution results for subsequent actions
-	ctx.Handler = &template.HandlerContext{
-		Stdout:   stdout.String(),
-		Stderr:   stderr.String(),
-		Duration: duration,
-	}
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			ctx.Handler.ExitCode = exitErr.ExitCode()
+	// Parse timeout
+	timeout := 30 * time.Second
+	if a.Timeout != "" {
+		if t, err := time.ParseDuration(a.Timeout); err == nil {
+			timeout = t
 		} else {
-			ctx.Handler.ExitCode = -1
+			d.errorf("  [handler] warning: invalid timeout %q, using default 30s\n", a.Timeout)
 		}
+	}
+
+	// Create context with timeout
+	childCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	// Prepare stdin from message data
+	var stdin io.Reader
+	if tmplCtx.Msg != nil && tmplCtx.Msg.Raw != nil {
+		stdin = bytes.NewReader(tmplCtx.Msg.Raw)
+	}
+
+	// Execute shell command
+	result, err := shell.Execute(childCtx, cmdStr, stdin, a.Env)
+
+	// Update template context with execution results for subsequent actions
+	tmplCtx.Handler = &template.HandlerContext{
+		Stdout:   result.Stdout,
+		Stderr:   result.Stderr,
+		ExitCode: result.ExitCode,
+		Duration: result.Duration,
+	}
+	// Also top-level for spec compliance
+	tmplCtx.Stdout = result.Stdout
+	tmplCtx.Stderr = result.Stderr
+	tmplCtx.ExitCode = result.ExitCode
+	tmplCtx.DurationMs = int64(result.Duration / time.Millisecond)
+
+	// Log output if not silent
+	if !a.Silent {
+		if result.Stdout != "" {
+			d.log("%s", result.Stdout)
+		}
+		if result.Stderr != "" {
+			d.errorf("%s", result.Stderr)
+		}
+	}
+
+	if err != nil {
 		return fmt.Errorf("shell command failed: %w", err)
 	}
-	ctx.Handler.ExitCode = 0
+
 	return nil
 }
 
-func (d *Dispatcher) executeSend(a Action, ctx *template.TemplateContext) error {
+func (d *Dispatcher) executeSend(a *Action, ctx *template.TemplateContext) error {
 	msgStr, err := d.templateEngine.Execute("send", a.Message, ctx)
 	if err != nil {
 		return fmt.Errorf("template error in send message: %w", err)
@@ -225,7 +402,7 @@ func (d *Dispatcher) executeSend(a Action, ctx *template.TemplateContext) error 
 	})
 }
 
-func (d *Dispatcher) executeLog(a Action, ctx *template.TemplateContext) error {
+func (d *Dispatcher) executeLog(a *Action, ctx *template.TemplateContext) error {
 	msgStr, err := d.templateEngine.Execute("log", a.Message, ctx)
 	if err != nil {
 		return fmt.Errorf("template error in log message: %w", err)
@@ -249,7 +426,7 @@ func (d *Dispatcher) executeLog(a Action, ctx *template.TemplateContext) error {
 	return nil
 }
 
-func (d *Dispatcher) executeBuiltin(a Action, ctx *template.TemplateContext) error {
+func (d *Dispatcher) executeBuiltin(a *Action, ctx *template.TemplateContext) error {
 	cmdStr, err := d.templateEngine.Execute("builtin", a.Command, ctx)
 	if err != nil {
 		return fmt.Errorf("template error in builtin command: %w", err)
@@ -271,7 +448,14 @@ func (d *Dispatcher) HandleConnect() {
 		if d.verbose {
 			d.errorf("  [handler] executing on_connect for handler %q\n", h.Name)
 		}
-		d.executeActions(h.OnConnect, nil)
+		tmplCtx := template.NewContext()
+		d.populateTemplateContext(tmplCtx, nil)
+		
+		for _, a := range h.OnConnect {
+			if err := d.ExecuteAction(context.Background(), &a, tmplCtx, nil); err != nil {
+				d.errorf("  [handler] on_connect action error: %v\n", err)
+			}
+		}
 	}
 }
 
@@ -284,7 +468,14 @@ func (d *Dispatcher) HandleDisconnect() {
 		if d.verbose {
 			d.errorf("  [handler] executing on_disconnect for handler %q\n", h.Name)
 		}
-		d.executeActions(h.OnDisconnect, nil)
+		tmplCtx := template.NewContext()
+		d.populateTemplateContext(tmplCtx, nil)
+		
+		for _, a := range h.OnDisconnect {
+			if err := d.ExecuteAction(context.Background(), &a, tmplCtx, nil); err != nil {
+				d.errorf("  [handler] on_disconnect action error: %v\n", err)
+			}
+		}
 	}
 }
 
@@ -299,11 +490,11 @@ func (d *Dispatcher) HandleError(err error) {
 		}
 		// Create a temporary context to pass the error if possible
 		tmplCtx := template.NewContext()
-		d.populateContext(tmplCtx, nil)
+		d.populateTemplateContext(tmplCtx, nil)
 		// Future: add err to context
 		
 		for _, a := range h.OnError {
-			if err := d.executeAction(a, tmplCtx); err != nil {
+			if err := d.ExecuteAction(context.Background(), &a, tmplCtx, nil); err != nil {
 				if d.verbose {
 					d.errorf("  [handler] on_error action failure: %v\n", err)
 				}
@@ -316,13 +507,4 @@ func (d *Dispatcher) sortHandlers(hs []*Handler) {
 	sort.SliceStable(hs, func(i, j int) bool {
 		return hs[i].Priority > hs[j].Priority
 	})
-}
-
-type funcWriter struct {
-	f func(string, ...interface{})
-}
-
-func (w *funcWriter) Write(p []byte) (n int, err error) {
-	w.f("%s", string(p))
-	return len(p), nil
 }

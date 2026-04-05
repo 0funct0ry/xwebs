@@ -121,6 +121,7 @@ Example:
 		// Load handlers if specified
 		var reg *handler.Registry
 		var dispatcher *handler.Dispatcher
+		var handlerVars map[string]interface{}
 		if handlersFile != "" {
 			cfg, err := handler.LoadConfig(handlersFile)
 			if err != nil {
@@ -128,6 +129,7 @@ Example:
 			}
 			reg = handler.NewRegistry()
 			reg.AddHandlers(cfg.Handlers)
+			handlerVars = cfg.Variables
 			
 			if !quiet {
 				fmt.Fprintf(os.Stderr, "✓ Loaded %d handlers from %s\n", len(cfg.Handlers), handlersFile)
@@ -613,7 +615,7 @@ Example:
 
 				// Start dispatcher if handlers are loaded
 				if reg != nil {
-					dispatcher = handler.NewDispatcher(reg, conn, tmplEngine, verbose)
+					dispatcher = handler.NewDispatcher(reg, conn, tmplEngine, verbose, handlerVars)
 					if isInteractive && r != nil {
 						dispatcher.Log = func(f string, a ...interface{}) {
 							r.Printf(f, a...)

@@ -1,0 +1,36 @@
+handlers:
+  - name: "shell-echo"
+    match: { type: glob, pattern: "echo *" }
+    actions:
+      - action: "shell"
+        run: "cat"
+        timeout: "2s"
+      - action: "send"
+        message: "Shell received: {{.Handler.Stdout}}"
+
+  - name: "shell-env"
+    match: { pattern: "env-test" }
+    actions:
+      - action: "shell"
+        run: "echo $TEST_VAR"
+        env:
+          TEST_VAR: "Environment Variable Working"
+      - action: "send"
+        message: "Env test result: {{.Handler.Stdout}}"
+
+  - name: "shell-timeout"
+    match: { pattern: "timeout-test" }
+    actions:
+      - action: "shell"
+        run: "sleep 5"
+        timeout: "1s"
+      - action: "send"
+        message: "Timeout test result: {{.Handler.ExitCode}} (should be -1)"
+
+  - name: "shell-stderr"
+    match: { pattern: "stderr-test" }
+    actions:
+      - action: "shell"
+        run: "echo 'error message' >&2"
+      - action: "send"
+        message: "Stderr captured: {{.Handler.Stderr}}"

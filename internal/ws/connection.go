@@ -204,6 +204,16 @@ func (c *Connection) IsCompressionEnabled() bool {
 	return false
 }
 
+// GetURL returns the connection URL.
+func (c *Connection) GetURL() string {
+	return c.URL
+}
+
+// GetSubprotocol returns the negotiated subprotocol.
+func (c *Connection) GetSubprotocol() string {
+	return c.NegotiatedSubprotocol
+}
+
 // CompressionRequested returns true if compression was requested during handshake.
 func (c *Connection) CompressionRequested() bool {
 	return c._compressionRequested

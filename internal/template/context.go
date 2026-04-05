@@ -39,15 +39,22 @@ type ServerContext struct {
 
 // TemplateContext is the root object passed to all templates.
 type TemplateContext struct {
-	Conn    *ConnectionContext     `json:"conn,omitempty"`
-	Msg     *MessageContext        `json:"msg,omitempty"`
-	Handler *HandlerContext        `json:"handler,omitempty"`
-	Server  *ServerContext         `json:"server,omitempty"`
-	Session map[string]interface{} `json:"session"`
-	Vars    map[string]interface{} `json:"vars"`
-	Env     map[string]string      `json:"env"`
+	// Root-level markers (optional but spec-mandated in some contexts)
+	Conn    *ConnectionContext `json:"conn,omitempty"`
+	Msg     *MessageContext    `json:"msg,omitempty"`
+	Handler *HandlerContext    `json:"handler,omitempty"`
+	Server  *ServerContext     `json:"server,omitempty"`
 
-	// Convenience fields for common operations (mirrors some values in Msg)
+	// Connection Context (root-level convenience)
+	URL        string            `json:"url,omitempty"`
+	Host       string            `json:"host,omitempty"`
+	Path       string            `json:"path,omitempty"`
+	Scheme      string            `json:"scheme,omitempty"`
+	RemoteAddr  string            `json:"remote_addr,omitempty"`
+	Subprotocol string            `json:"subprotocol,omitempty"`
+	Headers     map[string]string `json:"headers,omitempty"`
+
+	// Message context (root-level convenience)
 	Message      string    `json:"message,omitempty"`
 	MessageBytes []byte    `json:"message_bytes,omitempty"`
 	MessageLen   int       `json:"message_len,omitempty"`
@@ -55,6 +62,20 @@ type TemplateContext struct {
 	MessageIndex uint64    `json:"message_index,omitempty"`
 	Timestamp    time.Time `json:"timestamp,omitempty"`
 	Direction    string    `json:"direction,omitempty"`
+
+	// Execution results (root-level convenience for single action)
+	Stdout     string `json:"stdout,omitempty"`
+	Stderr     string `json:"stderr,omitempty"`
+	ExitCode   int    `json:"exit_code,omitempty"`
+	DurationMs int64  `json:"duration_ms,omitempty"`
+
+	// Pipeline steps results
+	Steps map[string]*HandlerContext `json:"steps,omitempty"`
+
+	// Session/Environment
+	Session map[string]interface{} `json:"session"`
+	Vars    map[string]interface{} `json:"vars"`
+	Env     map[string]string      `json:"env"`
 
 	// Scripting context
 	Last          string `json:"last,omitempty"`

@@ -1,0 +1,583 @@
+# Client-mode handler config for testing Story 05.11:
+#   "Implement shell executor: sh -c, stdin piping, stdout/stderr capture,
+#    exit code, timeout via context.WithTimeout"
+#
+# Handlers run on the CLIENT side. They match messages received FROM the
+# server and can run shell commands locally + send responses back.
+#
+# ═══════════════════════════════════════════════════════════════
+#  HOW TO TEST
+# ═══════════════════════════════════════════════════════════════
+#
+#  Terminal 1 — start an echo server:
+#    websocat -t ws-l:127.0.0.1:8080 mirror:
+#
+#  Terminal 2 — connect with handlers:
+#    xwebs connect ws://localhost:8080 --config examples/handlers/shell-executor-reasoning.yaml
+#
+#  Flow for each test:
+#    1. You type :send {"t":"echo"}
+#    2. xwebs sends it to the echo server
+#    3. Echo server bounces it back
+#    4. Handler matches the incoming echo
+#    5. Handler runs the shell command locally
+#    6. Handler sends respond: back to the server
+#    7. Echo server bounces the response back (you see it in the REPL)
+#
+# ═══════════════════════════════════════════════════════════════
+#  CLIENT-MODE TEMPLATE CONTEXT (from SPECS.md §6)
+# ═══════════════════════════════════════════════════════════════
+#
+#  Available in run: and respond:
+#    .Message       — raw message text (the message received from server)
+#    .MessageLen    — byte length
+#    .MessageType   — "text" or "binary"
+#    .MessageIndex  — sequential counter (messages received so far)
+#    .Timestamp     — receive time
+#    .ConnectionID  — unique connection ID
+#    .URL           — full WebSocket URL (e.g., ws://localhost:8080)
+#    .Host          — remote host (e.g., localhost:8080)
+#    .Path          — URL path (e.g., /)
+#    .Scheme        — "ws" or "wss"
+#    .Subprotocol   — negotiated subprotocol
+#    .Headers       — request/response headers
+#    .Vars.<key>    — user-defined variables (from variables: section)
+#    .Env.<KEY>     — environment variables
+#
+#  Available ONLY in respond: (after run: completes)
+#    .Stdout        — captured stdout
+#    .Stderr        — captured stderr
+#    .ExitCode      — integer exit code (0 = success)
+#    .DurationMs    — wall-clock execution time in milliseconds
+#    .Steps.<name>.Stdout / .Stderr / .ExitCode  — per-step in pipeline mode
+#
+#  NOT available in client mode (server-only):
+#    .ClientCount, .Clients, .ServerUptime, .RemoteAddr
+#
+# ═══════════════════════════════════════════════════════════════
+#  TEST MESSAGES — copy-paste into the REPL
+# ═══════════════════════════════════════════════════════════════
+#
+#  Section 1 — Basic sh -c:
+#    :send {"t":"echo"}
+#    :send {"t":"greet","name":"Ada"}
+#    :send {"t":"multiline","count":3}
+#
+#  Section 2 — Stdin piping:
+#    :send {"t":"stdin","payload":"some data","num":42}
+#    :send {"t":"jq_stdin","items":[1,2,3,4,5]}
+#
+#  Section 3 — Stdout capture:
+#    :send {"t":"whitespace"}
+#    :send {"t":"large","n":5000}
+#    :send {"t":"binary"}
+#
+#  Section 4 — Stderr capture:
+#    :send {"t":"stderr_only"}
+#    :send {"t":"interleaved"}
+#    :send {"t":"stderr_exit"}
+#
+#  Section 5 — Exit code:
+#    :send {"t":"exit","code":42}
+#    :send {"t":"grep_fail"}
+#    :send {"t":"branch","cmd":"true"}
+#    :send {"t":"branch","cmd":"false"}
+#
+#  Section 6 — Timeout:
+#    :send {"t":"fast"}
+#    :send {"t":"slow"}
+#    :send {"t":"partial"}
+#
+#  Section 7 — Duration:
+#    :send {"t":"timing"}
+#
+#  Section 8 — Pipeline:
+#    :send {"t":"pipe","text":"hello world"}
+#    :send {"t":"pipe_fail"}
+#    :send {"t":"pipe_meta"}
+#
+#  Section 9 — Environment:
+#    :send {"t":"env"}
+#    :send {"t":"vars"}
+#
+#  Section 10 — Edge cases:
+#    :send {"t":"empty"}
+#    :send {"t":"inject","val":"$(echo INJECTED)"}
+#    :send {"t":"not_found"}
+#    :send {"t":"sigpipe"}
+#
+# ═══════════════════════════════════════════════════════════════
+
+variables:
+  tmp: "/tmp/xwebs-shell-test"
+
+# Lifecycle hooks — run locally when YOUR connection opens/closes.
+# These are NOT server hooks. They fire on the client side.
+on_connect:
+  - run: mkdir -p {{.Vars.tmp}}
+  - send: '{"type":"connected","url":"{{.URL}}","id":"{{.ConnectionID}}"}'
+
+on_disconnect:
+  - run: rm -rf {{.Vars.tmp}}
+
+handlers:
+
+  # ╔═══════════════════════════════════════════════╗
+  # ║  SECTION 1: BASIC sh -c EXECUTION            ║
+  # ╚═══════════════════════════════════════════════╝
+
+  # ── 1a. Simplest possible handler ──
+  #
+  # WHY:   Prove that `run:` invokes sh -c and .Stdout is captured.
+  # SEND:  send {"t":"echo"}
+  # FLOW:  echo server bounces → handler matches → sh -c 'echo "hello"'
+  #        → stdout = "hello\n" → respond sends {"stdout":"hello"} to server
+  # SEE:   the echo of the respond message in your REPL
+  #
+  - name: basic-echo
+    match:
+      jq: '.t == "echo"'
+    run: echo "hello"
+    respond: '{"result":"basic-echo","stdout":"{{.Stdout | trim}}"}'
+
+  # ── 1b. Template interpolation in run: ──
+  #
+  # WHY:   Prove that Go templates in run: are resolved BEFORE sh -c.
+  #        The shell receives the rendered string, not the raw template.
+  # SEND:  send {"t":"greet","name":"Ada"}
+  # FLOW:  template renders run: to 'echo "Hello, Ada"' → sh -c runs it
+  #
+  - name: template-in-run
+    match:
+      jq: '.t == "greet"'
+    run: echo "Hello, {{.Message | jq ".name"}}"
+    respond: '{"result":"template-in-run","greeting":"{{.Stdout | trim}}"}'
+
+  # ── 1c. Multi-line shell script ──
+  #
+  # WHY:   Prove that YAML block scalars (|) produce a valid multi-line
+  #        script. Variables, loops, and conditionals all work under sh -c.
+  # SEND:  send {"t":"multiline","count":3}
+  # FLOW:  sh -c receives a 4-line script; loop runs 3 times
+  #
+  - name: multiline-script
+    match:
+      jq: '.t == "multiline"'
+    run: |
+      result=""
+      for i in $(seq 1 {{.Message | jq ".count"}}); do
+        result="${result:+$result,}$i"
+      done
+      echo "$result"
+    respond: '{"result":"multiline","lines":"{{.Stdout | trim}}"}'
+
+
+  # ╔═══════════════════════════════════════════════╗
+  # ║  SECTION 2: STDIN PIPING                      ║
+  # ╚═══════════════════════════════════════════════╝
+
+  # ── 2a. Raw message on stdin ──
+  #
+  # WHY:   Prove the full raw message (as received from the server) is
+  #        piped to the command's stdin. This lets stdin-oriented tools
+  #        (cat, jq, grep, awk) process the message without templates.
+  # SEND:  send {"t":"stdin","payload":"some data","num":42}
+  # FLOW:  sh -c 'cat' reads the entire JSON from stdin → stdout = raw JSON
+  #
+  - name: stdin-cat
+    match:
+      jq: '.t == "stdin"'
+    run: cat
+    respond: '{"result":"stdin-cat","from_stdin":{{.Stdout | toJSON}},"bytes":{{.MessageLen}}}'
+
+  # ── 2b. jq processing via stdin ──
+  #
+  # WHY:   Real-world pattern: pipe message to jq on stdin for complex
+  #        queries, instead of using {{.Message | jq ...}} in templates.
+  # SEND:  :send {"t":"jq_stdin","items":[1,2,3,4,5]}
+  # FLOW:  jq reads from stdin, sums the array → stdout = "15"
+  #
+  - name: stdin-jq
+    match:
+      jq: '.t == "jq_stdin"'
+    run: jq '[.items[]] | add' < /dev/stdin
+    respond: '{"result":"stdin-jq","sum":{{.Stdout | trim}}}'
+
+
+  # ╔═══════════════════════════════════════════════╗
+  # ║  SECTION 3: STDOUT CAPTURE                    ║
+  # ╚═══════════════════════════════════════════════╝
+
+  # ── 3a. Whitespace handling ──
+  #
+  # WHY: .Stdout captures raw output including trailing \n from echo.
+  #        Prove that | trim strips it and len reflects the raw length.
+  # SEND:  send {"t":"whitespace"}
+  # FLOW:  printf "hello" → no trailing \n → .Stdout = "hello", len = 5
+  #
+  - name: stdout-whitespace
+    match:
+      jq: '.t == "whitespace"'
+    run: printf "hello"
+    respond: '{"result":"whitespace","raw_len":{{.Stdout | len}},"trimmed":"{{.Stdout | trim}}"}'
+
+  # ── 3b. Large stdout ──
+  #
+  # WHY:   Prove the executor buffer doesn't truncate at some arbitrary limit.
+  # SEND:  send {"t":"large","n":5000}
+  # FLOW:  seq 1 5000 → 5000 lines captured → first="1", last="5000"
+  #
+  - name: stdout-large
+    match:
+      jq: '.t == "large"'
+    run: seq 1 {{.Message | jq ".n"}}
+    respond: '{"result":"large","first":"{{.Stdout | trim | split "\n" | first}}","last":"{{.Stdout | trim | split "\n" | last}}"}'
+
+  # ── 3c. Binary-ish stdout ──
+  #
+  # WHY:   Prove non-UTF8 bytes in stdout can be base64-encoded in respond.
+  # SEND:  send {"t":"binary"}
+  # FLOW:  printf outputs "Hello" as raw hex bytes → base64 = "SGVsbG8="
+  #
+  - name: stdout-binary
+    match:
+      jq: '.t == "binary"'
+    run: printf '\x48\x65\x6c\x6c\x6f'
+    respond: '{"result":"binary","b64":"{{.Stdout | base64Encode}}"}'
+
+
+  # ╔═══════════════════════════════════════════════╗
+  # ║  SECTION 4: STDERR CAPTURE                    ║
+  # ╚═══════════════════════════════════════════════╝
+
+  # ── 4a. Stderr only ──
+  #
+  # WHY:   Prove >&2 goes to .Stderr, not .Stdout. Stdout should be empty.
+  # SEND:  send {"t":"stderr_only"}
+  #
+  - name: stderr-only
+    match:
+      jq: '.t == "stderr_only"'
+    run: echo "warning" >&2
+    respond: '{"result":"stderr-only","out":"{{.Stdout | trim}}","err":"{{.Stderr | trim}}"}'
+
+  # ── 4b. Interleaved stdout and stderr ──
+  #
+  # WHY:   Prove stdout and stderr go to SEPARATE buffers even when the
+  #        command interleaves writes to both fd 1 and fd 2.
+  # SEND:  send {"t":"interleaved"}
+  #
+  - name: stderr-interleaved
+    match:
+      jq: '.t == "interleaved"'
+    run: |
+      echo "out1"
+      echo "err1" >&2
+      echo "out2"
+      echo "err2" >&2
+    respond: |
+      {
+        "result": "interleaved",
+        "out": "{{.Stdout | trim | replace "\n" "\\n"}}",
+        "err": "{{.Stderr | trim | replace "\n" "\\n"}}"
+      }
+
+  # ── 4c. Stderr does NOT affect exit code ──
+  #
+  # WHY:   Writing to stderr is informational, not an error.
+  #        Exit code should still be 0.
+  # SEND:  send {"t":"stderr_exit"}
+  #
+  - name: stderr-exit-code
+    match:
+      jq: '.t == "stderr_exit"'
+    run: echo "just a warning" >&2
+    respond: '{"result":"stderr-exit","exit":{{.ExitCode}},"err":"{{.Stderr | trim}}"}'
+
+
+  # ╔═══════════════════════════════════════════════╗
+  # ║  SECTION 5: EXIT CODE                         ║
+  # ╚═══════════════════════════════════════════════╝
+
+  # ── 5a. Explicit non-zero exit ──
+  #
+  # WHY:   Prove .ExitCode captures the EXACT exit code (not just 0 vs 1).
+  # SEND:  :send {"t":"exit","code":42}
+  # FLOW:  sh -c 'exit 42' → .ExitCode = 42
+  #
+  - name: exit-code-explicit
+    match:
+      jq: '.t == "exit"'
+    run: exit {{.Message | jq ".code"}}
+    respond: '{"result":"exit-code","code":{{.ExitCode}}}'
+
+  # ── 5b. Exit code from a failing command ──
+  #
+  # WHY:   Prove that real command failures (grep no match = exit 1)
+  #        propagate their exit code through to .ExitCode.
+  # SEND:  :send {"t":"grep_fail"}
+  #
+  - name: exit-code-grep
+    match:
+      jq: '.t == "grep_fail"'
+    run: echo "hello world" | grep "nonexistent"
+    respond: '{"result":"grep-fail","code":{{.ExitCode}},"found":"{{.Stdout | trim}}"}'
+
+  # ── 5c. Branch on exit code in respond ──
+  #
+  # WHY:   Prove respond: templates can use {{if}} on .ExitCode to
+  #        return entirely different response shapes.
+  # SEND:  :send {"t":"branch","cmd":"true"}   → exit 0
+  # SEND:  :send {"t":"branch","cmd":"false"}  → exit 1
+  #
+  - name: exit-code-branch
+    match:
+      jq: '.t == "branch"'
+    run: '{{.Message | jq ".cmd"}}'
+    respond: |
+      {{if eq .ExitCode 0}}{"result":"branch","ok":true,"out":"{{.Stdout | trim}}"}{{else}}{"result":"branch","ok":false,"code":{{.ExitCode}},"err":"{{.Stderr | trim}}"}{{end}}
+
+
+  # ╔═══════════════════════════════════════════════╗
+  # ║  SECTION 6: TIMEOUT (context.WithTimeout)     ║
+  # ╚═══════════════════════════════════════════════╝
+
+  # ── 6a. Command finishes before timeout (should succeed) ──
+  #
+  # WHY:   Prove timeout is a safety net, not a delay. Fast commands
+  #        are unaffected by a generous timeout.
+  # SEND:  :send {"t":"fast"}
+  #
+  - name: timeout-pass
+    match:
+      jq: '.t == "fast"'
+    run: echo "done"
+    timeout: 5s
+    respond: '{"result":"timeout-pass","out":"{{.Stdout | trim}}","code":{{.ExitCode}}}'
+
+  # ── 6b. Command killed by timeout ──
+  #
+  # WHY:   Prove context.WithTimeout kills the process when deadline
+  #        exceeds. ExitCode should be non-zero (typically -1 or 137).
+  # SEND:  :send {"t":"slow"}
+  # NOTE:  This will block for 1s (the timeout), then respond.
+  #
+  - name: timeout-kill
+    match:
+      jq: '.t == "slow"'
+    run: sleep 60 && echo "never"
+    timeout: 1s
+    respond: '{"result":"timeout-kill","killed":true,"code":{{.ExitCode}},"out":"{{.Stdout | trim}}"}'
+
+  # ── 6c. Partial output before timeout ──
+  #
+  # WHY:   Prove stdout written BEFORE the timeout fires is captured.
+  #        The executor reads the pipe buffer, then kills the process.
+  # SEND:  :send {"t":"partial"}
+  # NOTE:  "line 1" and "line 2" should appear; "line 3" should not.
+  #
+  - name: timeout-partial
+    match:
+      jq: '.t == "partial"'
+    run: |
+      echo "line 1"
+      echo "line 2"
+      sleep 60
+      echo "line 3"
+    timeout: 2s
+    respond: '{"result":"timeout-partial","out":"{{.Stdout | trim | replace "\n" "\\n"}}","code":{{.ExitCode}}}'
+
+
+  # ╔═══════════════════════════════════════════════╗
+  # ║  SECTION 7: DURATION MEASUREMENT              ║
+  # ╚═══════════════════════════════════════════════╝
+
+  # ── 7a. DurationMs reflects wall-clock time ──
+  #
+  # WHY:   Prove .DurationMs measures actual elapsed time. sleep 0.5
+  #        should produce DurationMs ≈ 500 (±50ms tolerance).
+  # SEND:  :send {"t":"timing"}
+  #
+  - name: duration-wallclock
+    match:
+      jq: '.t == "timing"'
+    run: sleep 0.5 && echo "done"
+    timeout: 5s
+    respond: '{"result":"duration","ms":{{.DurationMs}},"out":"{{.Stdout | trim}}"}'
+
+
+  # ╔═══════════════════════════════════════════════╗
+  # ║  SECTION 8: PIPELINE (multi-step execution)   ║
+  # ╚═══════════════════════════════════════════════╝
+
+  # ── 8a. Sequential steps with data passing ──
+  #
+  # WHY:   Prove pipeline steps run in order. Each step's stdout is
+  #        accessible to later steps via .Steps.<name>.Stdout.
+  # SEND:  :send {"t":"pipe","text":"hello world"}
+  # FLOW:
+  #   step "upper":   tr a-z A-Z → "HELLO WORLD"
+  #   step "count":   wc -c → "11"
+  #   step "reverse": rev → "DLROW OLLEH"
+  #
+  - name: pipeline-chain
+    match:
+      jq: '.t == "pipe"'
+    pipeline:
+      - run: echo '{{.Message | jq ".text"}}' | tr '[:lower:]' '[:upper:]'
+        as: upper
+      - run: printf '%s' '{{.Steps.upper.Stdout | trim}}' | wc -c
+        as: count
+      - run: echo '{{.Steps.upper.Stdout | trim}}' | rev
+        as: reverse
+    respond: |
+      {
+        "result": "pipeline",
+        "upper": "{{.Steps.upper.Stdout | trim}}",
+        "count": "{{.Steps.count.Stdout | trim}}",
+        "rev": "{{.Steps.reverse.Stdout | trim}}"
+      }
+
+  # ── 8b. Step failure aborts the pipeline ──
+  #
+  # WHY:   A non-zero exit in step N prevents steps N+1... from running.
+  #        respond: still fires with whatever context was populated.
+  # SEND:  :send {"t":"pipe_fail"}
+  # FLOW:  step "ok" succeeds → step "fail" exits 1 → step "never" skipped
+  #
+  - name: pipeline-abort
+    match:
+      jq: '.t == "pipe_fail"'
+    pipeline:
+      - run: echo "good"
+        as: ok
+      - run: echo "boom" >&2 && exit 1
+        as: fail
+      - run: echo "should not run"
+        as: never
+    respond: |
+      {
+        "result": "pipeline-abort",
+        "s1": "{{.Steps.ok.Stdout | trim}}",
+        "s2_code": {{.Steps.fail.ExitCode}},
+        "s2_err": "{{.Steps.fail.Stderr | trim}}",
+        "s3": "{{.Steps.never.Stdout | trim}}"
+      }
+
+  # ── 8c. Per-step metadata ──
+  #
+  # WHY:   Prove .Steps.<name>.ExitCode and .Steps.<name>.Stderr
+  #        are independent per step, not shared.
+  # SEND:  :send {"t":"pipe_meta"}
+  #
+  - name: pipeline-per-step-meta
+    match:
+      jq: '.t == "pipe_meta"'
+    pipeline:
+      - run: echo "alpha" && echo "warn-a" >&2
+        as: a
+      - run: echo "beta"
+        as: b
+    respond: |
+      {
+        "result": "pipeline-meta",
+        "a_out": "{{.Steps.a.Stdout | trim}}",
+        "a_err": "{{.Steps.a.Stderr | trim}}",
+        "a_code": {{.Steps.a.ExitCode}},
+        "b_out": "{{.Steps.b.Stdout | trim}}",
+        "b_err": "{{.Steps.b.Stderr | trim}}",
+        "b_code": {{.Steps.b.ExitCode}}
+      }
+
+
+  # ╔═══════════════════════════════════════════════╗
+  # ║  SECTION 9: ENVIRONMENT & VARIABLES           ║
+  # ╚═══════════════════════════════════════════════╝
+
+  # ── 9a. Shell inherits process environment ──
+  #
+  # WHY:   Prove $HOME, $PATH etc. are available inside run: commands.
+  #        Both shell ($VAR) and template ({{env "VAR"}}) access work,
+  #        and should produce the same value.
+  # SEND:  :send {"t":"env"}
+  #
+  - name: env-inherit
+    match:
+      jq: '.t == "env"'
+    run: echo "$HOME"
+    respond: |
+      {
+        "result": "env",
+        "shell_home": "{{.Stdout | trim}}",
+        "template_home": "{{env "HOME"}}",
+        "match": {{if eq (.Stdout | trim) (env "HOME")}}true{{else}}false{{end}}
+      }
+
+  # ── 9b. Handler variables in run: ──
+  #
+  # WHY:   Prove variables: at the top of the config are available as
+  #        {{.Vars.<key>}} inside run: templates.
+  # SEND:  :send {"t":"vars"}
+  # FLOW:  {{.Vars.tmp}} expands to "/tmp/xwebs-shell-test" before sh -c
+  #
+  - name: vars-in-run
+    match:
+      jq: '.t == "vars"'
+    run: test -d "{{.Vars.tmp}}" && echo "yes" || echo "no"
+    respond: '{"result":"vars","dir":"{{.Vars.tmp}}","exists":{{if eq (.Stdout | trim) "yes"}}true{{else}}false{{end}}}'
+
+
+  # ╔═══════════════════════════════════════════════╗
+  # ║  SECTION 10: EDGE CASES                       ║
+  # ╚═══════════════════════════════════════════════╝
+
+  # ── 10a. Empty stdout ──
+  #
+  # WHY:   Prove a command producing NO output gives .Stdout = ""
+  #        without causing a template error in respond.
+  # SEND:  :send {"t":"empty"}
+  #
+  - name: edge-empty-stdout
+    match:
+      jq: '.t == "empty"'
+    run: "true"
+    respond: '{"result":"empty","out":"{{.Stdout}}","code":{{.ExitCode}}}'
+
+  # ── 10b. Shell injection safety ──
+  #
+  # WHY:   Prove shellEscape prevents code injection. Message contains
+  #        $(rm -rf /) which MUST NOT execute — it should be echoed as
+  #        a literal string.
+  # SEND:  :send {"t":"inject","val":"$(echo INJECTED)"}
+  # EXPECT: {"safe":"$(echo INJECTED)"}  ← the literal text, not "INJECTED"
+  #
+  - name: edge-shell-escape
+    match:
+      jq: '.t == "inject"'
+    run: echo {{.Message | jq ".val" | shellEscape}}
+    respond: '{"result":"shell-escape","safe":"{{.Stdout | trim}}"}'
+
+  # ── 10c. Command not found ──
+  #
+  # WHY:   Prove a nonexistent command produces exit 127 with stderr
+  #        "not found". The handler must NOT crash or panic.
+  # SEND:  :send {"t":"not_found"}
+  #
+  - name: edge-cmd-not-found
+    match:
+      jq: '.t == "not_found"'
+    run: xwebs_nonexistent_cmd_12345
+    respond: '{"result":"not-found","code":{{.ExitCode}},"err":"{{.Stderr | trim}}"}'
+
+  # ── 10d. SIGPIPE handling ──
+  #
+  # WHY:   Prove that commands piped to head (which closes the pipe early)
+  #        don't cause spurious errors. seq generates 10000 lines but head
+  #        only reads 1 — the SIGPIPE should be handled gracefully.
+  # SEND:  :send {"t":"sigpipe"}
+  #
+  - name: edge-sigpipe
+    match:
+      jq: '.t == "sigpipe"'
+    run: seq 1 10000 | head -1
+    respond: '{"result":"sigpipe","first":"{{.Stdout | trim}}","code":{{.ExitCode}}}'

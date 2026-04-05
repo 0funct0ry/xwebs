@@ -169,15 +169,22 @@ func (e *Engine) registerContextFuncs() {
 
 // Execute renders the template string with the provided data.
 func (e *Engine) Execute(name, text string, data interface{}) (string, error) {
-	// If the data is a TemplateContext, inject the engine's session and environment
 	if ctx, ok := data.(*TemplateContext); ok {
+		// Merge engine session into context session
 		if ctx.Session == nil {
 			ctx.Session = make(map[string]interface{})
 		}
 		for k, v := range e.session {
 			ctx.Session[k] = v
 		}
-		ctx.Vars = ctx.Session
+
+		// Vars should contain both global handler variables and session variables
+		if ctx.Vars == nil {
+			ctx.Vars = make(map[string]interface{})
+		}
+		for k, v := range ctx.Session {
+			ctx.Vars[k] = v
+		}
 
 		// Also populate environment variables if not already set
 		if len(ctx.Env) == 0 && !e.sandboxed {

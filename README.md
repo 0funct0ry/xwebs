@@ -253,7 +253,25 @@ xwebs connect wss://stream.example.com | grep "ERROR" | tee errors.log
   - `match.all: [...]` requires **all** listed sub-matchers to match.
   - `match.any: [...]` requires **at least one** listed sub-matcher to match.
   - Composite matchers can be nested to create complex logic (e.g., `(A AND (B OR C))`).
-- **Actions**: Trigger actions like `shell` commands, `send` messages, `builtin` commands, or `log` to files.
+- **Actions**: Trigger operations when a message matches or a lifecycle event occurs.
+  - `shell`: Executes a shell command using `sh -c`.
+    - `run`: The command to execute (preferred over `command`). Supports Go templates.
+    - `command`: Fallback field for the command string.
+    - `timeout`: Maximum execution time (e.g. `5s`, `1m`). Defaults to `30s`.
+    - `env`: Map of environment variables for the command.
+    - `silent`: If `false` (default), command output is logged to the terminal.
+  - `send`: Sends a message back to the server.
+    - `message`: The message content. Supports Go templates.
+  - `log`: Appends a message to a file or stream.
+    - `message`: The log entry. Supports Go templates.
+    - `target`: Destination file path or `stdout`/`stderr`.
+  - `builtin`: Executes a built-in `xwebs` command (REPL command).
+- **Stdin Piping**: For `shell` actions, the raw incoming WebSocket message is automatically piped to the command's `stdin`.
+- **Template Context**: Shell execution results are available to subsequent actions in the same handler via the `.Handler` object:
+  - `.Handler.Stdout`: Captured standard output.
+  - `.Handler.Stderr`: Captured standard error.
+  - `.Handler.ExitCode`: Process exit code (0 for success, -1 for errors/timeouts).
+  - `.Handler.Duration`: Time taken for execution.
 - **Lifecycle Events**: Bind actions to `on_connect`, `on_disconnect`, and `on_error` events.
 - **Template Support**: All message and command fields support full Go templates with access to `.Msg`, `.Conn`, `.Vars`, etc.
 - **REPL Observability**: Use the `:handlers` command in the REPL to see the loaded handlers in their execution order.

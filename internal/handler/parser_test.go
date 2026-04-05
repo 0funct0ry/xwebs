@@ -155,7 +155,7 @@ handlers:
 		{
 			name:    "missing shell command",
 			content: "handlers: [{name: 'foo', match: {pattern: '*'}, actions: [{action: 'shell'}]}]",
-			wantErr: "shell action missing command",
+			wantErr: "shell action missing run or command",
 		},
 	}
 

@@ -1,0 +1,24 @@
+# pipeline_test.yaml
+handlers:
+  - name: pipeline-test
+    match: "pipeline"
+    pipeline:
+      - run: echo "hello" | tr '[:lower:]' '[:upper:]'
+        as: step1
+      - run: echo "{{.Steps.step1.Stdout | trim}} world"
+        as: step2
+    respond: |
+      {
+        "step1": "{{.Steps.step1.Stdout | trim}}",
+        "step2": "{{.Steps.step2.Stdout | trim}}"
+      }
+
+  - name: shorthand-test
+    match: "shorthand"
+    run: echo "shorthand execute"
+    respond: '{"status": "ok", "output": "{{.Stdout | trim}}"}'
+
+  - name: builtin-test
+    match: "builtin"
+    builtin: echo
+    respond: '{"builtin": "echoed", "data": "{{.Message}}"}'
