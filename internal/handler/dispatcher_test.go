@@ -63,6 +63,69 @@ func TestDispatcher_ExecutePipeline(t *testing.T) {
 	conn.mu.Unlock()
 }
 
+func TestDispatcher_ExecutePipelineFailure(t *testing.T) {
+	reg := NewRegistry()
+	engine := template.New(false)
+	conn := &mockConn{}
+	d := NewDispatcher(reg, conn, engine, false, nil)
+
+	h := &Handler{
+		Name: "pipeline-failure",
+		Pipeline: []PipelineStep{
+			{Run: "exit 2", As: "step1"},
+			{Run: "echo 'should not reach here'", As: "step2"},
+		},
+		Respond: `{"result": "unreachable"}`,
+	}
+
+	msg := &ws.Message{
+		Data: []byte("test"),
+		Metadata: ws.MessageMetadata{
+			Direction: "received",
+			Timestamp: time.Now(),
+		},
+	}
+
+	err := d.Execute(context.Background(), h, msg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "pipeline step \"step1\" failed: exit code 2")
+
+	conn.mu.Lock()
+	assert.Empty(t, conn.lastWritten) // Respond should not have run
+	conn.mu.Unlock()
+}
+
+func TestDispatcher_ExecutePipelineIgnoreError(t *testing.T) {
+	reg := NewRegistry()
+	engine := template.New(false)
+	conn := &mockConn{}
+	d := NewDispatcher(reg, conn, engine, false, nil)
+
+	h := &Handler{
+		Name: "pipeline-ignore",
+		Pipeline: []PipelineStep{
+			{Run: "exit 2", As: "step1", IgnoreError: true},
+			{Run: "echo 'rescued'", As: "step2"},
+		},
+		Respond: `{"code": {{.Steps.step1.ExitCode}}, "result": "{{.Steps.step2.Stdout | trim}}"}`,
+	}
+
+	msg := &ws.Message{
+		Data: []byte("test"),
+		Metadata: ws.MessageMetadata{
+			Direction: "received",
+			Timestamp: time.Now(),
+		},
+	}
+
+	err := d.Execute(context.Background(), h, msg)
+	require.NoError(t, err)
+
+	conn.mu.Lock()
+	assert.JSONEq(t, `{"code": 2, "result": "rescued"}`, conn.lastWritten)
+	conn.mu.Unlock()
+}
+
 func TestDispatcher_GlobalVariables(t *testing.T) {
 	reg := NewRegistry()
 	engine := template.New(false)

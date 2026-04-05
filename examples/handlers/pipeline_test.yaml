@@ -13,6 +13,20 @@ handlers:
         "step2": "{{.Steps.step2.Stdout | trim}}"
       }
 
+  - name: pipeline-failure-handling
+    match: "pipeline_error"
+    pipeline:
+      - run: echo "error step"; exit 2
+        as: failed_step
+        ignore_error: true
+      - run: echo "rescued after exit code {{.Steps.failed_step.ExitCode}}"
+        as: rescue_step
+    respond: |
+      {
+        "failed_status": {{.Steps.failed_step.ExitCode}},
+        "final_output": "{{.Steps.rescue_step.Stdout | trim}}"
+      }
+
   - name: shorthand-test
     match: "shorthand"
     run: echo "shorthand execute"

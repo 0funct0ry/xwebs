@@ -104,44 +104,44 @@ When running in a terminal (TTY), `xwebs connect` enters a rich interactive REPL
 
 **Common REPL Commands:**
 
-| Command          | Description                                  |
-|------------------|----------------------------------------------|
-| `:help`          | List all available commands                  |
-| `:status`        | Show detailed connection metadata            |
-| `:send <text>`   | Send a text message (default for bare text)  |
-| `:sendb <hex>`   | Send binary data (hex or `base64:`)          |
-| `:sendj <json>`  | Send validated JSON message                  |
-| `:sendt <tmpl>`  | Send rendered Go template                    |
-| `:ping [p]`     | Send a ping frame (text or binary prefix)    |
-| `:pong [p]`     | Send a pong frame (text or binary prefix)    |
-| `:connect <url>` | Connect to a new URL in the same session     |
-| `:reconnect`     | Force a reconnection to the current URL      |
-| `:close [c][r]`  | Send a graceful close frame                  |
-| `:disconnect`    | Disconnect from the current server           |
-| `:set <k> <v>`   | Set a session variable for templates         |
-| `:get <k>`       | Get the value of a session variable          |
-| `:vars`          | List all active session variables            |
-| :env           | List all environment variables               |
-| :history [n]    | Display last N command history               |
-| :bench <n> <m>  | Benchmark latency for N iterations           |
-| :flood <msg>    | Stress test server with high-rate messages   |
-| :watch          | Monitor connection statistics in real-time   |
-| :exit, :quit      | Disconnect and quit the application (or `Ctrl+D`) |
-| :clear           | Clear the terminal screen                    |
+| Command          | Description                                          |
+|------------------|------------------------------------------------------|
+| `:help`          | List all available commands                          |
+| `:status`        | Show detailed connection metadata                    |
+| `:send <text>`   | Send a text message (default for bare text)          |
+| `:sendb <hex>`   | Send binary data (hex or `base64:`)                  |
+| `:sendj <json>`  | Send validated JSON message                          |
+| `:sendt <tmpl>`  | Send rendered Go template                            |
+| `:ping [p]`      | Send a ping frame (text or binary prefix)            |
+| `:pong [p]`      | Send a pong frame (text or binary prefix)            |
+| `:connect <url>` | Connect to a new URL in the same session             |
+| `:reconnect`     | Force a reconnection to the current URL              |
+| `:close [c][r]`  | Send a graceful close frame                          |
+| `:disconnect`    | Disconnect from the current server                   |
+| `:set <k> <v>`   | Set a session variable for templates                 |
+| `:get <k>`       | Get the value of a session variable                  |
+| `:vars`          | List all active session variables                    |
+| `:env`           | List all environment variables                       |
+| `:history [n]`   | Display last N command history                       |
+| `:bench <n> <m>` | Benchmark latency for N iterations                   |
+| `:flood <msg>`   | Stress test server with high-rate messages           |
+| `:watch`         | Monitor connection statistics in real-time           |
+| `:exit`, `:quit` | Disconnect and quit the application (or `Ctrl+D`)    |
+| `:clear`         | Clear the terminal screen                            |
 | `:format <type>` | Set display format: `json`, `raw`, `hex`, `template` |
-| `:filter <expr>` | Set a display filter (`.jq`, `/regex/`, or `off`) |
-| `:quiet`         | Toggle non-message output suppression        |
-| `:verbose`       | Toggle frame-level metadata display          |
-| `:timestamps`    | Toggle ISO 8601 message timestamps           |
-| :color <mode>  | Set coloring mode: `on`, `off`, `auto`       |
-| `:source <f>`   | Execute a `.xwebs` script file               |
-| `:alias <n> <c>`| Create a command alias with positional args    |
-| `:wait <dur>`   | Pause execution (e.g., `1s`, `500ms`)        |
-| `:assert <ex>`  | Validate state with template expressions       |
-| `:log <file>`   | Log traffic to JSONL (one object per line)   |
-| `:record <f>`   | Start relative-time session recording        |
-| `:replay <f>`   | Play back a session recording with timing    |
-| `:mock <f>`     | Load YAML-based mock scenario                |
+| `:filter <expr>` | Set a display filter (`.jq`, `/regex/`, or `off`)    |
+| `:quiet`         | Toggle non-message output suppression                |
+| `:verbose`       | Toggle frame-level metadata display                  |
+| `:timestamps`    | Toggle ISO 8601 message timestamps                   |
+| `:color <mode>`  | Set coloring mode: `on`, `off`, `auto`               |
+| `:source <f>`    | Execute a `.xwebs` script file                       |
+| `:alias <n> <c>` | Create a command alias with positional args          |
+| `:wait <dur>`    | Pause execution (e.g., `1s`, `500ms`)                |
+| `:assert <ex>`   | Validate state with template expressions             |
+| `:log <file>`    | Log traffic to JSONL (one object per line)           |
+| `:record <f>`    | Start relative-time session recording                |
+| `:replay <f>`    | Play back a session recording with timing            |
+| `:mock <f>`      | Load YAML-based mock scenario                        |
 
 **Multi-line Input:**
 
@@ -272,6 +272,10 @@ xwebs connect wss://stream.example.com | grep "ERROR" | tee errors.log
   - `.Stderr` / `.Handler.Stderr`: Captured standard error.
   - `.ExitCode` / `.Handler.ExitCode`: Process exit code (0 for success, non-zero for failures, -1 for timeouts). Execution continues on shell failure to allow `respond:` to format the error context.
   - `.DurationMs` / `.Handler.Duration`: Time taken for execution (ms or parsed duration).
+- **Pipeline Execution**: Define multi-step pipelines to chain shell operations and use intermediate results.
+  - `pipeline`: A sequence of steps (`run` or `builtin`).
+  - `as`: (Optional) Name the step to make its output and status available to later steps and the final `respond:` template via `{{.Steps.<name>.Stdout}}` and `{{.Steps.<name>.ExitCode}}`.
+  - `ignore_error`: (Optional) If set to `true`, the pipeline will continue to execute even if the step's shell command returns a non-zero exit code. By default, pipelines stop execution if any step fails.
 - **Lifecycle Events**: Bind actions to `on_connect`, `on_disconnect`, and `on_error` events.
 - **Template Support**: All message and command fields support full Go templates with access to `.Msg`, `.Conn`, `.Vars`, etc.
 - **REPL Observability**: Use the `:handlers` command in the REPL to see the loaded handlers in their execution order.

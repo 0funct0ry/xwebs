@@ -222,7 +222,7 @@ func (d *Dispatcher) Execute(ctx context.Context, h *Handler, msg *ws.Message) e
 
 // executePipeline runs a sequence of steps.
 func (d *Dispatcher) executePipeline(ctx context.Context, pipeline []PipelineStep, tmplCtx *template.TemplateContext, msg *ws.Message) error {
-	for _, step := range pipeline {
+	for i, step := range pipeline {
 		action := Action{Timeout: step.Timeout}
 		if step.Run != "" {
 			action.Type = "shell"
@@ -244,6 +244,21 @@ func (d *Dispatcher) executePipeline(ctx context.Context, pipeline []PipelineSte
 				ExitCode: tmplCtx.ExitCode,
 				Duration: time.Duration(tmplCtx.DurationMs) * time.Millisecond,
 			}
+		}
+
+		// Check for pipeline step failure unless ignored
+		if tmplCtx.ExitCode != 0 && !step.IgnoreError {
+			stepName := step.As
+			if stepName == "" {
+				stepName = step.Run
+				if stepName == "" {
+					stepName = fmt.Sprintf("step[%d]", i)
+				}
+			}
+			if d.verbose {
+				d.errorf("  [handler] pipeline step %q failed with exit code %d\n", stepName, tmplCtx.ExitCode)
+			}
+			return fmt.Errorf("pipeline step %q failed: exit code %d", stepName, tmplCtx.ExitCode)
 		}
 	}
 	return nil

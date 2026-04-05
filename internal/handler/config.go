@@ -35,10 +35,11 @@ type Handler struct {
 
 // PipelineStep defines a single step in a multi-step handler execution.
 type PipelineStep struct {
-	Run     string `yaml:"run,omitempty"`
-	Builtin string `yaml:"builtin,omitempty"`
-	As      string `yaml:"as,omitempty"`      // Key to store results in .Steps.<name>
-	Timeout string `yaml:"timeout,omitempty"`
+	Run         string `yaml:"run,omitempty"`
+	Builtin     string `yaml:"builtin,omitempty"`
+	As          string `yaml:"as,omitempty"`      // Key to store results in .Steps.<name>
+	Timeout     string `yaml:"timeout,omitempty"`
+	IgnoreError bool   `yaml:"ignore_error,omitempty"`
 }
 
 // Matcher specifies how to match an incoming WebSocket message.
