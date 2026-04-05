@@ -267,11 +267,11 @@ xwebs connect wss://stream.example.com | grep "ERROR" | tee errors.log
     - `target`: Destination file path or `stdout`/`stderr`.
   - `builtin`: Executes a built-in `xwebs` command (REPL command).
 - **Stdin Piping**: For `shell` actions, the raw incoming WebSocket message is automatically piped to the command's `stdin`.
-- **Template Context**: Shell execution results are available to subsequent actions in the same handler via the `.Handler` object:
-  - `.Handler.Stdout`: Captured standard output.
-  - `.Handler.Stderr`: Captured standard error.
-  - `.Handler.ExitCode`: Process exit code (0 for success, -1 for errors/timeouts).
-  - `.Handler.Duration`: Time taken for execution.
+- **Template Context**: Shell execution results are available to subsequent actions in the same handler via the `.Handler` object. For the `respond:` shorthand, these are also available as top-level variables:
+  - `.Stdout` / `.Handler.Stdout`: Captured standard output.
+  - `.Stderr` / `.Handler.Stderr`: Captured standard error.
+  - `.ExitCode` / `.Handler.ExitCode`: Process exit code (0 for success, non-zero for failures, -1 for timeouts). Execution continues on shell failure to allow `respond:` to format the error context.
+  - `.DurationMs` / `.Handler.Duration`: Time taken for execution (ms or parsed duration).
 - **Lifecycle Events**: Bind actions to `on_connect`, `on_disconnect`, and `on_error` events.
 - **Template Support**: All message and command fields support full Go templates with access to `.Msg`, `.Conn`, `.Vars`, etc.
 - **REPL Observability**: Use the `:handlers` command in the REPL to see the loaded handlers in their execution order.

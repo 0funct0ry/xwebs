@@ -384,7 +384,11 @@ func (d *Dispatcher) executeShell(ctx context.Context, a *Action, tmplCtx *templ
 	}
 
 	if err != nil {
-		return fmt.Errorf("shell command failed: %w", err)
+		if d.verbose {
+			d.errorf("  [handler] shell command failed: %v\n", err)
+		}
+		// Do not return error here; allow the execution to proceed so that subsequent
+		// actions (like respond:) can evaluate the failure context (.ExitCode, .Stderr).
 	}
 
 	return nil

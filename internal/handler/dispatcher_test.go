@@ -119,3 +119,31 @@ func TestDispatcher_Shorthands(t *testing.T) {
 	assert.JSONEq(t, `{"status": "ok", "output": "processed data"}`, conn.lastWritten)
 	conn.mu.Unlock()
 }
+
+func TestDispatcher_RespondContext(t *testing.T) {
+	reg := NewRegistry()
+	engine := template.New(false)
+	conn := &mockConn{}
+	d := NewDispatcher(reg, conn, engine, false, nil)
+
+	h := &Handler{
+		Name:    "respond-context-test",
+		Run:     "echo 'some error' >&2; exit 2",
+		Respond: `{"code": {{.ExitCode}}, "err": "{{.Stderr | trim}}"}`,
+	}
+
+	msg := &ws.Message{
+		Data: []byte("test"),
+		Metadata: ws.MessageMetadata{
+			Direction: "received",
+			Timestamp: time.Now(),
+		},
+	}
+
+	err := d.Execute(context.Background(), h, msg)
+	require.NoError(t, err)
+
+	conn.mu.Lock()
+	assert.JSONEq(t, `{"code": 2, "err": "some error"}`, conn.lastWritten)
+	conn.mu.Unlock()
+}
