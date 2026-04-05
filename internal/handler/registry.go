@@ -47,11 +47,10 @@ func (r *Registry) sort() {
 // Match returns all handlers that match the given message, in priority order.
 func (r *Registry) Match(msg *ws.Message, engine *template.Engine, ctx *template.TemplateContext) ([]*Handler, error) {
 	var matches []*Handler
-	msgStr := string(msg.Data)
 
 	for i := range r.handlers {
 		h := &r.handlers[i]
-		matched, err := r.matchHandler(h, msgStr, engine, ctx)
+		matched, err := r.matchHandler(h, msg, engine, ctx)
 		if err != nil {
 			return nil, fmt.Errorf("matching handler %q: %w", h.Name, err)
 		}
@@ -63,9 +62,28 @@ func (r *Registry) Match(msg *ws.Message, engine *template.Engine, ctx *template
 	return matches, nil
 }
 
-func (r *Registry) matchHandler(h *Handler, msg string, engine *template.Engine, ctx *template.TemplateContext) (bool, error) {
+func (r *Registry) matchHandler(h *Handler, msg *ws.Message, engine *template.Engine, ctx *template.TemplateContext) (bool, error) {
+	// 1. Check Binary/Text type filter
+	if h.Match.Binary != nil {
+		isBinary := msg.Type == ws.BinaryMessage
+		if *h.Match.Binary != isBinary {
+			return false, nil
+		}
+	}
+
+	// 2. Check if ANY other match condition is present.
+	hasOtherMatch := h.Match.Pattern != "" || h.Match.Regex != "" || h.Match.JQ != "" || 
+		h.Match.JSONPath != "" || h.Match.JSONSchema != "" || h.Match.Template != ""
+
+	if !hasOtherMatch {
+		// If binary filter was set and we are here, it means it matched the type.
+		// If binary filter was NOT set and no other match, it's not a match (default behavior).
+		return h.Match.Binary != nil, nil
+	}
+
+	msgStr := string(msg.Data)
 	// Trim whitespace for more resilient matching in interactive sessions (e.g. echo servers with newlines)
-	trimmedMsg := strings.TrimSpace(msg)
+	trimmedMsg := strings.TrimSpace(msgStr)
 
 	// Support regex shorthand: match.regex: "pattern"
 	if h.Match.Regex != "" {
@@ -103,7 +121,7 @@ func (r *Registry) matchHandler(h *Handler, msg string, engine *template.Engine,
 	switch strings.ToLower(h.Match.Type) {
 	case "text", "":
 		// Trim whitespace for more resilient matching in interactive sessions
-		return strings.TrimSpace(msg) == h.Match.Pattern, nil
+		return strings.TrimSpace(msgStr) == h.Match.Pattern, nil
 	case "regex":
 		matched, err := regexp.MatchString(h.Match.Pattern, trimmedMsg)
 		if err != nil {

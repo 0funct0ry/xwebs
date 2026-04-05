@@ -43,6 +43,15 @@ Validates incoming messages against a structured JSON Schema file.
 | `valid_query_handler` | `user_schema.json` | `{"type": "query", "id": 1, ...}`         |
 | `query_type_matcher`  | `user_schema.json` | `{"type": "update", "id": 10, ...}`       |
 
+### 5. Binary Matchers (`binary_match.yaml`)
+Routes binary and text frames to different handlers.
+
+| Handler Name          | Match Condition                 | Actions                                 | Example Server Message   |
+|-----------------------|---------------------------------|-----------------------------------------|--------------------------|
+| `handle_binary`       | `binary: true`                  | `log`: "[BINARY] {{.Msg.Length}} bytes" | *Any binary frame*       |
+| `handle_text`         | `binary: false`                 | `log`: "[TEXT] {{.Message}}"            | `"hello"`                |
+| `binary_zip_detector` | `binary: true`, `pattern: "PK"` | `log`: "[ZIP] Zip header detected"      | `PK\x03\x04...` (binary) |
+
 ## Usage
 
 To use any of these handler files, run `xwebs` with the `--handlers` flag:

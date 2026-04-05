@@ -98,7 +98,55 @@ func TestRegistry_Match(t *testing.T) {
 			ctx := template.NewContext()
 			ctx.Message = tt.input
 			
-			msg := &ws.Message{Data: []byte(tt.input)}
+			msg := &ws.Message{Data: []byte(tt.input), Type: ws.TextMessage}
+			matches, err := reg.Match(msg, engine, ctx)
+			require.NoError(t, err)
+			
+			var names []string
+			for _, m := range matches {
+				names = append(names, m.Name)
+			}
+			assert.Equal(t, tt.expect, names)
+		})
+	}
+}
+
+func TestRegistry_BinaryMatch(t *testing.T) {
+	trueVal := true
+	falseVal := false
+
+	reg := NewRegistry()
+	reg.AddHandlers([]Handler{
+		{Name: "only_binary", Match: Matcher{Binary: &trueVal}},
+		{Name: "only_text", Match: Matcher{Binary: &falseVal}},
+		{Name: "binary_with_pattern", Match: Matcher{Binary: &trueVal, Pattern: "foo"}},
+		{Name: "text_with_pattern", Match: Matcher{Binary: &falseVal, Pattern: "foo"}},
+	})
+
+	tests := []struct {
+		name    string
+		msgType ws.MessageType
+		data    string
+		expect  []string
+	}{
+		{"binary message", ws.BinaryMessage, "any", []string{"only_binary"}},
+		{"text message", ws.TextMessage, "any", []string{"only_text"}},
+		{"binary with pattern match", ws.BinaryMessage, "foo", []string{"only_binary", "binary_with_pattern"}},
+		{"binary with pattern no match", ws.BinaryMessage, "bar", []string{"only_binary"}},
+		{"text with pattern match", ws.TextMessage, "foo", []string{"only_text", "text_with_pattern"}},
+		{"text with pattern no match", ws.TextMessage, "bar", []string{"only_text"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			engine := template.New(false)
+			ctx := template.NewContext()
+			ctx.Message = tt.data
+			
+			msg := &ws.Message{
+				Type: tt.msgType,
+				Data: []byte(tt.data),
+			}
 			matches, err := reg.Match(msg, engine, ctx)
 			require.NoError(t, err)
 			

@@ -34,6 +34,7 @@ type Matcher struct {
 	Equals     interface{} `yaml:"equals,omitempty"`      // Value to compare with (string or number)
 	JSONSchema string      `yaml:"json_schema,omitempty"` // Path to JSON Schema file
 	Template   string      `yaml:"template,omitempty"`    // Go template for complex matching
+	Binary     *bool       `yaml:"binary,omitempty"`      // Match binary vs text frames
 }
 
 // Action defines an operation to perform when a handler matches or a lifecycle event occurs.
@@ -53,8 +54,8 @@ func (c *Config) Validate() error {
 		}
 		
 		// Match is required if there are actions (normal handler)
-		if h.Match.Pattern == "" && h.Match.Regex == "" && h.Match.JQ == "" && h.Match.JSONPath == "" && h.Match.JSONSchema == "" && h.Match.Template == "" && len(h.Actions) > 0 {
-			return fmt.Errorf("handler %q is missing a match condition (pattern, regex, jq, json_path, json_schema, or template)", h.Name)
+		if h.Match.Pattern == "" && h.Match.Regex == "" && h.Match.JQ == "" && h.Match.JSONPath == "" && h.Match.JSONSchema == "" && h.Match.Template == "" && h.Match.Binary == nil && len(h.Actions) > 0 {
+			return fmt.Errorf("handler %q is missing a match condition (pattern, regex, jq, json_path, json_schema, template, or binary)", h.Name)
 		}
 
 		if len(h.Actions) == 0 && len(h.OnConnect) == 0 && len(h.OnDisconnect) == 0 && len(h.OnError) == 0 {

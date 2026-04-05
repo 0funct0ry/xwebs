@@ -1,0 +1,29 @@
+# Examples of binary vs. text matching
+# Run with: xwebs connect wss://echo.websocket.org --handlers examples/handlers/binary_match.yaml --verbose
+
+handlers:
+  - name: "handle_binary"
+    match:
+      binary: true
+    actions:
+      - action: "log"
+        message: "[BINARY] Received binary frame of length {{ .Msg.Length }} bytes"
+      # You could also process it with a shell command
+      # - action: "shell"
+      #   command: "echo '{{ .Msg.Raw }}' | xxd"
+
+  - name: "handle_text"
+    match:
+      binary: false
+    actions:
+      - action: "log"
+        message: "[TEXT] Received text frame: {{ .Message }}"
+
+  - name: "binary_zip_detector"
+    match:
+      binary: true
+      # Example: pattern match on binary data (if it contains 'PK')
+      pattern: "PK"
+    actions:
+      - action: "log"
+        message: "[ZIP] Detected potential ZIP file header in binary frame!"
