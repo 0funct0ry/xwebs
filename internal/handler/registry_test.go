@@ -39,6 +39,11 @@ func TestRegistry_Match(t *testing.T) {
 		{Name: "jq_type_match", Match: Matcher{Type: "jq", Pattern: `.type == "release" and .env == "production"`}},
 		{Name: "jq_shorthand_match", Match: Matcher{JQ: `.user.role == "admin"`}},
 		{Name: "jq_array_match", Match: Matcher{JQ: `.tags | contains(["urgent"])`}},
+		{Name: "json_path_string", Match: Matcher{JSONPath: "user.name", Equals: "alice"}},
+		{Name: "json_path_number", Match: Matcher{JSONPath: "user.id", Equals: 123}},
+		{Name: "json_path_bool", Match: Matcher{JSONPath: "user.active", Equals: true}},
+		{Name: "json_path_root", Match: Matcher{JSONPath: "$", Equals: "root_val"}},
+		{Name: "json_path_nested", Match: Matcher{JSONPath: "$.meta.version", Equals: 1.2}},
 	})
 
 	tests := []struct {
@@ -68,6 +73,15 @@ func TestRegistry_Match(t *testing.T) {
 		{"jq array match", `{"tags": ["urgent", "backup"]}`, []string{"jq_array_match"}},
 		{"jq array no match", `{"tags": ["backup"]}`, nil},
 		{"jq non-json input", `not json`, nil},
+		{"json_path string match", `{"user": {"name": "alice"}}`, []string{"json_path_string"}},
+		{"json_path string no match", `{"user": {"name": "bob"}}`, nil},
+		{"json_path number match", `{"user": {"id": 123}}`, []string{"json_path_number"}},
+		{"json_path number match from float", `{"user": {"id": 123.0}}`, []string{"json_path_number"}},
+		{"json_path bool match", `{"user": {"active": true}}`, []string{"json_path_bool"}},
+		{"json_path bool no match", `{"user": {"active": false}}`, nil},
+		{"json_path root match", `"root_val"`, []string{"json_path_root"}},
+		{"json_path nested match", `{"meta": {"version": 1.2}}`, []string{"json_path_nested"}},
+		{"json_path missing path", `{"user": {}}`, nil},
 		{"no match", "no match", nil},
 	}
 

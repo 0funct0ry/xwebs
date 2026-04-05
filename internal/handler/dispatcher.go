@@ -112,9 +112,7 @@ func (d *Dispatcher) executeActions(actions []Action, msg *ws.Message) {
 
 	for _, a := range actions {
 		if err := d.executeAction(a, tmplCtx); err != nil {
-			if d.verbose {
-				d.errorf("  [handler] action error: %v\n", err)
-			}
+			d.errorf("  [handler] action error: %v\n", err)
 		}
 	}
 }

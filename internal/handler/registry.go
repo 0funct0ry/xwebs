@@ -9,6 +9,7 @@ import (
 
 	"github.com/0funct0ry/xwebs/internal/ws"
 	"github.com/itchyny/gojq"
+	"github.com/spf13/cast"
 )
 
 // Registry manages a collection of message handlers.
@@ -70,7 +71,12 @@ func (r *Registry) matchHandler(h *Handler, msg string) (bool, error) {
 
 	// Support jq shorthand: match.jq: "query"
 	if h.Match.JQ != "" {
-		return r.matchJSON(h.Match.JQ, msg)
+		return r.matchJSON(h.Match.JQ, trimmedMsg)
+	}
+	
+	// Support json_path + equals: match.json_path: "path", match.equals: value
+	if h.Match.JSONPath != "" {
+		return r.matchJSONPath(h.Match.JSONPath, h.Match.Equals, trimmedMsg)
 	}
 
 	if h.Match.Pattern == "" {
@@ -88,9 +94,9 @@ func (r *Registry) matchHandler(h *Handler, msg string) (bool, error) {
 		}
 		return matched, nil
 	case "glob":
-		return r.matchGlob(h.Match.Pattern, msg)
+		return r.matchGlob(h.Match.Pattern, trimmedMsg)
 	case "json", "jq":
-		return r.matchJSON(h.Match.Pattern, msg)
+		return r.matchJSON(h.Match.Pattern, trimmedMsg)
 	default:
 		return false, fmt.Errorf("unknown matcher type: %s", h.Match.Type)
 	}
@@ -150,6 +156,64 @@ func (r *Registry) matchJSON(query, msg string) (bool, error) {
 		return val != 0, nil
 	default:
 		return true, nil
+	}
+}
+
+func (r *Registry) matchJSONPath(jsonPath string, equals interface{}, msg string) (bool, error) {
+	var data interface{}
+	if err := json.Unmarshal([]byte(msg), &data); err != nil {
+		// If unmarshalling fails, treat the whole message as a raw string
+		// This allows matching on root values ($) even for non-JSON payloads.
+		data = msg
+	}
+
+	// Prepare jq query from JSONPath
+	query := jsonPath
+	if strings.HasPrefix(query, "$.") {
+		query = "." + strings.TrimPrefix(query, "$.")
+	} else if strings.HasPrefix(query, "$") {
+		query = "." + strings.TrimPrefix(query, "$")
+	} else if !strings.HasPrefix(query, ".") {
+		query = "." + query
+	}
+
+	q, err := gojq.Parse(query)
+	if err != nil {
+		return false, fmt.Errorf("parsing json_path query %q: %w", query, err)
+	}
+
+	iter := q.Run(data)
+	v, ok := iter.Next()
+	if !ok {
+		return false, nil // Path does not exist
+	}
+	if _, ok := v.(error); ok {
+		return false, nil // Path evaluation failed (e.g. key missing in path)
+	}
+
+	// Compare extracted value with the expected value
+	if equals == nil {
+		return v == nil, nil
+	}
+
+	return r.compareValues(v, equals), nil
+}
+
+func (r *Registry) compareValues(actual, expected interface{}) bool {
+	// Use cast for flexible type-safe comparison
+	switch e := expected.(type) {
+	case string:
+		return cast.ToString(actual) == e
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+		// Convert both to float64 for numeric comparison to handle precision
+		return cast.ToFloat64(actual) == cast.ToFloat64(expected)
+	case float32, float64:
+		return cast.ToFloat64(actual) == cast.ToFloat64(expected)
+	case bool:
+		return cast.ToBool(actual) == e
+	default:
+		// Fallback to string comparison for objects/slices (though plan says primitives)
+		return fmt.Sprintf("%v", actual) == fmt.Sprintf("%v", expected)
 	}
 }
 

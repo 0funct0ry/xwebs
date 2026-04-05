@@ -1,0 +1,54 @@
+# Example JSON Path and Equals Matchers for xwebs
+# This file demonstrates various ways to use JSONPath to match specific fields.
+
+handlers:
+  - name: "auth_event"
+    match:
+      json_path: "event.type"
+      equals: "login"
+    actions:
+      - action: "log"
+        message: "Login event detected for user: {{jq \".user.name\" .Message | default \"Anonymous\"}}"
+
+  - name: "system_alert"
+    match:
+      json_path: "$.status.level"
+      equals: 5
+    actions:
+      - action: "log"
+        message: "CRITICAL: System alert level 5 triggered!"
+      - action: "shell"
+        command: "echo 'CRITICAL ALERT' | say" # Mac specific example
+        silent: true
+
+  - name: "maintenance_mode"
+    match:
+      json_path: "maintenance"
+      equals: true
+    actions:
+      - action: "send"
+        message: '{"status": "ACK", "maintenance": "Acknowledged"}'
+
+  - name: "root_value_match"
+    match:
+      json_path: "$" # Match if the root is exactly a specific string/number
+      equals: "PING"
+    actions:
+      - action: "send"
+        message: "PONG"
+
+  - name: "nested_array_field"
+    match:
+      json_path: "meta.tags[0]" # Extract first element from tag list
+      equals: "urgent"
+    actions:
+      - action: "log"
+        message: "Urgent message via tags[0]"
+
+  - name: "unmatched_example"
+    match:
+      json_path: "non_existent.field"
+      equals: "should_not_fire"
+    actions:
+      - action: "log"
+        message: "This will never show up."

@@ -21,6 +21,14 @@ handlers:
       - action: "shell"
         command: "echo '[{{now}}] Disconnected from {{.URL}}' >> {{.Vars.log_file}}"
 
+  - name: "json_path_matcher"
+    match:
+      json_path: "user.id"
+      equals: "dev-01"
+    actions:
+      - action: "log"
+        message: "Hello developer! Matched via JSONPath."
+
   - name: "auto_responder"
     match:
       type: "json"

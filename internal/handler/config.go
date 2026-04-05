@@ -27,7 +27,9 @@ type Matcher struct {
 	Type    string `yaml:"type,omitempty"`    // "text", "json", "regex", "glob", "jq" (default "text")
 	Pattern string `yaml:"pattern,omitempty"` // The pattern to match against
 	Regex   string `yaml:"regex,omitempty"`   // Shorthand for regex matching
-	JQ      string `yaml:"jq,omitempty"`      // Shorthand for jq matching
+	JQ       string      `yaml:"jq,omitempty"`       // Shorthand for jq matching
+	JSONPath string      `yaml:"json_path,omitempty"` // JSONPath to extract value
+	Equals   interface{} `yaml:"equals,omitempty"`    // Value to compare with (string or number)
 }
 
 // Action defines an operation to perform when a handler matches or a lifecycle event occurs.
@@ -47,8 +49,8 @@ func (c *Config) Validate() error {
 		}
 		
 		// Match is required if there are actions (normal handler)
-		if h.Match.Pattern == "" && h.Match.Regex == "" && h.Match.JQ == "" && len(h.Actions) > 0 {
-			return fmt.Errorf("handler %q is missing a match condition (pattern, regex, or jq)", h.Name)
+		if h.Match.Pattern == "" && h.Match.Regex == "" && h.Match.JQ == "" && h.Match.JSONPath == "" && len(h.Actions) > 0 {
+			return fmt.Errorf("handler %q is missing a match condition (pattern, regex, jq, or json_path)", h.Name)
 		}
 
 		if len(h.Actions) == 0 && len(h.OnConnect) == 0 && len(h.OnDisconnect) == 0 && len(h.OnError) == 0 {
