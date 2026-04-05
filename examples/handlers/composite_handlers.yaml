@@ -1,0 +1,11 @@
+handlers:
+  - name: "composite-test"
+    match:
+      all:
+        - binary: false
+        - any:
+            - regex: ".*critical.*"
+            - jq: ".level == \"error\""
+    actions:
+      - action: log
+        message: "STRIKE! Composite match detected: {{ .Message }}"

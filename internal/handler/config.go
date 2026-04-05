@@ -35,6 +35,8 @@ type Matcher struct {
 	JSONSchema string      `yaml:"json_schema,omitempty"` // Path to JSON Schema file
 	Template   string      `yaml:"template,omitempty"`    // Go template for complex matching
 	Binary     *bool       `yaml:"binary,omitempty"`      // Match binary vs text frames
+	All        []Matcher   `yaml:"all,omitempty"`         // AND logic
+	Any        []Matcher   `yaml:"any,omitempty"`         // OR logic
 }
 
 // Action defines an operation to perform when a handler matches or a lifecycle event occurs.
@@ -54,8 +56,8 @@ func (c *Config) Validate() error {
 		}
 		
 		// Match is required if there are actions (normal handler)
-		if h.Match.Pattern == "" && h.Match.Regex == "" && h.Match.JQ == "" && h.Match.JSONPath == "" && h.Match.JSONSchema == "" && h.Match.Template == "" && h.Match.Binary == nil && len(h.Actions) > 0 {
-			return fmt.Errorf("handler %q is missing a match condition (pattern, regex, jq, json_path, json_schema, template, or binary)", h.Name)
+		if h.Match.Pattern == "" && h.Match.Regex == "" && h.Match.JQ == "" && h.Match.JSONPath == "" && h.Match.JSONSchema == "" && h.Match.Template == "" && h.Match.Binary == nil && len(h.Match.All) == 0 && len(h.Match.Any) == 0 && len(h.Actions) > 0 {
+			return fmt.Errorf("handler %q is missing a match condition (pattern, regex, jq, json_path, json_schema, template, binary, all, or any)", h.Name)
 		}
 
 		if len(h.Actions) == 0 && len(h.OnConnect) == 0 && len(h.OnDisconnect) == 0 && len(h.OnError) == 0 {

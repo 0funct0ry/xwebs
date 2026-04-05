@@ -249,6 +249,10 @@ xwebs connect wss://stream.example.com | grep "ERROR" | tee errors.log
 **Key Features:**
 - **Priority-Based Execution**: Handlers can be assigned a `priority` (higher numbers execute first). Handlers with the same priority run in the order they appear in the file.
 - **Match Conditions**: Match incoming messages by type (`text`, `json`, `regex`, `glob`, `jq`, `json_schema`, `template`) and pattern. You can also match by frame type using `binary: true` (for binary frames) or `binary: false` (for text frames). You can also use **shorthands** for concise matching: `match.regex: "pattern"`, `match.jq: "query"`, `match.json_path: "path"`, `match.json_schema: "path/to/schema.json"`, or `match.template: "expression"`. The `glob` matcher converts `*` and `?` to logical regexes, intuitively supporting full and substring matching across newlines and slashes. The `template` matcher evaluates a Go template and matches if the result is truthy (non-empty, non-false, non-zero).
+- **Composite Matchers**: Combine multiple conditions using logical AND (`all`) and OR (`any`).
+  - `match.all: [...]` requires **all** listed sub-matchers to match.
+  - `match.any: [...]` requires **at least one** listed sub-matcher to match.
+  - Composite matchers can be nested to create complex logic (e.g., `(A AND (B OR C))`).
 - **Actions**: Trigger actions like `shell` commands, `send` messages, `builtin` commands, or `log` to files.
 - **Lifecycle Events**: Bind actions to `on_connect`, `on_disconnect`, and `on_error` events.
 - **Template Support**: All message and command fields support full Go templates with access to `.Msg`, `.Conn`, `.Vars`, etc.

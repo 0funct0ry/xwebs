@@ -63,22 +63,55 @@ func (r *Registry) Match(msg *ws.Message, engine *template.Engine, ctx *template
 }
 
 func (r *Registry) matchHandler(h *Handler, msg *ws.Message, engine *template.Engine, ctx *template.TemplateContext) (bool, error) {
-	// 1. Check Binary/Text type filter
-	if h.Match.Binary != nil {
+	return r.matchMatcher(&h.Match, h.BaseDir, msg, engine, ctx)
+}
+
+func (r *Registry) matchMatcher(m *Matcher, baseDir string, msg *ws.Message, engine *template.Engine, ctx *template.TemplateContext) (bool, error) {
+	// 1. Handle Composite Matchers
+	if len(m.All) > 0 {
+		for _, sub := range m.All {
+			matched, err := r.matchMatcher(&sub, baseDir, msg, engine, ctx)
+			if err != nil || !matched {
+				return matched, err
+			}
+		}
+		// If all matched, we still need to check if OTHER fields in this matcher (like binary or regex) also match.
+	}
+
+	if len(m.Any) > 0 {
+		anyMatched := false
+		for _, sub := range m.Any {
+			matched, err := r.matchMatcher(&sub, baseDir, msg, engine, ctx)
+			if err != nil {
+				return false, err
+			}
+			if matched {
+				anyMatched = true
+				break
+			}
+		}
+		if !anyMatched {
+			return false, nil
+		}
+		// If one matched, we still need to check if OTHER fields in this matcher also match.
+	}
+
+	// 2. Handle Binary filter
+	if m.Binary != nil {
 		isBinary := msg.Type == ws.BinaryMessage
-		if *h.Match.Binary != isBinary {
+		if *m.Binary != isBinary {
 			return false, nil
 		}
 	}
 
-	// 2. Check if ANY other match condition is present.
-	hasOtherMatch := h.Match.Pattern != "" || h.Match.Regex != "" || h.Match.JQ != "" || 
-		h.Match.JSONPath != "" || h.Match.JSONSchema != "" || h.Match.Template != ""
+	// 3. Check if ANY specific pattern match condition is present.
+	hasPatternMatch := m.Pattern != "" || m.Regex != "" || m.JQ != "" ||
+		m.JSONPath != "" || m.JSONSchema != "" || m.Template != ""
 
-	if !hasOtherMatch {
-		// If binary filter was set and we are here, it means it matched the type.
-		// If binary filter was NOT set and no other match, it's not a match (default behavior).
-		return h.Match.Binary != nil, nil
+	if !hasPatternMatch {
+		// If nothing else to check, it's a match if we got this far.
+		// Note: Validation ensures that if a handler has actions, it MUST have at least one match condition.
+		return true, nil
 	}
 
 	msgStr := string(msg.Data)
@@ -86,8 +119,8 @@ func (r *Registry) matchHandler(h *Handler, msg *ws.Message, engine *template.En
 	trimmedMsg := strings.TrimSpace(msgStr)
 
 	// Support regex shorthand: match.regex: "pattern"
-	if h.Match.Regex != "" {
-		matched, err := regexp.MatchString(h.Match.Regex, trimmedMsg)
+	if m.Regex != "" {
+		matched, err := regexp.MatchString(m.Regex, trimmedMsg)
 		if err != nil {
 			return false, fmt.Errorf("regex shorthand error: %w", err)
 		}
@@ -95,49 +128,50 @@ func (r *Registry) matchHandler(h *Handler, msg *ws.Message, engine *template.En
 	}
 
 	// Support jq shorthand: match.jq: "query"
-	if h.Match.JQ != "" {
-		return r.matchJSON(h.Match.JQ, trimmedMsg)
+	if m.JQ != "" {
+		return r.matchJSON(m.JQ, trimmedMsg)
 	}
-	
+
 	// Support json_path + equals: match.json_path: "path", match.equals: value
-	if h.Match.JSONPath != "" {
-		return r.matchJSONPath(h.Match.JSONPath, h.Match.Equals, trimmedMsg)
+	if m.JSONPath != "" {
+		return r.matchJSONPath(m.JSONPath, m.Equals, trimmedMsg)
 	}
 
 	// Support json_schema: match.json_schema: "path/to/schema.json"
-	if h.Match.JSONSchema != "" {
-		return r.matchJSONSchema(h.Match.JSONSchema, h.BaseDir, trimmedMsg)
+	if m.JSONSchema != "" {
+		return r.matchJSONSchema(m.JSONSchema, baseDir, trimmedMsg)
 	}
 
 	// Support template: match.template: "{{ eq .msg.data.type 'alert' }}"
-	if h.Match.Template != "" {
-		return r.matchTemplate(engine, ctx, h.Match.Template)
+	if m.Template != "" {
+		return r.matchTemplate(engine, ctx, m.Template)
 	}
 
-	if h.Match.Pattern == "" {
-		return false, nil
+	if m.Pattern == "" {
+		// Should not happen if hasPatternMatch is true, but for safety:
+		return true, nil
 	}
 
-	switch strings.ToLower(h.Match.Type) {
+	switch strings.ToLower(m.Type) {
 	case "text", "":
 		// Trim whitespace for more resilient matching in interactive sessions
-		return strings.TrimSpace(msgStr) == h.Match.Pattern, nil
+		return strings.TrimSpace(msgStr) == m.Pattern, nil
 	case "regex":
-		matched, err := regexp.MatchString(h.Match.Pattern, trimmedMsg)
+		matched, err := regexp.MatchString(m.Pattern, trimmedMsg)
 		if err != nil {
 			return false, fmt.Errorf("regex error: %w", err)
 		}
 		return matched, nil
 	case "glob":
-		return r.matchGlob(h.Match.Pattern, trimmedMsg)
+		return r.matchGlob(m.Pattern, trimmedMsg)
 	case "json", "jq":
-		return r.matchJSON(h.Match.Pattern, trimmedMsg)
+		return r.matchJSON(m.Pattern, trimmedMsg)
 	case "json_schema":
-		return r.matchJSONSchema(h.Match.Pattern, h.BaseDir, trimmedMsg)
+		return r.matchJSONSchema(m.Pattern, baseDir, trimmedMsg)
 	case "template":
-		return r.matchTemplate(engine, ctx, h.Match.Pattern)
+		return r.matchTemplate(engine, ctx, m.Pattern)
 	default:
-		return false, fmt.Errorf("unknown matcher type: %s", h.Match.Type)
+		return false, fmt.Errorf("unknown matcher type: %s", m.Type)
 	}
 }
 
