@@ -36,6 +36,9 @@ func TestRegistry_Match(t *testing.T) {
 		{Name: "glob_deploy", Match: Matcher{Type: "glob", Pattern: "*deploy*"}},
 		{Name: "glob_exact", Match: Matcher{Type: "glob", Pattern: "exact_match"}},
 		{Name: "json_match", Match: Matcher{Type: "json", Pattern: ".id == 1"}},
+		{Name: "jq_type_match", Match: Matcher{Type: "jq", Pattern: `.type == "release" and .env == "production"`}},
+		{Name: "jq_shorthand_match", Match: Matcher{JQ: `.user.role == "admin"`}},
+		{Name: "jq_array_match", Match: Matcher{JQ: `.tags | contains(["urgent"])`}},
 	})
 
 	tests := []struct {
@@ -58,6 +61,13 @@ func TestRegistry_Match(t *testing.T) {
 		{"glob exact match", "exact_match", []string{"glob_exact"}},
 		{"glob exact no partial match", "exact_match_extra", nil},
 		{"json", `{"id": 1}`, []string{"json_match"}},
+		{"jq type match", `{"type": "release", "env": "production"}`, []string{"jq_type_match"}},
+		{"jq type no match", `{"type": "release", "env": "staging"}`, nil},
+		{"jq shorthand match", `{"user": {"role": "admin"}}`, []string{"jq_shorthand_match"}},
+		{"jq shorthand no match", `{"user": {"role": "guest"}}`, nil},
+		{"jq array match", `{"tags": ["urgent", "backup"]}`, []string{"jq_array_match"}},
+		{"jq array no match", `{"tags": ["backup"]}`, nil},
+		{"jq non-json input", `not json`, nil},
 		{"no match", "no match", nil},
 	}
 

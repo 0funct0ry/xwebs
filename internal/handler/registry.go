@@ -68,6 +68,11 @@ func (r *Registry) matchHandler(h *Handler, msg string) (bool, error) {
 		return matched, nil
 	}
 
+	// Support jq shorthand: match.jq: "query"
+	if h.Match.JQ != "" {
+		return r.matchJSON(h.Match.JQ, msg)
+	}
+
 	if h.Match.Pattern == "" {
 		return false, nil
 	}
@@ -84,7 +89,7 @@ func (r *Registry) matchHandler(h *Handler, msg string) (bool, error) {
 		return matched, nil
 	case "glob":
 		return r.matchGlob(h.Match.Pattern, msg)
-	case "json":
+	case "json", "jq":
 		return r.matchJSON(h.Match.Pattern, msg)
 	default:
 		return false, fmt.Errorf("unknown matcher type: %s", h.Match.Type)
@@ -127,8 +132,8 @@ func (r *Registry) matchJSON(query, msg string) (bool, error) {
 	if !ok {
 		return false, nil
 	}
-	if err, ok := v.(error); ok {
-		return false, fmt.Errorf("executing gojq query: %w", err)
+	if _, ok := v.(error); ok {
+		return false, nil // Evaluation failed (e.g. applied to null), treat as no match
 	}
 
 	// Match if the result is truthy (not false, not nil, not empty string, etc.)

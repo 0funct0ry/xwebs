@@ -1,0 +1,21 @@
+handlers:
+  - name: jq_release
+    match:
+      jq: '.type == "release" and .env == "production"'
+    actions:
+      - action: log
+        message: "Triggered release handler for production!"
+
+  - name: jq_admin
+    match:
+      jq: '.user.role == "admin"'
+    actions:
+      - action: log
+        message: "Admin action detected!"
+
+  - name: jq_tag_match
+    match:
+      jq: '.tags | contains(["urgent"])'
+    actions:
+      - action: log
+        message: "Urgent tag found!"

@@ -59,9 +59,22 @@ func TestValidateConfigErrors(t *testing.T) {
 			wantErr: "missing a name",
 		},
 		{
-			name:    "missing pattern or regex",
+			name:    "missing pattern, regex, or jq",
 			content: "handlers: [{name: 'foo', actions: [{action: 'shell', command: 'ls'}]}]",
-			wantErr: "missing a match condition (pattern or regex)",
+			wantErr: "missing a match condition (pattern, regex, or jq)",
+		},
+		{
+			name:    "jq shorthand",
+			content: `
+handlers:
+  - name: "jq_shorthand"
+    match:
+      jq: ".type == 'ping'"
+    actions:
+      - action: "log"
+        message: "matched"
+`,
+			wantErr: "", // Should not error
 		},
 		{
 			name:    "regex shorthand",
