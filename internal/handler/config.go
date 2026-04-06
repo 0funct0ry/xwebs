@@ -29,6 +29,7 @@ type Handler struct {
 	Pipeline     []PipelineStep `yaml:"pipeline,omitempty"` // Multi-step pipeline
 	Timeout      string         `yaml:"timeout,omitempty"`  // Per-handler timeout
 	Retry        *RetryConfig   `yaml:"retry,omitempty"`    // Automatic retry on failure
+	RateLimit    string         `yaml:"rate_limit,omitempty"` // Per-handler rate limit (e.g. "10/s", "100/m")
 	Actions      []Action       `yaml:"actions,omitempty"`
 	OnConnect    []Action       `yaml:"on_connect,omitempty"`
 	OnDisconnect []Action       `yaml:"on_disconnect,omitempty"`
@@ -179,6 +180,12 @@ func (c *Config) Validate() error {
 				return fmt.Errorf("handler %q retry config: %w", h.Name, err)
 			}
 		}
+
+		if h.RateLimit != "" {
+			if _, _, err := ParseRateLimit(h.RateLimit); err != nil {
+				return fmt.Errorf("handler %q invalid rate_limit %q: %w", h.Name, h.RateLimit, err)
+			}
+		}
 	}
 
 	return nil
@@ -233,5 +240,48 @@ func (r *RetryConfig) Validate() error {
 		}
 	}
 	return nil
+}
+
+// ParseRateLimit parses a rate limit string like "10/s", "100/m", "5/h"
+// and returns the tokens per second and the burst size.
+func ParseRateLimit(s string) (float64, int, error) {
+	s = strings.ToLower(strings.TrimSpace(s))
+	parts := strings.Split(s, "/")
+	if len(parts) != 2 {
+		return 0, 0, fmt.Errorf("invalid format (expected 'N/unit')")
+	}
+
+	valStr := parts[0]
+	unitStr := parts[1]
+
+	var val float64
+	if _, err := fmt.Sscanf(valStr, "%f", &val); err != nil {
+		return 0, 0, fmt.Errorf("invalid number %q: %w", valStr, err)
+	}
+
+	if val <= 0 {
+		return 0, 0, fmt.Errorf("rate must be positive")
+	}
+
+	var perSec float64
+	switch unitStr {
+	case "s", "sec", "second":
+		perSec = val
+	case "m", "min", "minute":
+		perSec = val / 60.0
+	case "h", "hr", "hour":
+		perSec = val / 3600.0
+	default:
+		return 0, 0, fmt.Errorf("unknown unit %q", unitStr)
+	}
+
+	// For burst, we use the value itself as a sensible default for the token bucket.
+	// This means you can burst up to the count within the time window.
+	burst := int(val)
+	if burst < 1 {
+		burst = 1
+	}
+
+	return perSec, burst, nil
 }
 

@@ -123,6 +123,17 @@ func (d *Dispatcher) handleMessage(ctx context.Context, msg *ws.Message) {
 		if d.verbose {
 			d.errorf("  [handler] executing handler %q (priority %d)\n", h.Name, h.Priority)
 		}
+
+		// Apply rate limiting
+		if h.RateLimit != "" {
+			limiter := d.registry.GetLimiter(h.Name, h.RateLimit)
+			if limiter != nil && !limiter.Allow() {
+				if d.verbose {
+					d.errorf("  [handler] warning: rate limit exceeded for %q (%s), dropping message\n", h.Name, h.RateLimit)
+				}
+				continue
+			}
+		}
 		
 		go func(handler Handler) {
 			if err := d.Execute(ctx, &handler, msg); err != nil {

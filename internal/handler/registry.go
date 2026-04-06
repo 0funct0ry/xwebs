@@ -14,6 +14,7 @@ import (
 	"github.com/itchyny/gojq"
 	"github.com/spf13/cast"
 	"github.com/xeipuuv/gojsonschema"
+	"golang.org/x/time/rate"
 )
 
 // Registry manages a collection of message handlers.
@@ -21,6 +22,7 @@ type Registry struct {
 	handlers  []Handler
 	schemas   map[string]*gojsonschema.Schema
 	handlerMu map[string]*sync.Mutex
+	limiters  map[string]*rate.Limiter
 	mu        sync.RWMutex
 }
 
@@ -30,6 +32,7 @@ func NewRegistry() *Registry {
 		handlers:  make([]Handler, 0),
 		schemas:   make(map[string]*gojsonschema.Schema),
 		handlerMu: make(map[string]*sync.Mutex),
+		limiters:  make(map[string]*rate.Limiter),
 	}
 }
 
@@ -404,4 +407,37 @@ func (r *Registry) GetHandlerMu(name string) *sync.Mutex {
 	mu = &sync.Mutex{}
 	r.handlerMu[name] = mu
 	return mu
+}
+
+// GetLimiter returns the rate limiter for a specific handler, creating it if necessary.
+func (r *Registry) GetLimiter(name, rateStr string) *rate.Limiter {
+	if rateStr == "" {
+		return nil
+	}
+
+	r.mu.RLock()
+	limiter, ok := r.limiters[name]
+	r.mu.RUnlock()
+	if ok {
+		return limiter
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Double check after acquiring write lock
+	if limiter, ok = r.limiters[name]; ok {
+		return limiter
+	}
+
+	// Parse and create limiter
+	perSec, burst, err := ParseRateLimit(rateStr)
+	if err != nil {
+		// Should have been validated already, but for safety:
+		return nil
+	}
+
+	limiter = rate.NewLimiter(rate.Limit(perSec), burst)
+	r.limiters[name] = limiter
+	return limiter
 }

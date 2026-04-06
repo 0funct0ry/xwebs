@@ -287,6 +287,10 @@ xwebs connect wss://stream.example.com | grep "ERROR" | tee errors.log
     - `max_interval`: Maximum wait time for exponential backoff (e.g., `30s`). Defaults to `30s`.
   - **Failure Definition**: A retry is triggered if a pipeline step fails (and `ignore_error` is false) or if a concise `run`/`builtin` command returns a non-zero exit code while `retry` is configured.
   - **Recovery**: If a retry succeeds, execution continues normally. If all retries fail, the handler terminates, and the optional `respond:` action is skipped for pipelines but executed for concise models (to match non-retry behavior).
+- **Rate Limiting (Token Bucket)**: Prevent handler surges and protect system stability by limiting execution frequency.
+  - `rate_limit`: A string specifying the maximum rate (e.g., `10/s`, `100/m`, `5/h`).
+  - **Behavior**: Excess messages exceeding the rate limit are consistently **dropped** (not queued). In verbose mode, a warning is logged when a message is dropped.
+  - **Independence**: Rate limits are applied independently per-handler name and are shared across all connections to protect global resources.
 - **REPL Observability**: Use the `:handlers` command in the REPL to see the loaded handlers in their execution order.
 
 
@@ -344,13 +348,18 @@ handlers:
       - action: log
         message: "ALERT DETECTED via template matching!"
 
-  - name: "serialized_stateful_op"
-    concurrent: false
     match:
       type: "text"
       pattern: "update_state"
     run: "./scripts/update_global_state.sh"
     respond: "State updated successfully"
+
+  - name: "rate_limited_api"
+    rate_limit: "1/s"
+    match:
+      type: "glob"
+      pattern: "api/*"
+    run: "./scripts/process_api.sh"
 ```
 
 ### Output Formatting & Filtering
