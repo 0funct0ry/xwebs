@@ -18,16 +18,18 @@ import (
 
 // Registry manages a collection of message handlers.
 type Registry struct {
-	handlers []Handler
-	schemas  map[string]*gojsonschema.Schema
-	mu       sync.RWMutex
+	handlers  []Handler
+	schemas   map[string]*gojsonschema.Schema
+	handlerMu map[string]*sync.Mutex
+	mu        sync.RWMutex
 }
 
 // NewRegistry creates a new handler registry.
 func NewRegistry() *Registry {
 	return &Registry{
-		handlers: make([]Handler, 0),
-		schemas:  make(map[string]*gojsonschema.Schema),
+		handlers:  make([]Handler, 0),
+		schemas:   make(map[string]*gojsonschema.Schema),
+		handlerMu: make(map[string]*sync.Mutex),
 	}
 }
 
@@ -382,4 +384,24 @@ func (r *Registry) LifecycleHandlers() (onConnect, onDisconnect, onError []*Hand
 		}
 	}
 	return
+}
+
+// GetHandlerMu returns the mutex for a specific handler, creating it if necessary.
+func (r *Registry) GetHandlerMu(name string) *sync.Mutex {
+	r.mu.RLock()
+	mu, ok := r.handlerMu[name]
+	r.mu.RUnlock()
+	if ok {
+		return mu
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	// Double check after acquiring write lock
+	if mu, ok := r.handlerMu[name]; ok {
+		return mu
+	}
+	mu = &sync.Mutex{}
+	r.handlerMu[name] = mu
+	return mu
 }

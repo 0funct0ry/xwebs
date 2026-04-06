@@ -10,7 +10,6 @@ import (
 	"os"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/0funct0ry/xwebs/internal/shell"
@@ -38,9 +37,7 @@ type Dispatcher struct {
 	Log            func(string, ...interface{})
 	Error          func(string, ...interface{})
 
-	variables map[string]interface{}
-	handlerMu map[string]*sync.Mutex
-	globalMu  sync.RWMutex
+	variables      map[string]interface{}
 }
 
 // NewDispatcher creates a new dispatcher.
@@ -57,7 +54,6 @@ func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine,
 		Error: func(f string, a ...interface{}) {
 			fmt.Fprintf(os.Stderr, f, a...)
 		},
-		handlerMu: make(map[string]*sync.Mutex),
 	}
 }
 
@@ -73,25 +69,6 @@ func (d *Dispatcher) errorf(f string, a ...interface{}) {
 	}
 }
 
-// getHandlerMu returns the mutex for a specific handler, creating it if necessary.
-func (d *Dispatcher) getHandlerMu(name string) *sync.Mutex {
-	d.globalMu.RLock()
-	mu, ok := d.handlerMu[name]
-	d.globalMu.RUnlock()
-	if ok {
-		return mu
-	}
-
-	d.globalMu.Lock()
-	defer d.globalMu.Unlock()
-	// Double check after acquiring write lock
-	if mu, ok := d.handlerMu[name]; ok {
-		return mu
-	}
-	mu = &sync.Mutex{}
-	d.handlerMu[name] = mu
-	return mu
-}
 
 // Start begins the dispatch loop.
 func (d *Dispatcher) Start(ctx context.Context) {
@@ -164,7 +141,7 @@ func (d *Dispatcher) handleMessage(ctx context.Context, msg *ws.Message) {
 func (d *Dispatcher) Execute(ctx context.Context, h *Handler, msg *ws.Message) error {
 	// Handle concurrency control
 	if h.Concurrent != nil && !*h.Concurrent {
-		mu := d.getHandlerMu(h.Name)
+		mu := d.registry.GetHandlerMu(h.Name)
 		mu.Lock()
 		defer mu.Unlock()
 	}

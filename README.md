@@ -248,6 +248,7 @@ xwebs connect wss://stream.example.com | grep "ERROR" | tee errors.log
 
 **Key Features:**
 - **Priority-Based Execution**: Handlers can be assigned a `priority` (higher numbers execute first). Handlers with the same priority run in the order they appear in the file.
+- **Concurrency Control**: By default, multiple instances of the same handler can run in parallel if they match separate messages. Setting `concurrent: false` ensures that only one instance of a specific handler runs at a time, serializing execution for that handler name. This is crucial for preventing race conditions in stateful operations (e.g., updating a local file or global variable). Serialization is applied per-handler name and does not block unrelated handlers.
 - **Match Conditions**: Match incoming messages by type (`text`, `json`, `regex`, `glob`, `jq`, `json_schema`, `template`) and pattern. You can also match by frame type using `binary: true` (for binary frames) or `binary: false` (for text frames). You can also use **shorthands** for concise matching: `match.regex: "pattern"`, `match.jq: "query"`, `match.json_path: "path"`, `match.json_schema: "path/to/schema.json"`, or `match.template: "expression"`. The `glob` matcher converts `*` and `?` to logical regexes, intuitively supporting full and substring matching across newlines and slashes. The `template` matcher evaluates a Go template and matches if the result is truthy (non-empty, non-false, non-zero).
 - **Composite Matchers**: Combine multiple conditions using logical AND (`all`) and OR (`any`).
   - `match.all: [...]` requires **all** listed sub-matchers to match.
@@ -333,6 +334,14 @@ handlers:
     actions:
       - action: log
         message: "ALERT DETECTED via template matching!"
+
+  - name: "serialized_stateful_op"
+    concurrent: false
+    match:
+      type: "text"
+      pattern: "update_state"
+    run: "./scripts/update_global_state.sh"
+    respond: "State updated successfully"
 ```
 
 ### Output Formatting & Filtering
