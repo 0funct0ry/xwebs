@@ -279,7 +279,16 @@ xwebs connect wss://stream.example.com | grep "ERROR" | tee errors.log
   - `ignore_error`: (Optional) If set to `true`, the pipeline will continue to execute even if the step's shell command returns a non-zero exit code. By default, pipelines stop execution if any step fails.
 - **Lifecycle Events**: Bind actions to `on_connect`, `on_disconnect`, and `on_error` events.
 - **Template Support**: All message and command fields support full Go templates with access to `.Msg`, `.Conn`, `.Vars`, etc.
+- **Automatic Retries**: Configure handlers to automatically retry on failure with linear or exponential backoff.
+  - `retry`:
+    - `count`: Number of retry attempts (e.g., `3`).
+    - `backoff`: Strategy, either `linear` or `exponential`. Defaults to `linear`.
+    - `interval`: Initial wait duration (e.g., `1s`, `500ms`). Defaults to `1s`.
+    - `max_interval`: Maximum wait time for exponential backoff (e.g., `30s`). Defaults to `30s`.
+  - **Failure Definition**: A retry is triggered if a pipeline step fails (and `ignore_error` is false) or if a concise `run`/`builtin` command returns a non-zero exit code while `retry` is configured.
+  - **Recovery**: If a retry succeeds, execution continues normally. If all retries fail, the handler terminates, and the optional `respond:` action is skipped for pipelines but executed for concise models (to match non-retry behavior).
 - **REPL Observability**: Use the `:handlers` command in the REPL to see the loaded handlers in their execution order.
+
 
 **Usage:**
 ```bash

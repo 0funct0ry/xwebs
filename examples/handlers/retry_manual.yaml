@@ -1,0 +1,18 @@
+handlers:
+  - name: retry-demo
+    match: "retry me"
+    run: |
+      count=$(cat /tmp/xwebs_retry_demo 2>/dev/null || echo 0)
+      count=$((count+1))
+      echo $count > /tmp/xwebs_retry_demo
+      echo "Attempt $count"
+      if [ $count -lt 3 ]; then
+        echo "Failing intentionally..." >&2
+        exit 1
+      fi
+      echo "Succeeded on attempt $count"
+    retry:
+      count: 3
+      backoff: linear
+      interval: 1s
+    respond: "Processed: {{.Stdout | trim}}"

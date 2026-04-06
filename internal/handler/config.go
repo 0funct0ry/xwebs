@@ -3,9 +3,11 @@ package handler
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
+
 
 // Config represents the root structure of a handlers.yaml file.
 type Config struct {
@@ -26,12 +28,22 @@ type Handler struct {
 	Builtin      string         `yaml:"builtin,omitempty"`  // Shorthand for builtin action
 	Pipeline     []PipelineStep `yaml:"pipeline,omitempty"` // Multi-step pipeline
 	Timeout      string         `yaml:"timeout,omitempty"`  // Per-handler timeout
+	Retry        *RetryConfig   `yaml:"retry,omitempty"`    // Automatic retry on failure
 	Actions      []Action       `yaml:"actions,omitempty"`
 	OnConnect    []Action       `yaml:"on_connect,omitempty"`
 	OnDisconnect []Action       `yaml:"on_disconnect,omitempty"`
 	OnError      []Action       `yaml:"on_error,omitempty"`
 	BaseDir      string         `yaml:"-"` // Directory from which the handler was loaded
 }
+
+// RetryConfig defines the settings for automatic retries.
+type RetryConfig struct {
+	Count       int    `yaml:"count"`                  // Number of retry attempts
+	Backoff     string `yaml:"backoff,omitempty"`      // Strategy: "linear" or "exponential" (default "linear")
+	Interval    string `yaml:"interval,omitempty"`     // Initial wait duration (default "1s")
+	MaxInterval string `yaml:"max_interval,omitempty"` // Cap for exponential backoff (default "30s")
+}
+
 
 // PipelineStep defines a single step in a multi-step handler execution.
 type PipelineStep struct {
@@ -161,6 +173,12 @@ func (c *Config) Validate() error {
 				return fmt.Errorf("handler %q on_error action[%d]: %w", h.Name, j, err)
 			}
 		}
+
+		if h.Retry != nil {
+			if err := h.Retry.Validate(); err != nil {
+				return fmt.Errorf("handler %q retry config: %w", h.Name, err)
+			}
+		}
 	}
 
 	return nil
@@ -192,3 +210,28 @@ func (a *Action) Validate() error {
 	}
 	return nil
 }
+
+// Validate checks retry settings for common errors.
+func (r *RetryConfig) Validate() error {
+	if r.Count < 0 {
+		return fmt.Errorf("retry count cannot be negative")
+	}
+	if r.Interval != "" {
+		if _, err := time.ParseDuration(r.Interval); err != nil {
+			return fmt.Errorf("invalid retry interval %q: %w", r.Interval, err)
+		}
+	}
+	if r.MaxInterval != "" {
+		if _, err := time.ParseDuration(r.MaxInterval); err != nil {
+			return fmt.Errorf("invalid retry max_interval %q: %w", r.MaxInterval, err)
+		}
+	}
+	if r.Backoff != "" {
+		b := strings.ToLower(r.Backoff)
+		if b != "linear" && b != "exponential" {
+			return fmt.Errorf("unknown backoff strategy %q (must be 'linear' or 'exponential')", r.Backoff)
+		}
+	}
+	return nil
+}
+

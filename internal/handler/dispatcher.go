@@ -151,7 +151,71 @@ func (d *Dispatcher) Execute(ctx context.Context, h *Handler, msg *ws.Message) e
 	// Add pipeline steps map
 	tmplCtx.Steps = make(map[string]*template.HandlerContext)
 
-	// Determine execution path
+	// Determine execution attempts
+	maxAttempts := 1
+	if h.Retry != nil && h.Retry.Count > 0 {
+		maxAttempts = 1 + h.Retry.Count
+	}
+
+	var lastErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		lastErr = d.executeMainActions(ctx, h, tmplCtx, msg)
+
+		// Check for failure to trigger retry
+		isFailure := lastErr != nil
+		// For concise models (run/builtin), we must manually check ExitCode for retries
+		if h.Retry != nil && !isFailure && (h.Run != "" || h.Builtin != "") {
+			if tmplCtx.ExitCode != 0 {
+				isFailure = true
+				lastErr = fmt.Errorf("command failed with exit code %d", tmplCtx.ExitCode)
+			}
+		}
+
+		if !isFailure {
+			break
+		}
+
+		// Final attempt failed
+		if attempt >= maxAttempts {
+			if d.verbose && maxAttempts > 1 {
+				d.errorf("  [handler] error: final failure for %q after %d attempts: %v\n", h.Name, attempt, lastErr)
+			}
+			break
+		}
+
+		// Calculate backoff and wait
+		backoff := d.calculateBackoff(h.Retry, attempt)
+		if d.verbose {
+			d.errorf("  [handler] error executing %q (attempt %d/%d): %v. Retrying in %v...\n",
+				h.Name, attempt, maxAttempts, lastErr, backoff)
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(backoff):
+			// Continue to next attempt
+		}
+	}
+
+	// Always execute respond if present (after all main actions/retries)
+	// Note: We only execute respond if the main actions succeeded (lastErr == nil).
+	// This matches the behavior where a pipeline failure skips respond, 
+	// while a concise run/builtin (which return nil error even on shell failure) still runs it.
+	if h.Respond != "" && lastErr == nil {
+		action := Action{Type: "send", Message: h.Respond}
+		if err := d.ExecuteAction(ctx, &action, tmplCtx, msg); err != nil {
+			return err
+		}
+	}
+
+	return lastErr
+}
+
+
+// executeMainActions runs the core logic of a handler (Actions, Pipeline, Run, or Builtin).
+// It does NOT run Respond:, which is handled by the caller (the retry loop).
+func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx *template.TemplateContext, msg *ws.Message) error {
 	if len(h.Actions) > 0 {
 		// Legacy action list
 		for _, action := range h.Actions {
@@ -161,41 +225,49 @@ func (d *Dispatcher) Execute(ctx context.Context, h *Handler, msg *ws.Message) e
 		}
 	} else if len(h.Pipeline) > 0 {
 		// New pipeline model
-		if err := d.executePipeline(ctx, h.Pipeline, tmplCtx, msg); err != nil {
-			return err
-		}
-		// If respond is present after pipeline, execute it
-		if h.Respond != "" {
-			action := Action{Type: "send", Message: h.Respond}
-			if err := d.ExecuteAction(ctx, &action, tmplCtx, msg); err != nil {
-				return err
-			}
-		}
+		return d.executePipeline(ctx, h.Pipeline, tmplCtx, msg)
 	} else {
 		// Concise top-level model (run or builtin)
 		if h.Run != "" {
 			action := Action{Type: "shell", Run: h.Run, Timeout: h.Timeout}
-			if err := d.ExecuteAction(ctx, &action, tmplCtx, msg); err != nil {
-				return err
-			}
+			return d.ExecuteAction(ctx, &action, tmplCtx, msg)
 		} else if h.Builtin != "" {
 			action := Action{Type: "builtin", Command: h.Builtin, Timeout: h.Timeout}
-			if err := d.ExecuteAction(ctx, &action, tmplCtx, msg); err != nil {
-				return err
-			}
+			return d.ExecuteAction(ctx, &action, tmplCtx, msg)
 		}
+	}
+	return nil
+}
 
-		// Always execute respond if present (possibly after run/builtin)
-		if h.Respond != "" {
-			action := Action{Type: "send", Message: h.Respond}
-			if err := d.ExecuteAction(ctx, &action, tmplCtx, msg); err != nil {
-				return err
-			}
+func (d *Dispatcher) calculateBackoff(cfg *RetryConfig, attempt int) time.Duration {
+	interval := 1 * time.Second
+	if cfg.Interval != "" {
+		if dur, err := time.ParseDuration(cfg.Interval); err == nil {
+			interval = dur
 		}
 	}
 
-	return nil
+	var wait time.Duration
+	if strings.ToLower(cfg.Backoff) == "exponential" {
+		// interval * 2^(attempt-1)
+		wait = interval * time.Duration(1<<(attempt-1))
+		if cfg.MaxInterval != "" {
+			if max, err := time.ParseDuration(cfg.MaxInterval); err == nil && wait > max {
+				wait = max
+			}
+		} else if wait > 30*time.Second {
+			wait = 30 * time.Second
+		}
+	} else {
+		// Linear backoff: interval * attempt
+		wait = interval * time.Duration(attempt)
+	}
+
+	// Return calculated wait duration
+	return wait
 }
+
+
 
 // executePipeline runs a sequence of steps.
 func (d *Dispatcher) executePipeline(ctx context.Context, pipeline []PipelineStep, tmplCtx *template.TemplateContext, msg *ws.Message) error {
