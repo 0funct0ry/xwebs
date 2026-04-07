@@ -20,7 +20,7 @@ func TestReproduction_NestedVariables(t *testing.T) {
 		"version": "v1.0",
 	}
 
-	d := NewDispatcher(reg, conn, engine, true, globalVars, nil)
+	d := NewDispatcher(reg, conn, engine, true, globalVars, nil, false, nil)
 
 	h := &Handler{
 		Name: "version_check",

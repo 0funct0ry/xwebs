@@ -132,7 +132,16 @@ Example:
 			handlers = append(handlers, cfg.Handlers...)
 			handlerVars = cfg.Variables
 			
+			// Load sandbox settings from handlers config
+			if !cmd.Flags().Changed("sandbox") && cfg.Sandbox {
+				sandboxEnabled = cfg.Sandbox
+			}
+			if !cmd.Flags().Changed("allowlist") && len(cfg.Allowlist) > 0 {
+				allowlist = cfg.Allowlist
+			}
+
 			if !quiet {
+
 				fmt.Fprintf(os.Stderr, "✓ Loaded %d handlers from %s\n", len(cfg.Handlers), handlersFile)
 			}
 		}
@@ -619,8 +628,9 @@ Example:
 			if cc.repl != nil {
 				sessionVars = cc.repl.GetVars()
 			}
-			tempDispatcher := handler.NewDispatcher(reg, nil, tmplEngine, verbose, handlerVars, sessionVars)
+			tempDispatcher := handler.NewDispatcher(reg, nil, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist)
 						if isInteractive && r != nil {
+
 							tempDispatcher.Log = func(f string, a ...interface{}) { r.Printf(f, a...) }
 							tempDispatcher.Error = func(f string, a ...interface{}) { r.Errorf(f, a...) }
 						}
@@ -679,8 +689,9 @@ Example:
 					if cc.repl != nil {
 						sessionVars = cc.repl.GetVars()
 					}
-					dispatcher = handler.NewDispatcher(reg, conn, tmplEngine, verbose, handlerVars, sessionVars)
+					dispatcher = handler.NewDispatcher(reg, conn, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist)
 					if isInteractive && r != nil {
+
 						dispatcher.Log = func(f string, a ...interface{}) {
 							r.Printf(f, a...)
 						}

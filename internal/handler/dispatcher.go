@@ -40,10 +40,15 @@ type Dispatcher struct {
 	variables        map[string]interface{}
 	sessionVariables map[string]interface{}
 	systemEnv        map[string]string
+	sandbox          bool
+	allowlist        []string
 }
 
+
 // NewDispatcher creates a new dispatcher.
-func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine, verbose bool, vars map[string]interface{}, session map[string]interface{}) *Dispatcher {
+// NewDispatcher creates a new dispatcher.
+func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine, verbose bool, vars map[string]interface{}, session map[string]interface{}, sandbox bool, allowlist []string) *Dispatcher {
+
 	// Initialize system environment
 	env := make(map[string]string)
 	for _, e := range os.Environ() {
@@ -61,7 +66,10 @@ func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine,
 		variables:      vars,
 		sessionVariables: session,
 		systemEnv:      env,
+		sandbox:        sandbox,
+		allowlist:      allowlist,
 		Log: func(f string, a ...interface{}) {
+
 			fmt.Printf(f, a...)
 		},
 		Error: func(f string, a ...interface{}) {
@@ -533,7 +541,15 @@ func (d *Dispatcher) executeShell(ctx context.Context, a *Action, tmplCtx *templ
 	}
 
 	// Execute shell command
-	result, err := shell.Execute(childCtx, cmdStr, stdin, a.Env)
+	var shellAllowlist []string
+	if d.sandbox {
+		shellAllowlist = d.allowlist
+		if shellAllowlist == nil {
+			shellAllowlist = []string{} // Empty list means deny all in sandbox mode
+		}
+	}
+	result, err := shell.Execute(childCtx, cmdStr, stdin, a.Env, shellAllowlist)
+
 
 	// Update template context with execution results for subsequent actions
 	tmplCtx.Handler = &template.HandlerContext{
@@ -560,13 +576,12 @@ func (d *Dispatcher) executeShell(ctx context.Context, a *Action, tmplCtx *templ
 
 	if err != nil {
 		if d.verbose {
-			d.errorf("  [handler] shell command failed: %v\n", err)
+			d.errorf("  [handler] shell command execution error: %v\n", err)
 		}
-		// Do not return error here; allow the execution to proceed so that subsequent
-		// actions (like respond:) can evaluate the failure context (.ExitCode, .Stderr).
+		return err
 	}
-
 	return nil
+
 }
 
 func (d *Dispatcher) executeSend(a *Action, ctx *template.TemplateContext) error {

@@ -296,7 +296,13 @@ xwebs connect wss://stream.example.com | grep "ERROR" | tee errors.log
   - **Behavior**: Implements **trailing-edge debounce**. The timer resets on each new matching message. Only the most recent message is processed when the quiet period ends.
   - **Scope**: Debounce timers are managed per-handler name and are global across all connections.
 - **Exclusive Matching (Short-Circuiting)**: Setting `exclusive: true` on a handler ensures that if it matches, all subsequent handlers (lower priority) are skipped for that message. This is useful for high-priority "catch" handlers that should prevent a message from reaching more general-purpose handlers. Short-circuiting applies to both matching and execution, improving performance for complex handler sets.
+- **Shell Sandboxing**: Restrict shell command execution to an explicit allowlist for enhanced security when handling untrusted messages or configurations.
+  - `--sandbox`: Enables sandboxing mode.
+  - `--allowlist`: Configures a comma-separated list of approved executables (e.g., `echo,ls,grep`).
+  - When enabled, any attempt to run a command not in the allowlist (or any command containing dangerous patterns like command substitution `$()` or `` ` ``) will be rejected with an error. 
+  - Sandbox settings can also be defined in a `handlers.yaml` file.
 - **REPL Observability**: Use the `:handlers` command in the REPL to see the loaded handlers in their execution order.
+
 
 
 **Usage:**

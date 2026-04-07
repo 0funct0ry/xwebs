@@ -13,8 +13,11 @@ import (
 type Config struct {
 	Variables map[string]interface{} `yaml:"variables"`
 	Handlers  []Handler              `yaml:"handlers"`
+	Sandbox   bool                   `yaml:"sandbox"`
+	Allowlist []string               `yaml:"allowlist"`
 	BaseDir   string                 `yaml:"-"` // Directory from which the config was loaded
 }
+
 
 // Handler defines a single message handler with a name, match conditions, and actions.
 type Handler struct {
