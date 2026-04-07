@@ -134,6 +134,21 @@ func (d *Dispatcher) handleMessage(ctx context.Context, msg *ws.Message) {
 				continue
 			}
 		}
+
+		// Apply debounce
+		if h.Debounce != "" {
+			dur, _ := time.ParseDuration(h.Debounce)
+			d.registry.Debounce(h.Name, dur, msg, func(m *ws.Message) {
+				if d.verbose {
+					d.errorf("  [handler] executing debounced handler %q\n", h.Name)
+				}
+				// Use context from Dispatcher.Start which is passed as ctx
+				if err := d.Execute(ctx, h, m); err != nil {
+					d.errorf("  [handler] error executing debounced %q: %v\n", h.Name, err)
+				}
+			})
+			continue
+		}
 		
 		go func(handler Handler) {
 			if err := d.Execute(ctx, &handler, msg); err != nil {

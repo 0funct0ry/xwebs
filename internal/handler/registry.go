@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/0funct0ry/xwebs/internal/ws"
@@ -19,11 +20,18 @@ import (
 
 // Registry manages a collection of message handlers.
 type Registry struct {
-	handlers  []Handler
-	schemas   map[string]*gojsonschema.Schema
-	handlerMu map[string]*sync.Mutex
-	limiters  map[string]*rate.Limiter
-	mu        sync.RWMutex
+	handlers   []Handler
+	schemas    map[string]*gojsonschema.Schema
+	handlerMu  map[string]*sync.Mutex
+	limiters   map[string]*rate.Limiter
+	debouncers map[string]*debouncer
+	mu         sync.RWMutex
+}
+
+type debouncer struct {
+	mu      sync.Mutex
+	timer   *time.Timer
+	pending *ws.Message
 }
 
 // NewRegistry creates a new handler registry.
@@ -33,6 +41,7 @@ func NewRegistry() *Registry {
 		schemas:   make(map[string]*gojsonschema.Schema),
 		handlerMu: make(map[string]*sync.Mutex),
 		limiters:  make(map[string]*rate.Limiter),
+		debouncers: make(map[string]*debouncer),
 	}
 }
 
@@ -440,4 +449,36 @@ func (r *Registry) GetLimiter(name, rateStr string) *rate.Limiter {
 	limiter = rate.NewLimiter(rate.Limit(perSec), burst)
 	r.limiters[name] = limiter
 	return limiter
+}
+
+// Debounce handles trailing-edge debouncing for a specific handler.
+// It resets the timer on each call and executes the callback with the most recent message.
+func (r *Registry) Debounce(name string, duration time.Duration, msg *ws.Message, execute func(*ws.Message)) {
+	r.mu.Lock()
+	d, ok := r.debouncers[name]
+	if !ok {
+		d = &debouncer{}
+		r.debouncers[name] = d
+	}
+	r.mu.Unlock()
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if d.timer != nil {
+		d.timer.Stop()
+	}
+
+	d.pending = msg
+	d.timer = time.AfterFunc(duration, func() {
+		d.mu.Lock()
+		m := d.pending
+		d.timer = nil
+		d.pending = nil
+		d.mu.Unlock()
+
+		if m != nil {
+			execute(m)
+		}
+	})
 }

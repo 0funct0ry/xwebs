@@ -291,6 +291,10 @@ xwebs connect wss://stream.example.com | grep "ERROR" | tee errors.log
   - `rate_limit`: A string specifying the maximum rate (e.g., `10/s`, `100/m`, `5/h`).
   - **Behavior**: Excess messages exceeding the rate limit are consistently **dropped** (not queued). In verbose mode, a warning is logged when a message is dropped.
   - **Independence**: Rate limits are applied independently per-handler name and are shared across all connections to protect global resources.
+- **Debounce**: Consolidate rapid successive messages into a single execution.
+  - `debounce`: A duration string (e.g., `500ms`, `1s`, `2s`).
+  - **Behavior**: Implements **trailing-edge debounce**. The timer resets on each new matching message. Only the most recent message is processed when the quiet period ends.
+  - **Scope**: Debounce timers are managed per-handler name and are global across all connections.
 - **REPL Observability**: Use the `:handlers` command in the REPL to see the loaded handlers in their execution order.
 
 

@@ -30,6 +30,7 @@ type Handler struct {
 	Timeout      string         `yaml:"timeout,omitempty"`  // Per-handler timeout
 	Retry        *RetryConfig   `yaml:"retry,omitempty"`    // Automatic retry on failure
 	RateLimit    string         `yaml:"rate_limit,omitempty"` // Per-handler rate limit (e.g. "10/s", "100/m")
+	Debounce     string         `yaml:"debounce,omitempty"`   // Per-handler debounce duration (e.g. "500ms")
 	Actions      []Action       `yaml:"actions,omitempty"`
 	OnConnect    []Action       `yaml:"on_connect,omitempty"`
 	OnDisconnect []Action       `yaml:"on_disconnect,omitempty"`
@@ -184,6 +185,12 @@ func (c *Config) Validate() error {
 		if h.RateLimit != "" {
 			if _, _, err := ParseRateLimit(h.RateLimit); err != nil {
 				return fmt.Errorf("handler %q invalid rate_limit %q: %w", h.Name, h.RateLimit, err)
+			}
+		}
+
+		if h.Debounce != "" {
+			if _, err := time.ParseDuration(h.Debounce); err != nil {
+				return fmt.Errorf("handler %q invalid debounce %q: %w", h.Name, h.Debounce, err)
 			}
 		}
 	}

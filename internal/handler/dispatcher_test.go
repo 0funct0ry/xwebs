@@ -210,3 +210,32 @@ func TestDispatcher_RespondContext(t *testing.T) {
 	assert.JSONEq(t, `{"code": 2, "err": "some error"}`, conn.lastWritten)
 	conn.mu.Unlock()
 }
+
+func TestDispatcher_Debounce(t *testing.T) {
+	reg := NewRegistry()
+	engine := template.New(false)
+	conn := &mockConn{}
+	d := NewDispatcher(reg, conn, engine, false, nil)
+
+	h := &Handler{
+		Name:     "debounce-test",
+		Debounce: "100ms",
+		Run:      "echo 'processed {{.Message}}'",
+		Respond:  "{{.Stdout | trim}}",
+	}
+	reg.AddHandlers([]Handler{*h})
+
+	// Send 3 messages in rapid succession
+	ctx := context.Background()
+	d.handleMessage(ctx, &ws.Message{Data: []byte("msg1"), Metadata: ws.MessageMetadata{Direction: "received"}})
+	d.handleMessage(ctx, &ws.Message{Data: []byte("msg2"), Metadata: ws.MessageMetadata{Direction: "received"}})
+	d.handleMessage(ctx, &ws.Message{Data: []byte("msg3"), Metadata: ws.MessageMetadata{Direction: "received"}})
+
+	// Wait for debounce period + buffers
+	time.Sleep(250 * time.Millisecond)
+
+	conn.mu.Lock()
+	assert.Equal(t, "processed msg3", conn.lastWritten, "Should only process the last message")
+	conn.mu.Unlock()
+}
+
