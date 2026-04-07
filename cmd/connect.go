@@ -615,7 +615,11 @@ Example:
 					
 					// Trigger on_error handlers even if initial connection fails
 					if reg != nil {
-						tempDispatcher := handler.NewDispatcher(reg, nil, tmplEngine, verbose, handlerVars)
+			var sessionVars map[string]interface{}
+			if cc.repl != nil {
+				sessionVars = cc.repl.GetVars()
+			}
+			tempDispatcher := handler.NewDispatcher(reg, nil, tmplEngine, verbose, handlerVars, sessionVars)
 						if isInteractive && r != nil {
 							tempDispatcher.Log = func(f string, a ...interface{}) { r.Printf(f, a...) }
 							tempDispatcher.Error = func(f string, a ...interface{}) { r.Errorf(f, a...) }
@@ -670,9 +674,12 @@ Example:
 					infoln(r, isInteractive, "Compression: permessage-deflate")
 				}
 
-				// Start dispatcher if handlers are loaded
 				if reg != nil {
-					dispatcher = handler.NewDispatcher(reg, conn, tmplEngine, verbose, handlerVars)
+					var sessionVars map[string]interface{}
+					if cc.repl != nil {
+						sessionVars = cc.repl.GetVars()
+					}
+					dispatcher = handler.NewDispatcher(reg, conn, tmplEngine, verbose, handlerVars, sessionVars)
 					if isInteractive && r != nil {
 						dispatcher.Log = func(f string, a ...interface{}) {
 							r.Printf(f, a...)

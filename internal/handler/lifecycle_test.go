@@ -59,7 +59,7 @@ func TestLifecycleHooks(t *testing.T) {
 		},
 	})
 
-	d := NewDispatcher(reg, conn, engine, false, nil)
+	d := NewDispatcher(reg, conn, engine, false, nil, nil)
 	d.HandleConnect()
 
 	assert.Len(t, conn.messages, 1)
@@ -117,7 +117,7 @@ func TestHandlerErrorTrigger(t *testing.T) {
 		},
 	})
 
-	d := NewDispatcher(reg, conn, engine, true, nil)
+	d := NewDispatcher(reg, conn, engine, true, nil, nil)
 	
 	msg := &ws.Message{
 		Type: ws.TextMessage,

@@ -87,6 +87,7 @@ type TemplateContext struct {
 func NewContext() *TemplateContext {
 	return &TemplateContext{
 		Session: make(map[string]interface{}),
+		Vars:    make(map[string]interface{}),
 		Env:     make(map[string]string),
 	}
 }

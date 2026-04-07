@@ -37,17 +37,30 @@ type Dispatcher struct {
 	Log            func(string, ...interface{})
 	Error          func(string, ...interface{})
 
-	variables      map[string]interface{}
+	variables        map[string]interface{}
+	sessionVariables map[string]interface{}
+	systemEnv        map[string]string
 }
 
 // NewDispatcher creates a new dispatcher.
-func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine, verbose bool, vars map[string]interface{}) *Dispatcher {
+func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine, verbose bool, vars map[string]interface{}, session map[string]interface{}) *Dispatcher {
+	// Initialize system environment
+	env := make(map[string]string)
+	for _, e := range os.Environ() {
+		pair := strings.SplitN(e, "=", 2)
+		if len(pair) == 2 {
+			env[pair[0]] = pair[1]
+		}
+	}
+
 	return &Dispatcher{
 		registry:       registry,
 		conn:           conn,
 		templateEngine: engine,
 		verbose:        verbose,
 		variables:      vars,
+		sessionVariables: session,
+		systemEnv:      env,
 		Log: func(f string, a ...interface{}) {
 			fmt.Printf(f, a...)
 		},
@@ -174,6 +187,15 @@ func (d *Dispatcher) Execute(ctx context.Context, h *Handler, msg *ws.Message) e
 
 	tmplCtx := template.NewContext()
 	d.populateTemplateContext(tmplCtx, msg)
+
+	// Merge and evaluate per-handler variables
+	if h.Variables != nil {
+		evaluated := evaluateVariables(d.templateEngine, h.Variables, tmplCtx, d.verbose, d.Error)
+		for k, v := range evaluated {
+			tmplCtx.Vars[k] = v
+		}
+	}
+
 	// Add pipeline steps map
 	tmplCtx.Steps = make(map[string]*template.HandlerContext)
 
@@ -343,12 +365,24 @@ func (d *Dispatcher) executePipeline(ctx context.Context, pipeline []PipelineSte
 }
 
 func (d *Dispatcher) populateTemplateContext(tmplCtx *template.TemplateContext, msg *ws.Message) {
-	// Inject global variables
-	if d.variables != nil {
-		if tmplCtx.Vars == nil {
-			tmplCtx.Vars = make(map[string]interface{})
+	// Inject system environment
+	if d.systemEnv != nil {
+		for k, v := range d.systemEnv {
+			tmplCtx.Env[k] = v
 		}
-		for k, v := range d.variables {
+	}
+
+	// Inject session variables
+	if d.sessionVariables != nil {
+		for k, v := range d.sessionVariables {
+			tmplCtx.Session[k] = v
+		}
+	}
+
+	// Inject and evaluate global variables
+	if d.variables != nil {
+		evaluated := evaluateVariables(d.templateEngine, d.variables, tmplCtx, d.verbose, d.Error)
+		for k, v := range evaluated {
 			tmplCtx.Vars[k] = v
 		}
 	}
@@ -402,6 +436,54 @@ func (d *Dispatcher) populateTemplateContext(tmplCtx *template.TemplateContext, 
 			CompressionEnabled: d.conn.IsCompressionEnabled(),
 		}
 	}
+}
+
+// evaluateVariables resolves template expressions in a map of variables.
+func evaluateVariables(engine *template.Engine, vars map[string]interface{}, ctx *template.TemplateContext, verbose bool, errLogger func(string, ...interface{})) map[string]interface{} {
+	result := make(map[string]interface{})
+	for k, v := range vars {
+		result[k] = v
+	}
+
+	// Max 3 passes to resolve inter-variable dependencies
+	for pass := 0; pass < 3; pass++ {
+		changed := false
+		
+		// Sort keys for deterministic evaluation
+		keys := make([]string, 0, len(result))
+		for k := range result {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+
+		for _, k := range keys {
+			originalV := vars[k]
+			if s, ok := originalV.(string); ok && strings.Contains(s, "{{") {
+				evaluated, err := engine.Execute(k, s, ctx)
+				if err == nil {
+					if evaluated != result[k] {
+						result[k] = evaluated
+						if ctx.Vars != nil {
+							ctx.Vars[k] = evaluated
+						}
+						changed = true
+					}
+				} else if verbose && errLogger != nil && pass == 2 {
+					// Only log error on the final pass
+					errLogger("  [handler] error evaluating variable %q: %v\n", k, err)
+				}
+			} else {
+				// Static value
+				if ctx.Vars != nil {
+					ctx.Vars[k] = originalV
+				}
+			}
+		}
+		if !changed {
+			break
+		}
+	}
+	return result
 }
 
 func (d *Dispatcher) ExecuteAction(ctx context.Context, a *Action, tmplCtx *template.TemplateContext, msg *ws.Message) error {

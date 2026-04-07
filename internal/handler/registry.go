@@ -81,6 +81,25 @@ func (r *Registry) Match(msg *ws.Message, engine *template.Engine, ctx *template
 }
 
 func (r *Registry) matchHandler(h *Handler, msg *ws.Message, engine *template.Engine, ctx *template.TemplateContext) (bool, error) {
+	if len(h.Variables) > 0 && engine != nil && ctx != nil {
+		// Clone Vars to avoid polluting other handlers
+		originalVars := ctx.Vars
+		ctx.Vars = make(map[string]interface{}, len(originalVars)+len(h.Variables))
+		for k, v := range originalVars {
+			ctx.Vars[k] = v
+		}
+
+		// Evaluate handler variables
+		evaluated := evaluateVariables(engine, h.Variables, ctx, false, nil)
+		for k, v := range evaluated {
+			ctx.Vars[k] = v
+		}
+
+		// Ensure we restore original vars after matching
+		defer func() {
+			ctx.Vars = originalVars
+		}()
+	}
 	return r.matchMatcher(&h.Match, h.BaseDir, msg, engine, ctx)
 }
 
@@ -172,6 +191,9 @@ func (r *Registry) matchMatcher(m *Matcher, baseDir string, msg *ws.Message, eng
 
 	switch strings.ToLower(m.Type) {
 	case "text", "":
+		if strings.ContainsAny(m.Pattern, "*?") {
+			return r.matchGlob(m.Pattern, trimmedMsg)
+		}
 		// Trim whitespace for more resilient matching in interactive sessions
 		return strings.TrimSpace(msgStr) == m.Pattern, nil
 	case "regex":

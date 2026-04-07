@@ -31,8 +31,9 @@ type Handler struct {
 	Retry        *RetryConfig   `yaml:"retry,omitempty"`    // Automatic retry on failure
 	RateLimit    string         `yaml:"rate_limit,omitempty"` // Per-handler rate limit (e.g. "10/s", "100/m")
 	Debounce     string         `yaml:"debounce,omitempty"`   // Per-handler debounce duration (e.g. "500ms")
-	Actions      []Action       `yaml:"actions,omitempty"`
-	OnConnect    []Action       `yaml:"on_connect,omitempty"`
+	Actions      []Action               `yaml:"actions,omitempty"`
+	Variables    map[string]interface{} `yaml:"variables,omitempty"`
+	OnConnect    []Action               `yaml:"on_connect,omitempty"`
 	OnDisconnect []Action       `yaml:"on_disconnect,omitempty"`
 	OnError      []Action       `yaml:"on_error,omitempty"`
 	BaseDir      string         `yaml:"-"` // Directory from which the handler was loaded

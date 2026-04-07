@@ -15,7 +15,7 @@ func TestHandler_ConcurrencyControl(t *testing.T) {
 	engine := template.New(false)
 	reg := NewRegistry()
 	conn := &mockConn{}
-	d := NewDispatcher(reg, conn, engine, false, nil)
+	d := NewDispatcher(reg, conn, engine, false, nil, nil)
 
 	// Handler that sleeps for 100ms
 	// Use a shell command to simulate work

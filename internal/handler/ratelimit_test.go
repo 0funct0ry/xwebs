@@ -74,7 +74,7 @@ func TestDispatcherRateLimit(t *testing.T) {
 
 	conn := &rateLimitMockConn{}
 	engine := template.New(false)
-	dispatcher := NewDispatcher(registry, conn, engine, true, nil)
+	dispatcher := NewDispatcher(registry, conn, engine, true, nil, nil)
 
 	ctx := context.Background()
 	msg := &ws.Message{
