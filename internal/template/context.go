@@ -80,6 +80,7 @@ type TemplateContext struct {
 	// Scripting context
 	Last          string `json:"last,omitempty"`
 	LastLatencyMs int64  `json:"last_latency_ms,omitempty"`
+	Error         string `json:"error,omitempty"`
 }
 
 // NewContext creates a new TemplateContext with initialized maps.

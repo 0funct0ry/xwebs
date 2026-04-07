@@ -206,7 +206,8 @@ func TestDispatcher_RespondContext(t *testing.T) {
 	}
 
 	err := d.Execute(context.Background(), h, msg)
-	require.NoError(t, err)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "exit code 2")
 
 	conn.mu.Lock()
 	assert.JSONEq(t, `{"code": 2, "err": "some error"}`, conn.lastWritten)

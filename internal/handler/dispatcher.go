@@ -187,10 +187,10 @@ func (d *Dispatcher) Execute(ctx context.Context, h *Handler, msg *ws.Message) e
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		lastErr = d.executeMainActions(ctx, h, tmplCtx, msg)
 
-		// Check for failure to trigger retry
+		// Check for failure to trigger retry or HandleError
 		isFailure := lastErr != nil
-		// For concise models (run/builtin), we must manually check ExitCode for retries
-		if h.Retry != nil && !isFailure && (h.Run != "" || h.Builtin != "") {
+		// For concise models (run/builtin), we must manually check ExitCode
+		if !isFailure && (h.Run != "" || h.Builtin != "") {
 			if tmplCtx.ExitCode != 0 {
 				isFailure = true
 				lastErr = fmt.Errorf("command failed with exit code %d", tmplCtx.ExitCode)
@@ -225,16 +225,19 @@ func (d *Dispatcher) Execute(ctx context.Context, h *Handler, msg *ws.Message) e
 	}
 
 	// Always execute respond if present (after all main actions/retries)
-	// Note: We only execute respond if the main actions succeeded (lastErr == nil).
-	// This matches the behavior where a pipeline failure skips respond, 
-	// while a concise run/builtin (which return nil error even on shell failure) still runs it.
-	if h.Respond != "" && lastErr == nil {
+	// Concise handlers always run respond if present (it acts as a completion hook).
+	// Pipelines and multi-action handlers only run respond if all steps succeeded.
+	isConcise := h.Run != "" || h.Builtin != ""
+	if h.Respond != "" && (lastErr == nil || isConcise) {
 		action := Action{Type: "send", Message: h.Respond}
 		if err := d.ExecuteAction(ctx, &action, tmplCtx, msg); err != nil {
 			return err
 		}
 	}
 
+	if lastErr != nil {
+		d.HandleError(lastErr)
+	}
 	return lastErr
 }
 
@@ -539,15 +542,14 @@ func (d *Dispatcher) HandleConnect() {
 	d.sortHandlers(onConnect)
 
 	for _, h := range onConnect {
-		if d.verbose {
-			d.errorf("  [handler] executing on_connect for handler %q\n", h.Name)
-		}
+		d.log("  [hook] on_connect: %s\n", h.Name)
+		
 		tmplCtx := template.NewContext()
 		d.populateTemplateContext(tmplCtx, nil)
 		
 		for _, a := range h.OnConnect {
 			if err := d.ExecuteAction(context.Background(), &a, tmplCtx, nil); err != nil {
-				d.errorf("  [handler] on_connect action error: %v\n", err)
+				d.errorf("  [hook] error in on_connect for %s: %v\n", h.Name, err)
 			}
 		}
 	}
@@ -559,15 +561,14 @@ func (d *Dispatcher) HandleDisconnect() {
 	d.sortHandlers(onDisconnect)
 
 	for _, h := range onDisconnect {
-		if d.verbose {
-			d.errorf("  [handler] executing on_disconnect for handler %q\n", h.Name)
-		}
+		d.log("  [hook] on_disconnect: %s\n", h.Name)
+		
 		tmplCtx := template.NewContext()
 		d.populateTemplateContext(tmplCtx, nil)
 		
 		for _, a := range h.OnDisconnect {
 			if err := d.ExecuteAction(context.Background(), &a, tmplCtx, nil); err != nil {
-				d.errorf("  [handler] on_disconnect action error: %v\n", err)
+				d.errorf("  [hook] error in on_disconnect for %s: %v\n", h.Name, err)
 			}
 		}
 	}
@@ -579,19 +580,15 @@ func (d *Dispatcher) HandleError(err error) {
 	d.sortHandlers(onError)
 
 	for _, h := range onError {
-		if d.verbose {
-			d.errorf("  [handler] executing on_error for handler %q: %v\n", h.Name, err)
-		}
-		// Create a temporary context to pass the error if possible
+		d.log("  [hook] on_error: %s (%v)\n", h.Name, err)
+		
 		tmplCtx := template.NewContext()
 		d.populateTemplateContext(tmplCtx, nil)
-		// Future: add err to context
+		tmplCtx.Error = err.Error()
 		
 		for _, a := range h.OnError {
 			if err := d.ExecuteAction(context.Background(), &a, tmplCtx, nil); err != nil {
-				if d.verbose {
-					d.errorf("  [handler] on_error action failure: %v\n", err)
-				}
+				d.errorf("  [hook] error in on_error for %s: %v\n", h.Name, err)
 			}
 		}
 	}

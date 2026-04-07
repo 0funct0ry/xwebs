@@ -1,0 +1,13 @@
+handlers:
+  - name: "lifecycle_tester"
+    on_connect:
+      - log: "CONNECTED to {{.URL}}"
+    on_disconnect:
+      - log: "DISCONNECTED from {{.URL}}"
+    on_error:
+      - log: "ERROR DETECTED: {{.Error}}"
+    match:
+      type: "text"
+      pattern: "fail"
+    run: "exit 1"
+    respond: "this should not happen if error triggers"

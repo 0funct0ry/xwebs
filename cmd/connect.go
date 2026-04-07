@@ -566,6 +566,17 @@ Example:
 				conn, err = ws.Dial(sessionCtx, details.URL, opts...)
 				if err != nil {
 					warn(r, isInteractive, "Connection failed: %v\n", err)
+					
+					// Trigger on_error handlers even if initial connection fails
+					if reg != nil {
+						tempDispatcher := handler.NewDispatcher(reg, nil, tmplEngine, verbose, handlerVars)
+						if isInteractive && r != nil {
+							tempDispatcher.Log = func(f string, a ...interface{}) { r.Printf(f, a...) }
+							tempDispatcher.Error = func(f string, a ...interface{}) { r.Errorf(f, a...) }
+						}
+						tempDispatcher.HandleError(err)
+					}
+
 					if !details.Reconnect || (details.ReconnectAttempts > 0 && reconnectCount >= details.ReconnectAttempts) {
 						if !isInteractive {
 							return fmt.Errorf("connection failed: %w", err)

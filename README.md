@@ -277,8 +277,8 @@ xwebs connect wss://stream.example.com | grep "ERROR" | tee errors.log
   - `pipeline`: A sequence of steps (`run` or `builtin`).
   - `as`: (Optional) Name the step to make its output and status available to later steps and the final `respond:` template via `{{.Steps.<name>.Stdout}}` and `{{.Steps.<name>.ExitCode}}`.
   - `ignore_error`: (Optional) If set to `true`, the pipeline will continue to execute even if the step's shell command returns a non-zero exit code. By default, pipelines stop execution if any step fails.
-- **Lifecycle Events**: Bind actions to `on_connect`, `on_disconnect`, and `on_error` events.
-- **Template Support**: All message and command fields support full Go templates with access to `.Msg`, `.Conn`, `.Vars`, etc.
+- **Lifecycle Events**: Bind actions to `on_connect`, `on_disconnect`, and `on_error` events. `on_connect` runs after a successful handshake; `on_disconnect` runs when the session terminates; `on_error` triggers on both connection failures (e.g. dial errors) and runtime handler execution failures. In `on_error` handlers, the specific error message is available via the `{{.Error}}` template variable.
+- **Template Support**: All message and command fields support full Go templates with access to `.Msg`, `.Conn`, `.Vars`, `.Error`, etc.
 - **Automatic Retries**: Configure handlers to automatically retry on failure with linear or exponential backoff.
   - `retry`:
     - `count`: Number of retry attempts (e.g., `3`).
