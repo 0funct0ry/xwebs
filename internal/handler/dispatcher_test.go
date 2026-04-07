@@ -2,6 +2,8 @@ package handler
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -239,3 +241,111 @@ func TestDispatcher_Debounce(t *testing.T) {
 	conn.mu.Unlock()
 }
 
+func TestDispatcher_ExclusiveShortCircuit(t *testing.T) {
+	reg := NewRegistry()
+	engine := template.New(false)
+	conn := &mockConn{}
+	d := NewDispatcher(reg, conn, engine, false, nil)
+
+	var mu sync.Mutex
+	executed := make([]string, 0)
+
+	// Mock execute function to track execution
+	h1 := Handler{
+		Name:      "h1",
+		Priority:  10,
+		Exclusive: false,
+		Match:     Matcher{Type: "text", Pattern: "ping"},
+		Run:       "echo 'h1'",
+	}
+	h2 := Handler{
+		Name:      "h2",
+		Priority:  5,
+		Exclusive: true,
+		Match:     Matcher{Type: "text", Pattern: "ping"},
+		Run:       "echo 'h2'",
+	}
+	h3 := Handler{
+		Name:      "h3",
+		Priority:  1,
+		Exclusive: false,
+		Match:     Matcher{Type: "text", Pattern: "ping"},
+		Run:       "echo 'h3'",
+	}
+
+	reg.AddHandlers([]Handler{h1, h2, h3})
+
+	// Wrap Dispatcher.Log to track executions
+	d.Log = func(f string, a ...interface{}) {
+		mu.Lock()
+		defer mu.Unlock()
+		msg := fmt.Sprintf(f, a...)
+		executed = append(executed, strings.TrimSpace(msg))
+	}
+
+	msg := &ws.Message{
+		Data: []byte("ping"),
+		Metadata: ws.MessageMetadata{
+			Direction: "received",
+		},
+	}
+
+	// This is async by default in Dispatcher.Start, 
+	// but here we can call handleMessage directly (it's internal to dispatcher.go but visible in package)
+	d.handleMessage(context.Background(), msg)
+
+	// Wait for goroutines started in handleMessage
+	time.Sleep(200 * time.Millisecond)
+
+	mu.Lock()
+	defer mu.Unlock()
+	
+	assert.Contains(t, executed, "h1")
+	assert.Contains(t, executed, "h2")
+	assert.NotContains(t, executed, "h3")
+}
+
+func TestDispatcher_ExclusivePriority(t *testing.T) {
+	reg := NewRegistry()
+	engine := template.New(false)
+	conn := &mockConn{}
+	d := NewDispatcher(reg, conn, engine, false, nil)
+
+	var mu sync.Mutex
+	executed := make([]string, 0)
+
+	// Highest priority is exclusive
+	h1 := Handler{
+		Name:      "exclusive-priority",
+		Priority:  100,
+		Exclusive: true,
+		Match:     Matcher{Type: "text", Pattern: "ping"},
+		Run:       "echo 'exclusive'",
+	}
+	h2 := Handler{
+		Name:      "lower-priority",
+		Priority:  50,
+		Exclusive: false,
+		Match:     Matcher{Type: "text", Pattern: "ping"},
+		Run:       "echo 'lower'",
+	}
+
+	reg.AddHandlers([]Handler{h1, h2})
+
+	d.Log = func(f string, a ...interface{}) {
+		mu.Lock()
+		defer mu.Unlock()
+		msg := fmt.Sprintf(f, a...)
+		executed = append(executed, strings.TrimSpace(msg))
+	}
+
+	msg := &ws.Message{Data: []byte("ping"), Metadata: ws.MessageMetadata{Direction: "received"}}
+	d.handleMessage(context.Background(), msg)
+	time.Sleep(200 * time.Millisecond)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	assert.Contains(t, executed, "exclusive")
+	assert.NotContains(t, executed, "lower")
+}

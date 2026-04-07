@@ -70,6 +70,10 @@ func (r *Registry) Match(msg *ws.Message, engine *template.Engine, ctx *template
 		}
 		if matched {
 			matches = append(matches, h)
+			// Short-circuit: if the handler is exclusive, stop matching further handlers.
+			if h.Exclusive {
+				break
+			}
 		}
 	}
 

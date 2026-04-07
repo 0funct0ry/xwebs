@@ -158,3 +158,23 @@ func TestRegistry_BinaryMatch(t *testing.T) {
 		})
 	}
 }
+func TestRegistry_ExclusiveMatch(t *testing.T) {
+	reg := NewRegistry()
+	reg.AddHandlers([]Handler{
+		{Name: "h1", Priority: 10, Exclusive: false, Match: Matcher{Type: "text", Pattern: "ping"}},
+		{Name: "h2", Priority: 5, Exclusive: true, Match: Matcher{Type: "text", Pattern: "ping"}},
+		{Name: "h3", Priority: 1, Exclusive: false, Match: Matcher{Type: "text", Pattern: "ping"}},
+	})
+
+	engine := template.New(false)
+	ctx := template.NewContext()
+	ctx.Message = "ping"
+	msg := &ws.Message{Data: []byte("ping"), Type: ws.TextMessage}
+
+	matches, err := reg.Match(msg, engine, ctx)
+	require.NoError(t, err)
+
+	require.Len(t, matches, 2)
+	assert.Equal(t, "h1", matches[0].Name)
+	assert.Equal(t, "h2", matches[1].Name)
+}
