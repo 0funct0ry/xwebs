@@ -305,6 +305,36 @@ xwebs connect wss://stream.example.com | grep "ERROR" | tee errors.log
 xwebs connect wss://echo.websocket.org --handlers examples/handlers/handlers.yaml
 ```
 
+### Inline Handlers (CLI Flags)
+
+For quick prototyping or simple automation, you can define handlers directly from the command line using `--on`, `--on-match`, and `--respond`. These work alongside any handlers loaded from a configuration file.
+
+**Flags:**
+- `--on <pattern:command>`: Shorthand for a glob-match handler. When a message matches the glob `pattern`, it executes the shell `command`.
+- `--on-match <json>`: Define a full handler using JSON syntax.
+- `--respond <template>`: Set a default response template for all inline handlers that do not specify their own response.
+
+**Examples:**
+
+```bash
+# Quick echo handler
+xwebs connect wss://echo.websocket.org --on "hello:echo hi"
+
+# Handler with a dynamic response using shell output
+xwebs connect wss://echo.websocket.org \
+  --on "ping:echo pong" \
+  --respond "I received: {{.Stdout}}"
+
+# Complex matching with JSON
+xwebs connect wss://echo.websocket.org \
+  --on-match '{"match": {"type": "regex", "pattern": "^user:[0-9]+$"}, "run": "echo found user"}'
+
+# Multiple inline handlers
+xwebs connect wss://echo.websocket.org \
+  --on "h1:echo r1" \
+  --on "h2:echo r2"
+```
+
 **Example `handlers.yaml`:**
 ```yaml
 variables:

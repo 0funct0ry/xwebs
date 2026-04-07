@@ -122,17 +122,63 @@ Example:
 		var reg *handler.Registry
 		var dispatcher *handler.Dispatcher
 		var handlerVars map[string]interface{}
+		var handlers []handler.Handler
+
 		if handlersFile != "" {
 			cfg, err := handler.LoadConfig(handlersFile)
 			if err != nil {
 				return fmt.Errorf("loading handlers: %w", err)
 			}
-			reg = handler.NewRegistry()
-			reg.AddHandlers(cfg.Handlers)
+			handlers = append(handlers, cfg.Handlers...)
 			handlerVars = cfg.Variables
 			
 			if !quiet {
 				fmt.Fprintf(os.Stderr, "✓ Loaded %d handlers from %s\n", len(cfg.Handlers), handlersFile)
+			}
+		}
+
+		// Add inline handlers from CLI flags
+		for i, hStr := range onHandlers {
+			parts := strings.SplitN(hStr, ":", 2)
+			if len(parts) != 2 {
+				return fmt.Errorf("invalid inline handler %d: %q (expected pattern:command)", i, hStr)
+			}
+			pattern := parts[0]
+			command := parts[1]
+
+			h := handler.Handler{
+				Name: fmt.Sprintf("cli-on-%d", i),
+				Match: handler.Matcher{
+					Type:    "glob",
+					Pattern: pattern,
+				},
+				Run: command,
+			}
+			if respondTemplate != "" && h.Respond == "" {
+				h.Respond = respondTemplate
+			}
+			handlers = append(handlers, h)
+		}
+
+		for i, hJSON := range onMatchHandlers {
+			var h handler.Handler
+			if err := json.Unmarshal([]byte(hJSON), &h); err != nil {
+				return fmt.Errorf("invalid inline JSON handler %d: %w", i, err)
+			}
+			if h.Name == "" {
+				h.Name = fmt.Sprintf("cli-match-%d", i)
+			}
+			if respondTemplate != "" && h.Respond == "" {
+				h.Respond = respondTemplate
+			}
+			handlers = append(handlers, h)
+		}
+
+		if len(handlers) > 0 {
+			reg = handler.NewRegistry()
+			reg.AddHandlers(handlers)
+			if !quiet && (len(onHandlers) > 0 || len(onMatchHandlers) > 0) {
+				fmt.Fprintf(os.Stderr, "✓ Added %d inline handlers\n", len(onHandlers)+len(onMatchHandlers))
 			}
 		}
 

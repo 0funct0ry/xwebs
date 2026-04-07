@@ -24,6 +24,9 @@ var (
 	profile     string
 	proxy       string
 	noShellFunc bool
+	onHandlers   []string
+	onMatchHandlers []string
+	respondTemplate string
 )
 
 var validLogLevels = []string{"debug", "info", "warn", "error"}
@@ -43,6 +46,9 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&proxy, "proxy", "", "proxy URL (http, https, socks5)")
 	rootCmd.PersistentFlags().StringVar(&handlersFile, "handlers", "", "handlers configuration file path (YAML)")
 	rootCmd.PersistentFlags().BoolVar(&noShellFunc, "no-shell-func", false, "disable dangerous template functions (shell, env, fileRead, etc.)")
+	rootCmd.PersistentFlags().StringArrayVar(&onHandlers, "on", nil, "Define a quick handler (pattern:command)")
+	rootCmd.PersistentFlags().StringArrayVar(&onMatchHandlers, "on-match", nil, "Define an inline JSON handler")
+	rootCmd.PersistentFlags().StringVar(&respondTemplate, "respond", "", "Default response template for inline handlers")
 
 	_ = rootCmd.PersistentFlags().MarkDeprecated("toggle", "this flag is no longer used")
 
@@ -104,6 +110,9 @@ func initConfig() {
 	_ = viper.BindPFlag("proxy", rootCmd.PersistentFlags().Lookup("proxy"))
 	_ = viper.BindPFlag("handlers", rootCmd.PersistentFlags().Lookup("handlers"))
 	_ = viper.BindPFlag("no-shell-func", rootCmd.PersistentFlags().Lookup("no-shell-func"))
+	_ = viper.BindPFlag("on", rootCmd.PersistentFlags().Lookup("on"))
+	_ = viper.BindPFlag("on-match", rootCmd.PersistentFlags().Lookup("on-match"))
+	_ = viper.BindPFlag("respond", rootCmd.PersistentFlags().Lookup("respond"))
 
 	// Sync global variables from Viper and update flag defaults for help text
 	syncFlag := func(name string, ptr interface{}) {
@@ -133,6 +142,15 @@ func initConfig() {
 	syncFlag("proxy", &proxy)
 	syncFlag("handlers", &handlersFile)
 	syncFlag("no-shell-func", &noShellFunc)
+	syncFlag("respond", &respondTemplate)
+
+	// String slices need manual syncing from Viper if not set via flags
+	if !rootCmd.PersistentFlags().Changed("on") && viper.IsSet("on") {
+		onHandlers = viper.GetStringSlice("on")
+	}
+	if !rootCmd.PersistentFlags().Changed("on-match") && viper.IsSet("on-match") {
+		onMatchHandlers = viper.GetStringSlice("on-match")
+	}
 }
 
 func validateFlags() error {
@@ -193,6 +211,9 @@ For more information, visit: https://github.com/0funct0ry/xwebs`,
 			}
 			if handlersFile != "" {
 				fmt.Fprintf(os.Stderr, "  - Handlers:   %s\n", handlersFile)
+			}
+			if len(onHandlers) > 0 {
+				fmt.Fprintf(os.Stderr, "  - Inline:     %d handlers\n", len(onHandlers)+len(onMatchHandlers))
 			}
 			fmt.Fprintf(os.Stderr, "\n")
 		}
