@@ -306,9 +306,11 @@ xwebs connect wss://stream.example.com | grep "ERROR" | tee errors.log
   - **Add**: `:handler add --name <name> --match <pattern> [flags]`
   - **Delete**: `:handler delete <name>`
   - **Edit**: `:handler edit [name]` — Opens the handler (or entire config if no name provided) in your `$EDITOR`.
+  - **Save**: `:handler save <filename> [--force|-f]` — Persists all in-memory handlers and session variables to a YAML file.
   ```text
   > :handler add --name ping --match ping --respond pong
   > :handler edit ping
+  > :handler save handlers.yaml
   > :handler delete ping
   ```
 

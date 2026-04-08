@@ -583,13 +583,14 @@ func (r *REPL) RegisterCommonCommands() {
 
 	r.RegisterCommand(&BuiltinCommand{
 		name: "handler",
-		help: "Manage message handlers: :handler (add|delete|edit) <args>",
+		help: "Manage message handlers: :handler (add|delete|edit|save) <args>",
 		handler: func(ctx context.Context, r *REPL, args []string) error {
 			if len(args) == 0 {
 				r.Printf("Usage:\n")
 				r.Printf("  :handler add <flags>\n")
 				r.Printf("  :handler delete <name>\n")
 				r.Printf("  :handler edit [name]\n")
+				r.Printf("  :handler save <filename> [--force]\n")
 				r.Printf("\nFlags for 'add':\n")
 				r.Printf("  --name <name>         (optional) Unique handler name\n")
 				r.Printf("  --match <pattern>     (required) Match pattern\n")
@@ -706,6 +707,47 @@ func (r *REPL) RegisterCommonCommands() {
 					r.Printf("Handler configuration updated successfully.\n")
 					return nil
 				}
+			}
+
+			if subcmd == "save" {
+				if len(args) < 2 {
+					return fmt.Errorf("usage: :handler save <filename> [--force|-f]")
+				}
+				filename := args[1]
+
+				// Parse flags
+				fs := pflag.NewFlagSet("handler save", pflag.ContinueOnError)
+				fs.SetOutput(nil)
+				var force bool
+				fs.BoolVarP(&force, "force", "f", false, "Overwrite existing file")
+				if err := fs.Parse(args[2:]); err != nil {
+					return fmt.Errorf("parsing flags: %w", err)
+				}
+
+				// Check if file exists
+				if _, err := os.Stat(filename); err == nil && !force {
+					return fmt.Errorf("file %q already exists (use --force or -f to overwrite)", filename)
+				}
+
+				// Prepare config
+				cfg := handler.Config{
+					Variables: r.GetVars(),
+					Handlers:  r.Handlers.Handlers(),
+				}
+
+				// Marshal
+				data, err := yaml.Marshal(cfg)
+				if err != nil {
+					return fmt.Errorf("marshaling handlers: %w", err)
+				}
+
+				// Write
+				if err := os.WriteFile(filename, data, 0644); err != nil {
+					return fmt.Errorf("writing to file: %w", err)
+				}
+
+				r.Printf("Saved %d handlers and session variables to %q.\n", len(cfg.Handlers), filename)
+				return nil
 			}
 
 			if subcmd != "add" {
