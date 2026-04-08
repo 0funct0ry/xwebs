@@ -14,6 +14,7 @@ import (
 	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/matoous/go-nanoid/v2"
 	"github.com/spf13/pflag"
+	"gopkg.in/yaml.v3"
 )
 
 // Command defines the interface for a REPL command.
@@ -582,12 +583,13 @@ func (r *REPL) RegisterCommonCommands() {
 
 	r.RegisterCommand(&BuiltinCommand{
 		name: "handler",
-		help: "Manage message handlers: :handler (add|delete) <args>",
+		help: "Manage message handlers: :handler (add|delete|edit) <args>",
 		handler: func(ctx context.Context, r *REPL, args []string) error {
 			if len(args) == 0 {
 				r.Printf("Usage:\n")
 				r.Printf("  :handler add <flags>\n")
 				r.Printf("  :handler delete <name>\n")
+				r.Printf("  :handler edit [name]\n")
 				r.Printf("\nFlags for 'add':\n")
 				r.Printf("  --name <name>         (optional) Unique handler name\n")
 				r.Printf("  --match <pattern>     (required) Match pattern\n")
@@ -618,8 +620,96 @@ func (r *REPL) RegisterCommonCommands() {
 				return nil
 			}
 
+			if subcmd == "edit" {
+				if r.Handlers == nil {
+					return fmt.Errorf("no handlers registered")
+				}
+
+				if len(args) > 1 {
+					// Edit specific handler
+					name := args[1]
+					h, ok := r.Handlers.GetHandler(name)
+					if !ok {
+						return fmt.Errorf("handler %q not found", name)
+					}
+
+					data, err := yaml.Marshal(h)
+					if err != nil {
+						return fmt.Errorf("marshaling handler: %w", err)
+					}
+
+					edited, err := r.openInEditor(ctx, string(data))
+					if err != nil {
+						return err
+					}
+
+					// Check if any changes were made
+					if strings.TrimSpace(edited) == "" || strings.TrimSpace(edited) == strings.TrimSpace(string(data)) {
+						r.Printf("No changes made.\n")
+						return nil
+					}
+
+					var updatedh handler.Handler
+					if err := yaml.Unmarshal([]byte(edited), &updatedh); err != nil {
+						return fmt.Errorf("unmarshaling edited handler: %w", err)
+					}
+
+					// Validate (wrap in Config for full validation)
+					cfg := handler.Config{Handlers: []handler.Handler{updatedh}}
+					if err := cfg.Validate(); err != nil {
+						return fmt.Errorf("validation failed: %w", err)
+					}
+
+					if err := r.Handlers.UpdateHandler(updatedh); err != nil {
+						return err
+					}
+					r.Printf("Handler %q updated successfully.\n", updatedh.Name)
+					return nil
+				} else {
+					// Edit full current configuration
+					cfg := handler.Config{
+						Variables: r.GetVars(),
+						Handlers:  r.Handlers.Handlers(),
+					}
+
+					data, err := yaml.Marshal(cfg)
+					if err != nil {
+						return fmt.Errorf("marshaling configuration: %w", err)
+					}
+
+					edited, err := r.openInEditor(ctx, string(data))
+					if err != nil {
+						return err
+					}
+
+					// Check if any changes were made
+					if strings.TrimSpace(edited) == "" || strings.TrimSpace(edited) == strings.TrimSpace(string(data)) {
+						r.Printf("No changes made.\n")
+						return nil
+					}
+
+					var newCfg handler.Config
+					if err := yaml.Unmarshal([]byte(edited), &newCfg); err != nil {
+						return fmt.Errorf("unmarshaling edited configuration: %w", err)
+					}
+
+					if err := newCfg.Validate(); err != nil {
+						return fmt.Errorf("validation failed: %w", err)
+					}
+
+					// Apply changes
+					r.Handlers.ReplaceHandlers(newCfg.Handlers)
+					if newCfg.Variables != nil {
+						r.ReplaceVars(newCfg.Variables)
+					}
+					
+					r.Printf("Handler configuration updated successfully.\n")
+					return nil
+				}
+			}
+
 			if subcmd != "add" {
-				return fmt.Errorf("unknown handler subcommand: %s (use 'add' or 'delete')", subcmd)
+				return fmt.Errorf("unknown handler subcommand: %s (use 'add', 'delete' or 'edit')", subcmd)
 			}
 
 			// Safety check: ensure Handlers registry is initialized

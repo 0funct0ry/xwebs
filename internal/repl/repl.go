@@ -16,7 +16,9 @@ import (
 	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/0funct0ry/xwebs/internal/ws"
 	"github.com/chzyer/readline"
+	"os/exec"
 	"os/signal"
+	"runtime"
 	"syscall"
 )
 
@@ -565,6 +567,13 @@ func (r *REPL) GetVars() map[string]interface{} {
 	return res
 }
 
+// ReplaceVars replaces all session variables.
+func (r *REPL) ReplaceVars(vars map[string]interface{}) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.vars = vars
+}
+
 // SetCompletionData sets dynamic completion suggestions for a given category.
 func (r *REPL) SetCompletionData(category string, suggestions []string) {
 	r.mu.Lock()
@@ -610,7 +619,6 @@ func (r *REPL) AddCompletionItem(category string, item string) {
 	r.completionData[category] = data
 }
 
-// splitCommand splits a line into parts, respecting quotes and braces.
 func splitCommand(line string) []string {
 	var parts []string
 	var current strings.Builder
@@ -619,10 +627,21 @@ func splitCommand(line string) []string {
 
 	for i := 0; i < len(line); i++ {
 		c := line[i]
+
+		// Handle escapes
+		if c == '\\' && i+1 < len(line) {
+			current.WriteByte(line[i+1])
+			i++
+			continue
+		}
+
 		switch {
-		case c == '"' && (i == 0 || line[i-1] != '\\'):
+		case c == '"':
 			inQuotes = !inQuotes
-			current.WriteByte(c)
+			// Preserve quotes if we are inside a braced expression (like JSON)
+			if braceLevel > 0 {
+				current.WriteByte(c)
+			}
 		case c == '{' && !inQuotes:
 			braceLevel++
 			current.WriteByte(c)
@@ -644,4 +663,51 @@ func splitCommand(line string) []string {
 		parts = append(parts, current.String())
 	}
 	return parts
+}
+
+// openInEditor opens the given content in an external editor and returns the modified content.
+func (r *REPL) openInEditor(ctx context.Context, initialContent string) (string, error) {
+	// 1. Determine editor
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		if runtime.GOOS == "windows" {
+			editor = "notepad"
+		} else {
+			editor = "vim"
+		}
+	}
+
+	// 2. Create temporary file
+	tmpFile, err := os.CreateTemp("", "xwebs-handler-*.yaml")
+	if err != nil {
+		return "", fmt.Errorf("creating temp file: %w", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.WriteString(initialContent); err != nil {
+		_ = tmpFile.Close()
+		return "", fmt.Errorf("writing to temp file: %w", err)
+	}
+	_ = tmpFile.Close()
+
+	// 3. Spawn editor
+	// We need to use exec.Command and connect Stdin/Stdout/Stderr to the real terminal.
+	// We don't use CommandContext here because we want the editor to handle signals itself 
+	// (e.g. ^C in vim should not kill the editor process if the user is just typing).
+	cmd := exec.Command(editor, tmpFile.Name())
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("editor %q exited with error: %w", editor, err)
+	}
+
+	// 4. Read back
+	content, err := os.ReadFile(tmpFile.Name())
+	if err != nil {
+		return "", fmt.Errorf("reading temp file: %w", err)
+	}
+
+	return string(content), nil
 }

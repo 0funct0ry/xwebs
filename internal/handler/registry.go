@@ -61,11 +61,80 @@ func (r *Registry) Add(h Handler) error {
 	return nil
 }
 
+// GetHandler returns a copy of a handler by name.
+func (r *Registry) GetHandler(name string) (Handler, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for _, h := range r.handlers {
+		if h.Name == name {
+			return h, true
+		}
+	}
+	return Handler{}, false
+}
+
+// UpdateHandler replaces an existing handler with the same name.
+func (r *Registry) UpdateHandler(h Handler) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	index := -1
+	for i, existing := range r.handlers {
+		if existing.Name == h.Name {
+			index = i
+			break
+		}
+	}
+
+	if index == -1 {
+		return fmt.Errorf("handler %q not found", h.Name)
+	}
+
+	// Clean up resources for the old version
+	delete(r.handlerMu, h.Name)
+	delete(r.limiters, h.Name)
+	if d, ok := r.debouncers[h.Name]; ok {
+		d.mu.Lock()
+		if d.timer != nil {
+			d.timer.Stop()
+		}
+		d.mu.Unlock()
+		delete(r.debouncers, h.Name)
+	}
+
+	r.handlers[index] = h
+	r.sort()
+	return nil
+}
+
 // AddHandlers adds multiple handlers to the registry and sorts them by priority.
 func (r *Registry) AddHandlers(handlers []Handler) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.handlers = append(r.handlers, handlers...)
+	r.sort()
+}
+
+// ReplaceHandlers replaces all handlers in the registry and cleans up resources.
+func (r *Registry) ReplaceHandlers(handlers []Handler) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Clean up all resources
+	r.handlerMu = make(map[string]*sync.Mutex)
+	r.limiters = make(map[string]*rate.Limiter)
+	for _, d := range r.debouncers {
+		d.mu.Lock()
+		if d.timer != nil {
+			d.timer.Stop()
+		}
+		d.mu.Unlock()
+	}
+	r.debouncers = make(map[string]*debouncer)
+	r.schemas = make(map[string]*gojsonschema.Schema)
+
+	r.handlers = handlers
 	r.sort()
 }
 

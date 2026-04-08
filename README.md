@@ -305,8 +305,10 @@ xwebs connect wss://stream.example.com | grep "ERROR" | tee errors.log
 - **Dynamic Handlers**: Manage handlers directly from the REPL without restarting or editing files using the `:handler` command.
   - **Add**: `:handler add --name <name> --match <pattern> [flags]`
   - **Delete**: `:handler delete <name>`
+  - **Edit**: `:handler edit [name]` — Opens the handler (or entire config if no name provided) in your `$EDITOR`.
   ```text
   > :handler add --name ping --match ping --respond pong
+  > :handler edit ping
   > :handler delete ping
   ```
 

@@ -239,3 +239,65 @@ func TestRegistry_Delete(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, reg.limiters["h2"])
 }
+
+func TestRegistry_GetHandler(t *testing.T) {
+	reg := NewRegistry()
+	h1 := Handler{Name: "h1", Match: Matcher{Type: "text", Pattern: "ping"}}
+	_ = reg.Add(h1)
+
+	h, ok := reg.GetHandler("h1")
+	assert.True(t, ok)
+	assert.Equal(t, "h1", h.Name)
+
+	_, ok = reg.GetHandler("foo")
+	assert.False(t, ok)
+}
+
+func TestRegistry_UpdateHandler(t *testing.T) {
+	reg := NewRegistry()
+	h1 := Handler{Name: "h1", Priority: 5, Match: Matcher{Type: "text", Pattern: "ping"}}
+	_ = reg.Add(h1)
+
+	// Resource presence
+	_ = reg.GetLimiter("h1", "10/s")
+	require.NotNil(t, reg.limiters["h1"])
+
+	// Update handler
+	updated := Handler{Name: "h1", Priority: 10, Match: Matcher{Type: "text", Pattern: "pong"}}
+	err := reg.UpdateHandler(updated)
+	require.NoError(t, err)
+
+	handlers := reg.Handlers()
+	require.Len(t, handlers, 1)
+	assert.Equal(t, "pong", handlers[0].Match.Pattern)
+	assert.Equal(t, 10, handlers[0].Priority)
+
+	// Resource cleanup check
+	assert.Nil(t, reg.limiters["h1"])
+
+	// Update non-existent
+	err = reg.UpdateHandler(Handler{Name: "foo"})
+	require.Error(t, err)
+}
+
+func TestRegistry_ReplaceHandlers(t *testing.T) {
+	reg := NewRegistry()
+	reg.AddHandlers([]Handler{
+		{Name: "h1", Priority: 5},
+		{Name: "h2", Priority: 10},
+	})
+	_ = reg.GetLimiter("h1", "10/s")
+	require.NotNil(t, reg.limiters["h1"])
+
+	newHandlers := []Handler{
+		{Name: "new1", Priority: 1},
+	}
+	reg.ReplaceHandlers(newHandlers)
+
+	handlers := reg.Handlers()
+	require.Len(t, handlers, 1)
+	assert.Equal(t, "new1", handlers[0].Name)
+
+	// Resource cleanup check
+	assert.Nil(t, reg.limiters["h1"])
+}
