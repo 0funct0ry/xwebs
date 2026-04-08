@@ -142,6 +142,8 @@ When running in a terminal (TTY), `xwebs connect` enters a rich interactive REPL
 | `:record <f>`    | Start relative-time session recording                |
 | `:replay <f>`    | Play back a session recording with timing            |
 | `:mock <f>`      | Load YAML-based mock scenario                        |
+| `:handlers`      | List all loaded handlers in priority order           |
+| `:handler add`   | Dynamically add a new message handler                |
 
 **Multi-line Input:**
 
@@ -299,9 +301,11 @@ xwebs connect wss://stream.example.com | grep "ERROR" | tee errors.log
 - **Shell Sandboxing**: Restrict shell command execution to an explicit allowlist for enhanced security when handling untrusted messages or configurations.
   - `--sandbox`: Enables sandboxing mode.
   - `--allowlist`: Configures a comma-separated list of approved executables (e.g., `echo,ls,grep`).
-  - When enabled, any attempt to run a command not in the allowlist (or any command containing dangerous patterns like command substitution `$()` or `` ` ``) will be rejected with an error. 
-  - Sandbox settings can also be defined in a `handlers.yaml` file.
-- **REPL Observability**: Use the `:handlers` command in the REPL to see the loaded handlers in their execution order.
+  - **REPL Observability**: Use the `:handlers` command in the REPL to see the loaded handlers in their execution order.
+- **Dynamic Handlers**: Add new handlers directly from the REPL without restarting or editing files with the `:handler add` command.
+  ```text
+  > :handler add --name ping --match ping --respond pong
+  ```
 
 
 

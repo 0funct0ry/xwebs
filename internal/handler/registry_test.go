@@ -178,3 +178,34 @@ func TestRegistry_ExclusiveMatch(t *testing.T) {
 	assert.Equal(t, "h1", matches[0].Name)
 	assert.Equal(t, "h2", matches[1].Name)
 }
+
+func TestRegistry_Add(t *testing.T) {
+	reg := NewRegistry()
+	h1 := Handler{Name: "h1", Priority: 5, Match: Matcher{Type: "text", Pattern: "ping"}}
+	h2 := Handler{Name: "h2", Priority: 10, Match: Matcher{Type: "text", Pattern: "ping"}}
+
+	err := reg.Add(h1)
+	require.NoError(t, err)
+
+	err = reg.Add(h2)
+	require.NoError(t, err)
+
+	handlers := reg.Handlers()
+	require.Len(t, handlers, 2)
+	// h2 should be first because of higher priority
+	assert.Equal(t, "h2", handlers[0].Name)
+	assert.Equal(t, "h1", handlers[1].Name)
+}
+
+func TestRegistry_DuplicateAdd(t *testing.T) {
+	reg := NewRegistry()
+	h1 := Handler{Name: "h1", Match: Matcher{Type: "text", Pattern: "ping"}}
+	h2 := Handler{Name: "h1", Match: Matcher{Type: "text", Pattern: "pong"}}
+
+	err := reg.Add(h1)
+	require.NoError(t, err)
+
+	err = reg.Add(h2)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `handler "h1" already exists`)
+}

@@ -499,7 +499,10 @@ Example:
 					}
 				}
 
-				r.Handlers = reg
+				if reg != nil {
+					// Merge into the already initialized REPL handlers
+					r.Handlers.AddHandlers(reg.Handlers())
+				}
 				defer r.Close()
 			}
 		}
@@ -684,12 +687,18 @@ Example:
 					infoln(r, isInteractive, "Compression: permessage-deflate")
 				}
 
-				if reg != nil {
+				// Start dispatcher if handlers exist or if we are in interactive mode (where handlers can be added)
+				handlerReg := reg
+				if r != nil && r.Handlers != nil {
+					handlerReg = r.Handlers
+				}
+
+				if handlerReg != nil {
 					var sessionVars map[string]interface{}
 					if cc.repl != nil {
 						sessionVars = cc.repl.GetVars()
 					}
-					dispatcher = handler.NewDispatcher(reg, conn, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist)
+					dispatcher = handler.NewDispatcher(handlerReg, conn, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist)
 					if isInteractive && r != nil {
 
 						dispatcher.Log = func(f string, a ...interface{}) {

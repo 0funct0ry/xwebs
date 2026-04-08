@@ -45,8 +45,26 @@ func NewRegistry() *Registry {
 	}
 }
 
+// Add adds a single handler to the registry, subject to name uniqueness.
+func (r *Registry) Add(h Handler) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for _, existing := range r.handlers {
+		if existing.Name == h.Name {
+			return fmt.Errorf("handler %q already exists", h.Name)
+		}
+	}
+
+	r.handlers = append(r.handlers, h)
+	r.sort()
+	return nil
+}
+
 // AddHandlers adds multiple handlers to the registry and sorts them by priority.
 func (r *Registry) AddHandlers(handlers []Handler) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.handlers = append(r.handlers, handlers...)
 	r.sort()
 }

@@ -10,7 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/0funct0ry/xwebs/internal/handler"
 	"github.com/0funct0ry/xwebs/internal/template"
+	"github.com/matoous/go-nanoid/v2"
+	"github.com/spf13/pflag"
 )
 
 // Command defines the interface for a REPL command.
@@ -522,19 +525,44 @@ func (r *REPL) RegisterCommonCommands() {
 				matcherStr := ""
 				if h.Match.Regex != "" {
 					matcherStr = "regex:" + h.Match.Regex
+				} else if h.Match.JQ != "" {
+					matcherStr = "jq:" + h.Match.JQ
 				} else if h.Match.Type != "" {
 					matcherStr = fmt.Sprintf("%s:%s", h.Match.Type, h.Match.Pattern)
 				} else {
 					matcherStr = "text:" + h.Match.Pattern
 				}
 
-				r.Printf("  %2d. %-20s [%s] match=%s\n", i+1, h.Name, priorityStr, matcherStr)
+				extraInfo := ""
+				if h.Exclusive {
+					extraInfo += " [exclusive]"
+				}
+				if h.Concurrent != nil && !*h.Concurrent {
+					extraInfo += " [sequential]"
+				}
+				if h.RateLimit != "" {
+					extraInfo += fmt.Sprintf(" [limit:%s]", h.RateLimit)
+				}
+				if h.Debounce != "" {
+					extraInfo += fmt.Sprintf(" [debounce:%s]", h.Debounce)
+				}
+
+				r.Printf("  %2d. %-20s [%s]%s match=%s\n", i+1, h.Name, priorityStr, extraInfo, matcherStr)
 				for _, a := range h.Actions {
 					desc := a.Command
 					if desc == "" {
 						desc = a.Message
 					}
 					r.Printf("      - %-8s %s\n", a.Type, desc)
+				}
+				if h.Run != "" {
+					r.Printf("      - %-8s %s\n", "run", h.Run)
+				}
+				if h.Respond != "" {
+					r.Printf("      - %-8s %s\n", "respond", h.Respond)
+				}
+				if h.Builtin != "" {
+					r.Printf("      - %-8s %s\n", "builtin", h.Builtin)
 				}
 				if len(h.OnConnect) > 0 {
 					r.Printf("      (on_connect: %d actions)\n", len(h.OnConnect))
@@ -546,6 +574,107 @@ func (r *REPL) RegisterCommonCommands() {
 					r.Printf("      (on_error: %d actions)\n", len(h.OnError))
 				}
 			}
+			return nil
+		},
+	})
+
+	r.RegisterAlias("h", "handlers")
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "handler",
+		help: "Manage message handlers: :handler add <flags>",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if len(args) == 0 {
+				r.Printf("Usage: :handler add <flags>\n")
+				r.Printf("Flags:\n")
+				r.Printf("  --name <name>         (required) Unique handler name\n")
+				r.Printf("  --match <pattern>     (required) Match pattern\n")
+				r.Printf("  --match-type <type>   Match type (text, glob, regex, jq, etc.)\n")
+				r.Printf("  --priority <n>        Numeric priority (higher runs first)\n")
+				r.Printf("  --run <cmd>           Shell command to run on match\n")
+				r.Printf("  --respond <tmpl>      Response template to send after run\n")
+				r.Printf("  --exclusive           Stop further matching if this handler matches\n")
+				r.Printf("  --sequential          Run handler actions sequentially (disable concurrency)\n")
+				r.Printf("  --rate-limit <limit>  Rate limit (e.g. '10/s')\n")
+				r.Printf("  --debounce <duration> Debounce time (e.g. '500ms')\n")
+				return nil
+			}
+
+			subcmd := args[0]
+			if subcmd != "add" {
+				return fmt.Errorf("unknown handler subcommand: %s (only 'add' is supported)", subcmd)
+			}
+
+			// Safety check: ensure Handlers registry is initialized
+			if r.Handlers == nil {
+				r.Handlers = handler.NewRegistry()
+			}
+
+			// Parse flags robustly using pflag
+			fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
+			fs.SetOutput(nil) // Suppress automatic usage printing on error
+
+			var name, match, matchType, run, respond, rateLimit, debounce string
+			var priority int
+			var exclusive, sequential bool
+
+			fs.StringVar(&name, "name", "", "Name of the handler")
+			fs.StringVar(&match, "match", "", "Match pattern")
+			fs.StringVar(&matchType, "match-type", "", "Match type")
+			fs.IntVar(&priority, "priority", 0, "Priority")
+			fs.StringVar(&run, "run", "", "Shell command")
+			fs.StringVar(&respond, "respond", "", "Response template")
+			fs.BoolVar(&exclusive, "exclusive", false, "Short-circuit match")
+			fs.BoolVar(&sequential, "sequential", false, "Run actions sequentially")
+			fs.StringVar(&rateLimit, "rate-limit", "", "Rate limit")
+			fs.StringVar(&debounce, "debounce", "", "Debounce duration")
+
+			if err := fs.Parse(args[1:]); err != nil {
+				return fmt.Errorf("parsing flags: %w", err)
+			}
+
+			// Validation
+			if match == "" {
+				return fmt.Errorf("--match is required")
+			}
+
+			// Auto-generate name if missing
+			if name == "" {
+				id, err := gonanoid.Generate("abcdefghijklmnopqrstuvwxyz0123456789", 6)
+				if err != nil {
+					// Fallback to timestamp if nanoid fails
+					name = fmt.Sprintf("h-%d", time.Now().Unix()%10000)
+				} else {
+					name = "h-" + id
+				}
+			}
+
+			// Construct handler
+			h := handler.Handler{
+				Name:      name,
+				Priority:  priority,
+				Exclusive: exclusive,
+				Run:       run,
+				Respond:   respond,
+				Match: handler.Matcher{
+					Pattern: match,
+					Type:    matchType,
+				},
+				RateLimit: rateLimit,
+				Debounce:  debounce,
+			}
+
+			if sequential {
+				f := false
+				h.Concurrent = &f
+			}
+
+			// Add to registry
+			if err := r.Handlers.Add(h); err != nil {
+				return err
+			}
+
+			r.Printf("Handler %q added successfully.\n", name)
 			return nil
 		},
 	})

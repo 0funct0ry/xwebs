@@ -169,6 +169,7 @@ func New(mode Mode, cfg *Config) (*REPL, error) {
 		vars:           make(map[string]interface{}),
 		completionData: make(map[string][]string),
 		done:           make(chan struct{}),
+		Handlers:       handler.NewRegistry(),
 	}
 
 	// Detect if Stdout is a TTY
