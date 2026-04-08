@@ -183,6 +183,71 @@ func (r *REPL) RegisterCommonCommands() {
 	})
 
 	r.RegisterCommand(&BuiltinCommand{
+		name: "ls",
+		help: "List directory contents: :ls [-l] [path]",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			var long bool
+			var path string = "."
+
+			fs := pflag.NewFlagSet("ls", pflag.ContinueOnError)
+			fs.SetOutput(nil)
+			fs.BoolVarP(&long, "long", "l", false, "Detailed listing")
+
+			if err := fs.Parse(args); err != nil {
+				return fmt.Errorf("parsing flags: %w", err)
+			}
+
+			remaining := fs.Args()
+			if len(remaining) > 0 {
+				path = remaining[0]
+			}
+
+			// Clean path (remove quotes if any - though splitCommand should have done it)
+			path = strings.Trim(path, "\"'")
+
+			entries, err := os.ReadDir(path)
+			if err != nil {
+				return fmt.Errorf("reading directory: %w", err)
+			}
+
+			if len(entries) == 0 {
+				return nil
+			}
+
+			if long {
+				r.Printf("\n%-12s %10s %-20s %s\n", "Mode", "Size", "Modified", "Name")
+				r.Printf("%s\n", strings.Repeat("-", 62))
+				for _, entry := range entries {
+					info, err := entry.Info()
+					if err != nil {
+						continue
+					}
+
+					name := entry.Name()
+					if entry.IsDir() {
+						name = r.Display.colorizedText(name+"/", "cyan")
+					}
+
+					r.Printf("%-12s %10d %-20s %s\n",
+						info.Mode().String(),
+						info.Size(),
+						info.ModTime().Format("2006-01-02 15:04:05"),
+						name)
+				}
+			} else {
+				for _, entry := range entries {
+					name := entry.Name()
+					if entry.IsDir() {
+						name = r.Display.colorizedText(name+"/", "cyan")
+					}
+					r.Printf("  %s\n", name)
+				}
+			}
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
 		name: "history",
 		help: "Display command history: :history [n]",
 		handler: func(ctx context.Context, r *REPL, args []string) error {
