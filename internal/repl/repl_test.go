@@ -184,6 +184,26 @@ func TestSessionCommands(t *testing.T) {
 			t.Errorf("Unexpected error: %v", err)
 		}
 	})
+
+	t.Run("pwd", func(t *testing.T) {
+		err := r.ExecuteCommand(context.Background(), ":pwd")
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+
+		err = r.ExecuteCommand(context.Background(), ":pwd mydir")
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+
+		val := r.GetVar("mydir")
+		if val == nil {
+			t.Errorf("Expected variable 'mydir' to be set")
+		}
+		if _, ok := val.(string); !ok {
+			t.Errorf("Expected 'mydir' to be a string, got %T", val)
+		}
+	})
 }
 
 func TestScriptingCommands(t *testing.T) {

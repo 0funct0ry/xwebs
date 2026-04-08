@@ -163,6 +163,26 @@ func (r *REPL) RegisterCommonCommands() {
 	})
 
 	r.RegisterCommand(&BuiltinCommand{
+		name: "pwd",
+		help: "Display the current working directory: :pwd [varname]",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("getting current directory: %w", err)
+			}
+
+			if len(args) > 0 {
+				r.SetVar(args[0], cwd)
+				r.Printf("Saved to variable %s: ", args[0])
+			}
+
+			colorized := r.Display.colorizedText(cwd, "cyan")
+			r.Printf("%s\n", colorized)
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
 		name: "history",
 		help: "Display command history: :history [n]",
 		handler: func(ctx context.Context, r *REPL, args []string) error {

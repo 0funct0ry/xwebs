@@ -122,6 +122,7 @@ When running in a terminal (TTY), `xwebs connect` enters a rich interactive REPL
 | `:get <k>`       | Get the value of a session variable                  |
 | `:vars`          | List all active session variables                    |
 | `:env`           | List all environment variables                       |
+| `:pwd [var]`     | Show current working directory (optional save to var)|
 | `:history [n]`   | Display last N command history                       |
 | `:bench <n> <m>` | Benchmark latency for N iterations                   |
 | `:flood <msg>`   | Stress test server with high-rate messages           |
