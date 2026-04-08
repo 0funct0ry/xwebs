@@ -209,3 +209,33 @@ func TestRegistry_DuplicateAdd(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `handler "h1" already exists`)
 }
+
+func TestRegistry_Delete(t *testing.T) {
+	reg := NewRegistry()
+	h1 := Handler{Name: "h1", Priority: 5, Match: Matcher{Type: "text", Pattern: "ping"}}
+	h2 := Handler{Name: "h2", Priority: 10, Match: Matcher{Type: "text", Pattern: "pong"}}
+	h3 := Handler{Name: "h3", Priority: 0, Match: Matcher{Type: "text", Pattern: "echo"}}
+
+	reg.AddHandlers([]Handler{h1, h2, h3})
+	require.Len(t, reg.Handlers(), 3)
+
+	// Delete existing handler
+	err := reg.Delete("h1")
+	require.NoError(t, err)
+	handlers := reg.Handlers()
+	require.Len(t, handlers, 2)
+	assert.Equal(t, "h2", handlers[0].Name)
+	assert.Equal(t, "h3", handlers[1].Name)
+
+	// Delete non-existent handler
+	err = reg.Delete("foo")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `handler "foo" not found`)
+
+	// Resource cleanup check
+	_ = reg.GetLimiter("h2", "10/s")
+	require.NotNil(t, reg.limiters["h2"])
+	err = reg.Delete("h2")
+	require.NoError(t, err)
+	assert.Nil(t, reg.limiters["h2"])
+}

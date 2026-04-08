@@ -69,6 +69,40 @@ func (r *Registry) AddHandlers(handlers []Handler) {
 	r.sort()
 }
 
+// Delete removes a handler by name and cleans up associated resources.
+func (r *Registry) Delete(name string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	found := false
+	for i, h := range r.handlers {
+		if h.Name == name {
+			r.handlers = append(r.handlers[:i], r.handlers[i+1:]...)
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("handler %q not found", name)
+	}
+
+	// Clean up associated resources
+	delete(r.handlerMu, name)
+	delete(r.limiters, name)
+
+	if d, ok := r.debouncers[name]; ok {
+		d.mu.Lock()
+		if d.timer != nil {
+			d.timer.Stop()
+		}
+		d.mu.Unlock()
+		delete(r.debouncers, name)
+	}
+
+	return nil
+}
+
 // Sort orders handlers by priority (descending) and then original order.
 func (r *Registry) sort() {
 	sort.SliceStable(r.handlers, func(i, j int) bool {

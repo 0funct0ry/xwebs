@@ -143,7 +143,7 @@ When running in a terminal (TTY), `xwebs connect` enters a rich interactive REPL
 | `:replay <f>`    | Play back a session recording with timing            |
 | `:mock <f>`      | Load YAML-based mock scenario                        |
 | `:handlers`      | List all loaded handlers in priority order           |
-| `:handler add`   | Dynamically add a new message handler                |
+| `:handler`       | Manage handlers: `add <flags>` or `delete <name>`    |
 
 **Multi-line Input:**
 
@@ -302,9 +302,12 @@ xwebs connect wss://stream.example.com | grep "ERROR" | tee errors.log
   - `--sandbox`: Enables sandboxing mode.
   - `--allowlist`: Configures a comma-separated list of approved executables (e.g., `echo,ls,grep`).
   - **REPL Observability**: Use the `:handlers` command in the REPL to see the loaded handlers in their execution order.
-- **Dynamic Handlers**: Add new handlers directly from the REPL without restarting or editing files with the `:handler add` command.
+- **Dynamic Handlers**: Manage handlers directly from the REPL without restarting or editing files using the `:handler` command.
+  - **Add**: `:handler add --name <name> --match <pattern> [flags]`
+  - **Delete**: `:handler delete <name>`
   ```text
   > :handler add --name ping --match ping --respond pong
+  > :handler delete ping
   ```
 
 

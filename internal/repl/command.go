@@ -582,12 +582,14 @@ func (r *REPL) RegisterCommonCommands() {
 
 	r.RegisterCommand(&BuiltinCommand{
 		name: "handler",
-		help: "Manage message handlers: :handler add <flags>",
+		help: "Manage message handlers: :handler (add|delete) <args>",
 		handler: func(ctx context.Context, r *REPL, args []string) error {
 			if len(args) == 0 {
-				r.Printf("Usage: :handler add <flags>\n")
-				r.Printf("Flags:\n")
-				r.Printf("  --name <name>         (required) Unique handler name\n")
+				r.Printf("Usage:\n")
+				r.Printf("  :handler add <flags>\n")
+				r.Printf("  :handler delete <name>\n")
+				r.Printf("\nFlags for 'add':\n")
+				r.Printf("  --name <name>         (optional) Unique handler name\n")
 				r.Printf("  --match <pattern>     (required) Match pattern\n")
 				r.Printf("  --match-type <type>   Match type (text, glob, regex, jq, etc.)\n")
 				r.Printf("  --priority <n>        Numeric priority (higher runs first)\n")
@@ -601,8 +603,23 @@ func (r *REPL) RegisterCommonCommands() {
 			}
 
 			subcmd := args[0]
+			if subcmd == "delete" {
+				if len(args) < 2 {
+					return fmt.Errorf("usage: :handler delete <name>")
+				}
+				if r.Handlers == nil {
+					return fmt.Errorf("no handlers registered")
+				}
+				name := args[1]
+				if err := r.Handlers.Delete(name); err != nil {
+					return err
+				}
+				r.Printf("Handler %q deleted successfully.\n", name)
+				return nil
+			}
+
 			if subcmd != "add" {
-				return fmt.Errorf("unknown handler subcommand: %s (only 'add' is supported)", subcmd)
+				return fmt.Errorf("unknown handler subcommand: %s (use 'add' or 'delete')", subcmd)
 			}
 
 			// Safety check: ensure Handlers registry is initialized
