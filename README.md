@@ -125,6 +125,7 @@ When running in a terminal (TTY), `xwebs connect` enters a rich interactive REPL
 | `:pwd [var]`     | Show current working directory (optional save to var)|
 | `:cd [path\|-]`  | Change the current working directory                 |
 | `:ls [-l] [path]`| List directory contents (with optional detailed view)|
+| `:mkdir [-p] <d>`| Create a new directory (with optional parent creation)|
 | `:cat <file>`    | Display file contents with syntax highlighting       |
 | `:history [n]`   | Display last N command history                       |
 | `:bench <n> <m>` | Benchmark latency for N iterations                   |

@@ -296,6 +296,42 @@ func (r *REPL) RegisterCommonCommands() {
 			return nil
 		},
 	})
+	r.RegisterCommand(&BuiltinCommand{
+		name: "mkdir",
+		help: "Create a new directory: :mkdir [-p] <dirname>",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			var parents bool
+			fs := pflag.NewFlagSet("mkdir", pflag.ContinueOnError)
+			fs.SetOutput(nil)
+			fs.BoolVarP(&parents, "parents", "p", false, "Create parent directories as needed")
+
+			if err := fs.Parse(args); err != nil {
+				return fmt.Errorf("parsing flags: %w", err)
+			}
+
+			remaining := fs.Args()
+			if len(remaining) < 1 {
+				return fmt.Errorf("usage: :mkdir [-p] <dirname>")
+			}
+
+			path := strings.Trim(remaining[0], "\"'")
+			
+			var err error
+			if parents {
+				err = os.MkdirAll(path, 0755)
+			} else {
+				err = os.Mkdir(path, 0755)
+			}
+
+			if err != nil {
+				return fmt.Errorf("creating directory %s: %w", path, err)
+			}
+
+			colorized := r.Display.colorizedText(path, "cyan")
+			r.Printf("Directory created: %s\n", colorized)
+			return nil
+		},
+	})
 
 	r.RegisterCommand(&BuiltinCommand{
 		name: "cat",
