@@ -181,6 +181,56 @@ func (r *REPL) RegisterCommonCommands() {
 			return nil
 		},
 	})
+ 
+	r.RegisterCommand(&BuiltinCommand{
+		name: "cd",
+		help: "Change the current working directory: :cd [path|-]",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("getting current directory: %w", err)
+			}
+
+			var target string
+			if len(args) == 0 {
+				home, err := os.UserHomeDir()
+				if err != nil {
+					return fmt.Errorf("getting home directory: %w", err)
+				}
+				target = home
+			} else if args[0] == "-" {
+				if r.prevDir == "" {
+					return fmt.Errorf("no previous directory")
+				}
+				target = r.prevDir
+			} else {
+				target = args[0]
+			}
+
+			// Clean path (remove quotes if any)
+			target = strings.Trim(target, "\"'")
+
+			if err := os.Chdir(target); err != nil {
+				return fmt.Errorf("changing directory to %s: %w", target, err)
+			}
+
+			// Update prevDir to the OLD cwd
+			r.prevDir = cwd
+
+			// Get the NEW cwd for display and prompt
+			newCwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("getting new current directory: %w", err)
+			}
+
+			colorized := r.Display.colorizedText(newCwd, "cyan")
+			r.Printf("Directory changed to: %s\n", colorized)
+
+			// Update the prompt if it depends on the directory
+			r.renderPrompt()
+			return nil
+		},
+	})
 
 	r.RegisterCommand(&BuiltinCommand{
 		name: "ls",

@@ -2,6 +2,8 @@ package repl
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -203,6 +205,59 @@ func TestSessionCommands(t *testing.T) {
 		if _, ok := val.(string); !ok {
 			t.Errorf("Expected 'mydir' to be a string, got %T", val)
 		}
+	})
+
+	t.Run("cd", func(t *testing.T) {
+		initialDir, _ := os.Getwd()
+		home, _ := os.UserHomeDir()
+		
+		// Create a temp dir to test cd
+		tmpDir, err := os.MkdirTemp("", "xwebs-cd-test")
+		if err != nil {
+			t.Fatalf("Failed to create temp dir: %v", err)
+		}
+		defer os.RemoveAll(tmpDir)
+
+		// 1. CD to temp dir
+		err = r.ExecuteCommand(context.Background(), ":cd "+tmpDir)
+		if err != nil {
+			t.Errorf("CD to temp dir failed: %v", err)
+		}
+		cwd, _ := os.Getwd()
+		// On macOS, /tmp is a symlink to /private/tmp, so we use filepath.EvalSymlinks or just compare suffixes if they are different but equivalent.
+		// For simplicity, we just check if it changed from initialDir.
+		if cwd == initialDir && cwd != tmpDir {
+			t.Errorf("Expected directory to change, still in %s", cwd)
+		}
+		if r.prevDir != initialDir {
+			t.Errorf("Expected prevDir to be %s, got %s", initialDir, r.prevDir)
+		}
+
+		// 2. CD - (back to initial)
+		err = r.ExecuteCommand(context.Background(), ":cd -")
+		if err != nil {
+			t.Errorf("CD - failed: %v", err)
+		}
+		cwd, _ = os.Getwd()
+		if cwd != initialDir {
+			t.Errorf("Expected to be back in %s, got %s", initialDir, cwd)
+		}
+
+		// 3. CD (home)
+		err = r.ExecuteCommand(context.Background(), ":cd")
+		if err != nil {
+			t.Errorf("CD to home failed: %v", err)
+		}
+		cwd, _ = os.Getwd()
+		// Compare with home (evaluate symlinks to be safe on macOS)
+		evalCwd, _ := filepath.EvalSymlinks(cwd)
+		evalHome, _ := filepath.EvalSymlinks(home)
+		if evalCwd != evalHome {
+			t.Errorf("Expected to be in home %s, got %s", evalHome, evalCwd)
+		}
+
+		// Cleanup: go back to initialDir so other tests aren't affected
+		_ = os.Chdir(initialDir)
 	})
 }
 

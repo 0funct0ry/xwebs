@@ -95,6 +95,9 @@ type REPL struct {
 	promptTemplate    string
 	originalPrompt    string
 	promptErrReported bool
+
+	// prevDir stores the previous working directory for :cd -
+	prevDir string
 }
 
 // Config defines the configuration for the REPL.

@@ -123,6 +123,7 @@ When running in a terminal (TTY), `xwebs connect` enters a rich interactive REPL
 | `:vars`          | List all active session variables                    |
 | `:env`           | List all environment variables                       |
 | `:pwd [var]`     | Show current working directory (optional save to var)|
+| `:cd [path\|-]`  | Change the current working directory                 |
 | `:ls [-l] [path]`| List directory contents (with optional detailed view)|
 | `:history [n]`   | Display last N command history                       |
 | `:bench <n> <m>` | Benchmark latency for N iterations                   |
