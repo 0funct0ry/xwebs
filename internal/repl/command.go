@@ -298,6 +298,63 @@ func (r *REPL) RegisterCommonCommands() {
 	})
 
 	r.RegisterCommand(&BuiltinCommand{
+		name: "cat",
+		help: "Display file contents: :cat <filename>",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("usage: :cat <filename>")
+			}
+			path := strings.Trim(args[0], "\"'")
+
+			f, err := os.Open(path)
+			if err != nil {
+				return fmt.Errorf("opening file: %w", err)
+			}
+			defer f.Close()
+
+			info, err := f.Stat()
+			if err != nil {
+				return fmt.Errorf("getting file info: %w", err)
+			}
+			if info.IsDir() {
+				return fmt.Errorf("%s is a directory", path)
+			}
+
+			const maxLines = 500
+			const maxSize = 1024 * 1024 // 1MB
+			
+			scanner := bufio.NewScanner(f)
+			lineNum := 0
+			totalSize := 0
+			truncated := false
+
+			for scanner.Scan() {
+				lineNum++
+				line := scanner.Text()
+				totalSize += len(line) + 1
+
+				if lineNum > maxLines || totalSize > maxSize {
+					truncated = true
+					break
+				}
+
+				highlighted := r.Display.HighlightLine(path, line)
+				r.Printf("%s\n", highlighted)
+			}
+
+			if err := scanner.Err(); err != nil {
+				return fmt.Errorf("reading file: %w", err)
+			}
+
+			if truncated {
+				msg := r.Display.colorizedText(fmt.Sprintf("\n[Output truncated. File is too large. Showing first %d lines]", maxLines), "yellow")
+				r.Printf("%s\n", msg)
+			}
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
 		name: "history",
 		help: "Display command history: :history [n]",
 		handler: func(ctx context.Context, r *REPL, args []string) error {

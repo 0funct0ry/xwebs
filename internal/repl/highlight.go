@@ -26,6 +26,13 @@ var (
 	colorNumber  = "\033[33m" // Yellow
 	colorBool    = "\033[31m" // Red
 	colorTmpl    = "\033[35m" // Magenta
+
+	// Log specific colors
+	colorError   = "\033[1;31m" // Bold Red
+	colorWarn    = "\033[1;33m" // Bold Yellow
+	colorInfo    = "\033[1;36m" // Bold Cyan
+	colorDebug   = "\033[1;34m" // Bold Blue
+	colorDim     = "\033[2m"    // Dim
 )
 
 // Highlighter implements the readline.Painter interface to provide
@@ -110,9 +117,79 @@ func (h *Highlighter) highlightTmplOnly(str string) string {
 	})
 }
 
-// Helper for format.go to reuse the highlighting logic for output.
+// HighlightLine applies syntax highlighting to a single line based on file type.
+func (s *FormattingState) HighlightLine(filename string, line string) string {
+	if !s.isColorEnabled() {
+		return line
+	}
+
+	ext := strings.ToLower(strings.TrimPrefix(strings.TrimPrefix(filename, "."), "."))
+	if idx := strings.LastIndex(filename, "."); idx != -1 {
+		ext = strings.ToLower(filename[idx+1:])
+	}
+
+	switch ext {
+	case "json":
+		return s.highlightOutputJSON(line)
+	case "yaml", "yml":
+		return s.highlightYAML(line)
+	case "log":
+		return s.highlightLog(line)
+	default:
+		// Try log highlighting for common text files/outputs
+		return s.highlightLog(line)
+	}
+}
+
+func (s *FormattingState) highlightYAML(line string) string {
+	// Simple YAML key highlighting
+	keyRegex := regexp.MustCompile(`^([\s-]*)([\w.-]+)(:)`)
+	line = keyRegex.ReplaceAllStringFunc(line, func(m string) string {
+		parts := keyRegex.FindStringSubmatch(m)
+		if len(parts) == 4 {
+			return parts[1] + colorKey + parts[2] + colorReset + parts[3]
+		}
+		return m
+	})
+
+	// Highlight templates if present
+	return s.highlightTmplOnly(line)
+}
+
+func (s *FormattingState) highlightLog(line string) string {
+	// Highlight log levels
+	levels := []struct {
+		regex *regexp.Regexp
+		color string
+	}{
+		{regexp.MustCompile(`(?i)\b(ERROR|FATAL|FAIL)\b`), colorError},
+		{regexp.MustCompile(`(?i)\b(WARN|WARNING)\b`), colorWarn},
+		{regexp.MustCompile(`(?i)\b(INFO)\b`), colorInfo},
+		{regexp.MustCompile(`(?i)\b(DEBUG|TRACE)\b`), colorDebug},
+	}
+
+	for _, l := range levels {
+		line = l.regex.ReplaceAllStringFunc(line, func(m string) string {
+			return l.color + m + colorReset
+		})
+	}
+
+	// Dim timestamps (simple heuristic: starts with date-like pattern)
+	tsRegex := regexp.MustCompile(`^(\d{4}-\d{2}-\d{2}T?\d{2}:\d{2}:\d{2})`)
+	line = tsRegex.ReplaceAllStringFunc(line, func(m string) string {
+		return colorDim + m + colorReset
+	})
+
+	return s.highlightTmplOnly(line)
+}
+
 func (s *FormattingState) highlightOutputJSON(data string) string {
 	// We pass a dummy highlighter or just call the logic directly
 	h := &Highlighter{display: s}
 	return h.highlightPayload(data)
+}
+
+func (s *FormattingState) highlightTmplOnly(data string) string {
+	h := &Highlighter{display: s}
+	return h.highlightTmplOnly(data)
 }
