@@ -32,6 +32,7 @@ type Bookmark struct {
 type REPLConfig struct {
 	HistoryFile  string `mapstructure:"history-file"`
 	HistoryLimit int    `mapstructure:"history-limit"`
+	Prompt       string `mapstructure:"prompt"`
 }
 
 // AppConfig represents the root configuration structure for aliases and bookmarks.

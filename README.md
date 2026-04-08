@@ -1029,6 +1029,13 @@ Example configuration in `~/.xwebs.yaml`:
 repl:
   history-file: "~/.xwebs_history"
   history-limit: 1000
+  # Custom prompt with colors and templates
+  prompt: "{{green .Host}} {{bold \">\"}} "
+
+profiles:
+  debug:
+    repl:
+      prompt: "[{{magenta .ConnectionID}}] {{cyan .Host}} {{bold \">\"}} "
 ```
 
 **History Features:**

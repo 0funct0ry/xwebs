@@ -421,6 +421,7 @@ Example:
 			if err := viper.Unmarshal(&appCfg); err == nil {
 				cfg.HistoryFile = appCfg.REPL.HistoryFile
 				cfg.HistoryLimit = appCfg.REPL.HistoryLimit
+				cfg.PromptTemplate = appCfg.REPL.Prompt
 			}
 
 			if outputFile != "" {
@@ -945,7 +946,12 @@ Example:
 					_ = conn.Close()
 					<-readDone
 					return nil
-				case <-r.Done():
+				case <-func() <-chan struct{} {
+					if r != nil {
+						return r.Done()
+					}
+					return nil
+				}():
 					// Script or another command called :exit
 					_ = conn.Close()
 					<-readDone
