@@ -242,3 +242,49 @@ func TestScriptingCommands(t *testing.T) {
 		}
 	})
 }
+
+func TestREPLPrompt(t *testing.T) {
+	r, _ := New(ClientMode, &Config{Terminal: true, Prompt: "> "})
+	r.TemplateEngine = template.New(false)
+	r.RegisterCommonCommands()
+
+	t.Run("Default prompt", func(t *testing.T) {
+		r.renderPrompt()
+		if r.GetPrompt() != "> " {
+			t.Errorf("Expected '> ', got %q", r.GetPrompt())
+		}
+	})
+
+	t.Run("Custom template prompt", func(t *testing.T) {
+		r.SetVar("env", "prod")
+		err := r.ExecuteCommand(context.Background(), ":prompt set \"[{{.Vars.env}}] > \"")
+		if err != nil {
+			t.Fatalf("Failed to set prompt: %v", err)
+		}
+		if r.GetPrompt() != "[prod] > " {
+			t.Errorf("Expected '[prod] > ', got %q", r.GetPrompt())
+		}
+	})
+
+	t.Run("Color template prompt", func(t *testing.T) {
+		err := r.ExecuteCommand(context.Background(), ":prompt set \"{{red \\\"!\\\"}} > \"")
+		if err != nil {
+			t.Fatalf("Failed to set prompt: %v", err)
+		}
+		// red "!" -> \033[31m!\033[0m
+		expected := "\033[31m!\033[0m > "
+		if r.GetPrompt() != expected {
+			t.Errorf("Expected %q, got %q", expected, r.GetPrompt())
+		}
+	})
+
+	t.Run("Reset prompt", func(t *testing.T) {
+		err := r.ExecuteCommand(context.Background(), ":prompt reset")
+		if err != nil {
+			t.Fatalf("Failed to reset prompt: %v", err)
+		}
+		if r.GetPrompt() != "> " {
+			t.Errorf("Expected '> ', got %q", r.GetPrompt())
+		}
+	})
+}

@@ -144,6 +144,7 @@ When running in a terminal (TTY), `xwebs connect` enters a rich interactive REPL
 | `:mock <f>`      | Load YAML-based mock scenario                        |
 | `:handlers`      | List all loaded handlers in priority order           |
 | `:handler`       | Manage handlers: `add <flags>` or `delete <name>`    |
+| `:prompt <tmpl>` | Customize the REPL prompt with Go templates          |
 
 **Multi-line Input:**
 
@@ -798,6 +799,56 @@ The following string manipulation functions are available in templates:
 | `now`           | Returns current time object             | `{{ now.Year }}`                                  |
 | `nowUnix`       | Returns current Unix timestamp          | `{{ nowUnix }}`                                   |
 | `formatTime`    | Formats a time object or timestamp      | `{{ formatTime "2006-01-02" .t }}`                |
+
+#### Color and Style Functions
+
+The template engine includes ANSI color and style helpers, perfect for `:prompt` customization or formatted logging.
+
+| Function       | Description                             | Example                                           |
+|----------------|-----------------------------------------|---------------------------------------------------|
+| `color`        | Wrap text in a specific color/code      | `{{ color "red" "text" }}` or `{{ color 31 "t" }}`|
+| `red`, `green` | Shorthand for common colors             | `{{ red "error" }}`, `{{ green "success" }}`      |
+| `yellow`, `blue`| (Also: `black`, `magenta`, `cyan`, `white`, `grey`, `dim`) | `{{ yellow "warning" }}`                  |
+| `bold`, `italic`| Shorthand for text styles               | `{{ bold "strong" }}`, `{{ italic "focus" }}`     |
+| `underline`    | (Also: `faint`, `inverse`)              | `{{ underline "link" }}`                          |
+| `reset`        | Returns the ANSI reset code             | `{{ reset }}`                                     |
+
+#### Prompt Customization
+
+You can dynamically change the REPL prompt using the `:prompt set` command. The prompt supports all Go template functions and has access to connection context.
+
+**Available Prompt Variables:**
+- `.Host` — The remote host name (e.g., `echo.websocket.org`)
+- `.ConnectionID` — The unique ID for the current session
+- `.Vars` — Access to all session variables set via `:set`
+- `.Time` — Access to standard time functions
+
+**Examples:**
+```text
+# Simple colored host
+> :prompt set "{{green .Host}} >> "
+
+# Complex context-aware prompt
+> :set user bob
+> :prompt set "{{bold .ConnectionID}} @ {{cyan .Vars.user}} > "
+
+# Time-stamped Prompt
+> :prompt set "{{grey (formatTime \"15:04:05\" now)}} {{green .Host}} $ "
+
+# Identity & Role (Context Aware)
+> :set role admin
+> :prompt set "{{bold (upper .Vars.role)}}[{{cyan .Vars.user}}] > "
+
+# Minimalist Lambda Style
+> :prompt set "{{magenta \"λ\"}} {{faint .ConnectionID}} » "
+
+# Status Indicator Style
+> :set status ready
+> :prompt set "{{green \"●\"}} {{.Host}} {{yellow .Vars.status}} ❯ "
+
+# Branded Console
+> :prompt set "[xwebs:{{blue .ConnectionID}}] {{italic \"active\"}} → "
+```
 | `parseTime`     | Parses a time string                    | `{{ parseTime "2006-01-02" "2023-01-01" }}`       |
 | `duration`      | Parses a duration string                | `{{ duration "1h30m" }}`                          |
 | `since`         | Calculated duration since time          | `{{ since .start }}`                              |

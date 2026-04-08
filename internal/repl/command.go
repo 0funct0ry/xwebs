@@ -320,6 +320,37 @@ func (r *REPL) RegisterCommonCommands() {
 	})
 
 	r.RegisterCommand(&BuiltinCommand{
+		name: "prompt",
+		help: "Customize the REPL prompt: :prompt (set <tmpl>|reset|default)",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if len(args) == 0 {
+				r.Printf("Usage:\n")
+				r.Printf("  :prompt set <template>\n")
+				r.Printf("  :prompt reset | default\n")
+				return nil
+			}
+
+			subcmd := args[0]
+			switch subcmd {
+			case "set":
+				if len(args) < 2 {
+					return fmt.Errorf("usage: :prompt set <template>")
+				}
+				r.promptTemplate = strings.Join(args[1:], " ")
+				r.renderPrompt()
+				r.Printf("Prompt template updated.\n")
+			case "reset", "default":
+				r.promptTemplate = ""
+				r.renderPrompt()
+				r.Printf("Prompt reset to default.\n")
+			default:
+				return fmt.Errorf("unknown prompt subcommand: %s", subcmd)
+			}
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
 		name: "source",
 		help: "Execute commands from a file: :source <file>",
 		handler: func(ctx context.Context, r *REPL, args []string) error {

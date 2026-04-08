@@ -38,6 +38,7 @@ func New(sandboxed bool) *Engine {
 	e.registerIDFuncs()
 	e.registerCollectionFuncs()
 	e.registerContextFuncs()
+	e.registerColorFuncs()
 	return e
 }
 

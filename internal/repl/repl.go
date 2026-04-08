@@ -90,6 +90,11 @@ type REPL struct {
 
 	isStdoutTTY bool
 	done chan struct{}
+
+	// Prompt management
+	promptTemplate    string
+	originalPrompt    string
+	promptErrReported bool
 }
 
 // Config defines the configuration for the REPL.
@@ -100,6 +105,7 @@ type Config struct {
 	InterruptPrompt    string
 	EOFPrompt          string
 	ContinuationPrompt string
+	PromptTemplate     string // New: Go template for the prompt
 	Stdin              io.ReadCloser
 	Stdout             io.WriteCloser
 	Terminal           bool // Whether to initialize the terminal (readline)
@@ -172,6 +178,8 @@ func New(mode Mode, cfg *Config) (*REPL, error) {
 		completionData: make(map[string][]string),
 		done:           make(chan struct{}),
 		Handlers:       handler.NewRegistry(),
+		originalPrompt: cfg.Prompt,
+		promptTemplate: cfg.PromptTemplate,
 	}
 
 	// Detect if Stdout is a TTY
@@ -370,6 +378,7 @@ func (r *REPL) Run(ctx context.Context) error {
 		case <-r.done:
 			return nil
 		default:
+			r.renderPrompt()
 			line, err := r.rl.Readline()
 			if err != nil {
 				if err == readline.ErrInterrupt {
@@ -512,6 +521,75 @@ func (r *REPL) ExecuteCommand(ctx context.Context, line string) error {
 		return fmt.Errorf("command error: %w", err)
 	}
 	return nil
+}
+
+// renderPrompt evaluates the prompt template and updates the readline instance.
+func (r *REPL) renderPrompt() {
+	if r.rl == nil {
+		return
+	}
+
+	if r.promptTemplate == "" {
+		if r.rl.Config.Prompt != r.originalPrompt {
+			r.rl.Config.Prompt = r.originalPrompt
+			r.rl.SetPrompt(r.originalPrompt)
+		}
+		return
+	}
+
+	tmplCtx := template.NewContext()
+	r.mu.RLock()
+	tmplCtx.Session = make(map[string]interface{}, len(r.vars))
+	for k, v := range r.vars {
+		tmplCtx.Session[k] = v
+	}
+	r.mu.RUnlock()
+	tmplCtx.Vars = tmplCtx.Session
+
+	// Populate connection info from last message if available
+	last := r.GetLastMessage()
+	if last != nil {
+		tmplCtx.Conn = &template.ConnectionContext{
+			URL: last.Metadata.URL,
+		}
+		tmplCtx.URL = last.Metadata.URL
+		tmplCtx.ConnectionID = last.Metadata.ID
+		
+		// Extract Host from URL
+		if idx := strings.Index(tmplCtx.URL, "://"); idx != -1 {
+			hostPart := tmplCtx.URL[idx+3:]
+			if slashIdx := strings.Index(hostPart, "/"); slashIdx != -1 {
+				tmplCtx.Host = hostPart[:slashIdx]
+			} else {
+				tmplCtx.Host = hostPart
+			}
+		}
+	} else {
+		tmplCtx.Host = "not connected"
+		tmplCtx.ConnectionID = "none"
+	}
+
+	res, err := r.TemplateEngine.Execute("prompt", r.promptTemplate, tmplCtx)
+	if err != nil {
+		if !r.promptErrReported {
+			r.Errorf("\n[prompt template error: %v]\n", err)
+			r.promptErrReported = true
+		}
+		r.rl.SetPrompt(r.originalPrompt)
+		return
+	}
+
+	r.promptErrReported = false
+	r.rl.Config.Prompt = res
+	r.rl.SetPrompt(res)
+}
+
+// GetPrompt returns the current rendered prompt.
+func (r *REPL) GetPrompt() string {
+	if r.rl == nil {
+		return ""
+	}
+	return r.rl.Config.Prompt
 }
 
 // GetLastMessage returns the last received message.

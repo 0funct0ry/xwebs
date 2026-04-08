@@ -46,8 +46,9 @@ type TemplateContext struct {
 	Server  *ServerContext     `json:"server,omitempty"`
 
 	// Connection Context (root-level convenience)
-	URL        string            `json:"url,omitempty"`
-	Host       string            `json:"host,omitempty"`
+	URL          string            `json:"url,omitempty"`
+	ConnectionID string            `json:"connection_id,omitempty"`
+	Host         string            `json:"host,omitempty"`
 	Path       string            `json:"path,omitempty"`
 	Scheme      string            `json:"scheme,omitempty"`
 	RemoteAddr  string            `json:"remote_addr,omitempty"`
