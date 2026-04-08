@@ -20,6 +20,7 @@ import (
 	"github.com/spf13/pflag"
 	"golang.design/x/clipboard"
 	"gopkg.in/yaml.v3"
+	"runtime"
 )
 
 // Command defines the interface for a REPL command.
@@ -391,6 +392,102 @@ func (r *REPL) RegisterCommonCommands() {
 				msg := r.Display.colorizedText(fmt.Sprintf("\n[Output truncated. File is too large. Showing first %d lines]", maxLines), "yellow")
 				r.Printf("%s\n", msg)
 			}
+			return nil
+		},
+	})
+ 
+	r.RegisterCommand(&BuiltinCommand{
+		name: "edit",
+		help: "Open a file in $EDITOR: :edit <filename>",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("usage: :edit <filename>")
+			}
+			path := strings.Trim(args[0], "\"'")
+			
+			// Handle absolute/relative paths
+			absPath, err := filepath.Abs(path)
+			if err != nil {
+				absPath = path
+			}
+
+			// Check if file exists
+			info, err := os.Stat(absPath)
+			if err != nil {
+				if os.IsNotExist(err) {
+					return fmt.Errorf("file not found: %s", path)
+				}
+				return err
+			}
+			if info.IsDir() {
+				return fmt.Errorf("%s is a directory", path)
+			}
+
+			// Get editor
+			editor := os.Getenv("EDITOR")
+			if editor == "" {
+				editor = os.Getenv("VISUAL")
+			}
+			if editor == "" {
+				if runtime.GOOS == "windows" {
+					editor = "notepad"
+				} else {
+					editor = "vim"
+				}
+			}
+
+			// Record mod time
+			oldModTime := info.ModTime()
+
+			// Run editor
+			cmd := exec.Command(editor, absPath)
+			cmd.Stdin = os.Stdin
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+
+			if err := cmd.Run(); err != nil {
+				return fmt.Errorf("editor %q exited with error: %w", editor, err)
+			}
+
+			// Check if modified
+			newInfo, err := os.Stat(absPath)
+			if err != nil {
+				return fmt.Errorf("stat file after edit: %w", err)
+			}
+
+			if newInfo.ModTime().After(oldModTime) {
+				// File was modified. Check if it's a known config file.
+				isKnownConfig := false
+				r.mu.RLock()
+				for _, p := range r.configPaths {
+					if p == absPath {
+						isKnownConfig = true
+						break
+					}
+				}
+				r.mu.RUnlock()
+
+				ext := strings.ToLower(filepath.Ext(absPath))
+				isPotentialConfig := ext == ".yaml" || ext == ".yml" || ext == ".json"
+
+				if isKnownConfig || isPotentialConfig {
+					r.Printf("\nFile %q modified. Reload configuration? (y/N) ", path)
+					
+					// Read user input - Note: this might be tricky in some terminal environments
+					// but since we are in a REPL, it should be okay.
+					var answer string
+					_, _ = fmt.Scanln(&answer)
+					answer = strings.TrimSpace(strings.ToLower(answer))
+					
+					if answer == "y" || answer == "yes" {
+						if err := r.ReloadConfig(absPath); err != nil {
+							return fmt.Errorf("reloading configuration: %w", err)
+						}
+						r.Printf("Configuration reloaded successfully.\n")
+					}
+				}
+			}
+
 			return nil
 		},
 	})

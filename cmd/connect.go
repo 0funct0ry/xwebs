@@ -443,6 +443,7 @@ Example:
 				r.TemplateEngine = tmplEngine
 				r.RegisterCommonCommands()
 				r.RegisterClientCommands(cc)
+				r.AddConfigPath(handlersFile)
 
 				// Populate bookmarks and aliases for completion
 				var cfg config.AppConfig

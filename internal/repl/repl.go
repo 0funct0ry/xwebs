@@ -99,6 +99,9 @@ type REPL struct {
 	// prevDir stores the previous working directory for :cd -
 	prevDir string
 
+	// configPaths tracks loaded configuration files for :edit reloading
+	configPaths []string
+
 	// Heredoc support
 	heredocDelimiter string
 	heredocBuffer    []string
@@ -820,4 +823,46 @@ func (r *REPL) openInEditor(ctx context.Context, initialContent string) (string,
 	}
 
 	return string(content), nil
+}
+
+// AddConfigPath registers a configuration file for change tracking.
+func (r *REPL) AddConfigPath(path string) {
+	if path == "" {
+		return
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		abs = path
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for _, p := range r.configPaths {
+		if p == abs {
+			return
+		}
+	}
+	r.configPaths = append(r.configPaths, abs)
+}
+
+// ReloadConfig reloads handlers and variables from a configuration file.
+func (r *REPL) ReloadConfig(path string) error {
+	cfg, err := handler.LoadConfig(path)
+	if err != nil {
+		return err
+	}
+
+	// Apply variables
+	if cfg.Variables != nil {
+		r.ReplaceVars(cfg.Variables)
+	}
+
+	// Replace handlers
+	if r.Handlers == nil {
+		r.Handlers = handler.NewRegistry()
+	}
+	r.Handlers.ReplaceHandlers(cfg.Handlers)
+
+	return nil
 }
