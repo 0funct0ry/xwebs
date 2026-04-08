@@ -3,8 +3,11 @@ package repl
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -13,7 +16,9 @@ import (
 	"github.com/0funct0ry/xwebs/internal/handler"
 	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/matoous/go-nanoid/v2"
+	"github.com/pmezard/go-difflib/difflib"
 	"github.com/spf13/pflag"
+	"golang.design/x/clipboard"
 	"gopkg.in/yaml.v3"
 )
 
@@ -1086,4 +1091,258 @@ func (r *REPL) RegisterCommonCommands() {
 			return nil
 		},
 	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "write",
+		help: "Save content to a file: :write [flags] <filename> [content]",
+		handler: r.executeWrite,
+	})
+}
+
+func (r *REPL) executeWrite(ctx context.Context, _ *REPL, args []string) error {
+	var appendMode, prettyJSON, dryRun, parents, showDiff, edit bool
+	var lastMsg, lastResp, curHandlers, clip bool
+
+	fs := pflag.NewFlagSet("write", pflag.ContinueOnError)
+	fs.SetOutput(nil)
+	fs.BoolVarP(&appendMode, "append", "a", false, "Append to file instead of overwriting")
+	fs.BoolVar(&prettyJSON, "json", false, "Pretty-print content as JSON")
+	fs.BoolVarP(&dryRun, "dry-run", "n", false, "Preview rendered output without writing to disk")
+	fs.BoolVarP(&parents, "parents", "p", false, "Create parent directories if they don't exist")
+	fs.BoolVar(&showDiff, "diff", false, "Show diff summary when overwriting")
+	fs.BoolVar(&edit, "edit", false, "Open the written file in $EDITOR immediately")
+	fs.BoolVar(&lastMsg, "last-message", false, "Use the last message as content")
+	fs.BoolVar(&lastResp, "last-response", false, "Use the last response from server as content")
+	fs.BoolVar(&curHandlers, "current-handlers", false, "Use the currently loaded handlers as content")
+	fs.BoolVar(&clip, "clipboard", false, "Use clipboard content")
+
+	if err := fs.Parse(args); err != nil {
+		return fmt.Errorf("parsing flags: %w", err)
+	}
+
+	remaining := fs.Args()
+	if len(remaining) < 1 && !(lastMsg || lastResp || curHandlers || clip) {
+		return fmt.Errorf("usage: :write [flags] <filename> [content]")
+	}
+
+	var filename string
+	var rawContent string
+
+	if len(remaining) > 0 {
+		filename = remaining[0]
+		if len(remaining) > 1 {
+			rawContent = strings.Join(remaining[1:], " ")
+		}
+	}
+
+	// Determine content source
+	sourcesCount := 0
+	if rawContent != "" {
+		sourcesCount++
+	}
+	if lastMsg {
+		sourcesCount++
+	}
+	if lastResp {
+		sourcesCount++
+	}
+	if curHandlers {
+		sourcesCount++
+	}
+	if clip {
+		sourcesCount++
+	}
+
+	if sourcesCount > 1 {
+		return fmt.Errorf("multiple content sources provided. Choose only one (content arg, --last-message, --last-response, --current-handlers, or --clipboard)")
+	}
+
+	if filename == "" {
+		// Try to guess filename if not provided but source is
+		if lastMsg || lastResp {
+			filename = "message.json"
+		} else if curHandlers {
+			filename = "handlers.yaml"
+		} else if clip {
+			filename = "clipboard.txt"
+		} else {
+			return fmt.Errorf("filename is required")
+		}
+	}
+
+	var finalContent string
+	if lastMsg || lastResp {
+		msg := r.GetLastMessage()
+		if msg == nil {
+			return fmt.Errorf("no last message available")
+		}
+		finalContent = string(msg.Data)
+	} else if curHandlers {
+		handlers := r.Handlers.Handlers()
+		data, err := yaml.Marshal(handlers)
+		if err != nil {
+			return fmt.Errorf("marshaling handlers: %w", err)
+		}
+		finalContent = string(data)
+	} else if clip {
+		err := clipboard.Init()
+		if err != nil {
+			return fmt.Errorf("initializing clipboard: %w", err)
+		}
+		data := clipboard.Read(clipboard.FmtText)
+		finalContent = string(data)
+	} else {
+		// Render template content
+		tmplCtx := template.NewContext()
+		tmplCtx.Session = r.GetVars()
+		tmplCtx.Vars = tmplCtx.Session
+		tmplCtx.Env = make(map[string]string)
+		for _, e := range os.Environ() {
+			parts := strings.SplitN(e, "=", 2)
+			if len(parts) == 2 {
+				tmplCtx.Env[parts[0]] = parts[1]
+			}
+		}
+
+		if last := r.GetLastMessage(); last != nil {
+			tmplCtx.Last = string(last.Data)
+			tmplCtx.Msg = &template.MessageContext{
+				Data:      string(last.Data),
+				Raw:       last.Data,
+				Length:    last.Metadata.Length,
+				Timestamp: last.Metadata.Timestamp,
+			}
+		}
+		tmplCtx.LastLatencyMs = r.GetLastLatency().Milliseconds()
+
+		rendered, err := r.TemplateEngine.Execute("write", rawContent, tmplCtx)
+		if err != nil {
+			return fmt.Errorf("rendering content: %w", err)
+		}
+		finalContent = rendered
+	}
+
+	// JSON pretty-print
+	if prettyJSON {
+		var data interface{}
+		if err := json.Unmarshal([]byte(finalContent), &data); err == nil {
+			pretty, _ := json.MarshalIndent(data, "", "  ")
+			finalContent = string(pretty)
+		}
+	}
+
+	// Guess extension if missing
+	if filepath.Ext(filename) == "" {
+		if prettyJSON || lastMsg || lastResp {
+			// If we explicitly asked for JSON or are using messages (usually JSON), default to .json
+			filename += ".json"
+		} else if curHandlers {
+			filename += ".yaml"
+		} else {
+			trimmed := strings.TrimSpace(finalContent)
+			// Strip outer quotes if any (can happen if splitCommand didn't strip them due to nested braces)
+			if (strings.HasPrefix(trimmed, "'") && strings.HasSuffix(trimmed, "'")) ||
+				(strings.HasPrefix(trimmed, "\"") && strings.HasSuffix(trimmed, "\"")) {
+				trimmed = trimmed[1 : len(trimmed)-1]
+			}
+			trimmed = strings.TrimSpace(trimmed)
+
+			if strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[") {
+				var data interface{}
+				if err := json.Unmarshal([]byte(trimmed), &data); err == nil {
+					filename += ".json"
+				} else {
+					filename += ".txt"
+				}
+			} else if strings.Contains(finalContent, ": ") {
+				filename += ".yaml"
+			} else {
+				filename += ".log"
+			}
+		}
+	}
+
+	if dryRun {
+		r.Printf("\n--- DRY RUN: %s ---\n", filename)
+		r.Printf("%s\n", finalContent)
+		r.Printf("--- END DRY RUN ---\n")
+		return nil
+	}
+
+	// Prepare directories
+	if parents {
+		dir := filepath.Dir(filename)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("creating directories: %w", err)
+		}
+	}
+
+	// Check for diff if overwriting
+	var oldContent string
+	exists := false
+	if !appendMode {
+		data, err := os.ReadFile(filename)
+		if err == nil {
+			oldContent = string(data)
+			exists = true
+		}
+	}
+
+	// Write to file
+	flags := os.O_CREATE | os.O_WRONLY
+	if appendMode {
+		flags |= os.O_APPEND
+	} else {
+		flags |= os.O_TRUNC
+	}
+
+	f, err := os.OpenFile(filename, flags, 0644)
+	if err != nil {
+		return fmt.Errorf("opening file for writing: %w", err)
+	}
+	defer f.Close()
+
+	n, err := f.WriteString(finalContent)
+	if err != nil {
+		return fmt.Errorf("writing to file: %w", err)
+	}
+
+	// Success message
+	action := "Written"
+	if appendMode {
+		action = "Appended"
+	}
+	color := "green"
+	if appendMode {
+		color = "cyan"
+	}
+
+	r.Printf("%s %d bytes to %s\n", r.Display.colorizedText(action, color), n, r.Display.colorizedText(filename, "cyan"))
+
+	// Show diff
+	if exists && showDiff && oldContent != finalContent {
+		diff := difflib.UnifiedDiff{
+			A:        difflib.SplitLines(oldContent),
+			B:        difflib.SplitLines(finalContent),
+			FromFile: "Old",
+			ToFile:   "New",
+			Context:  1,
+		}
+		text, _ := difflib.GetUnifiedDiffString(diff)
+		r.Printf("\nChanges:\n%s\n", text)
+	}
+
+	if edit {
+		editor := os.Getenv("EDITOR")
+		if editor == "" {
+			editor = "vim"
+		}
+		cmd := exec.Command(editor, filename)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd.Run()
+	}
+
+	return nil
 }

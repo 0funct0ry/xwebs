@@ -183,6 +183,16 @@ func (r *REPL) completeArguments(line string) ([][]rune, int) {
 				suggestions = append(suggestions, []rune(v[len(currentWord):]))
 			}
 		}
+	case "write":
+		// Suggest flags if current word starts with -
+		if strings.HasPrefix(currentWord, "-") {
+			flags := []string{"--append", "-a", "--json", "--dry-run", "-n", "--parents", "-p", "--diff", "--edit", "--last-message", "--last-response", "--current-handlers", "--clipboard"}
+			for _, f := range flags {
+				if strings.HasPrefix(f, currentWord) {
+					suggestions = append(suggestions, []rune(f[len(currentWord):]))
+				}
+			}
+		}
 	}
 
 	if len(suggestions) == 0 || cmdName == "connect" {

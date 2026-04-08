@@ -127,6 +127,7 @@ When running in a terminal (TTY), `xwebs connect` enters a rich interactive REPL
 | `:ls [-l] [path]`| List directory contents (with optional detailed view)|
 | `:mkdir [-p] <d>`| Create a new directory (with optional parent creation)|
 | `:cat <file>`    | Display file contents with syntax highlighting       |
+| `:write <f> <c>` | Save templated content or session data to a file     |
 | `:history [n]`   | Display last N command history                       |
 | `:bench <n> <m>` | Benchmark latency for N iterations                   |
 | `:flood <msg>`   | Stress test server with high-rate messages           |
@@ -163,6 +164,20 @@ For complex payloads or templates, you can use the backslash `\` as a line conti
 ...   } \
 ... }
 < {"status":"received"}
+```
+
+**Heredoc Input:**
+
+For large payloads or scripts, you can use `<<EOF` style heredoc. The REPL will switch to a continuation prompt until the delimiter is matched on a line by itself.
+
+```text
+> :write config.json <<EOF
+{
+  "user": "{{.Vars.user}}",
+  "token": "{{.Env.AUTH_TOKEN}}"
+}
+EOF
+Written 56 bytes to config.json
 ```
 
 **Advanced Sending Examples:**

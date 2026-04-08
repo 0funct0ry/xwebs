@@ -98,6 +98,10 @@ type REPL struct {
 
 	// prevDir stores the previous working directory for :cd -
 	prevDir string
+
+	// Heredoc support
+	heredocDelimiter string
+	heredocBuffer    []string
 }
 
 // Config defines the configuration for the REPL.
@@ -409,12 +413,32 @@ func (r *REPL) Run(ctx context.Context) error {
 
 			// Combine buffer if any
 			var finalInput string
-			if len(r.multiLineBuffer) > 0 {
+			if r.heredocDelimiter != "" {
+				if strings.TrimSpace(line) == r.heredocDelimiter {
+					finalInput = strings.Join(r.heredocBuffer, "\n")
+					r.heredocDelimiter = ""
+					r.heredocBuffer = nil
+					r.rl.SetPrompt(r.config.Prompt)
+				} else {
+					r.heredocBuffer = append(r.heredocBuffer, line)
+					continue
+				}
+			} else if len(r.multiLineBuffer) > 0 {
 				r.multiLineBuffer = append(r.multiLineBuffer, line)
 				finalInput = strings.Join(r.multiLineBuffer, "\n")
 				r.multiLineBuffer = nil
 				r.rl.SetPrompt(r.config.Prompt)
 			} else {
+				// Detect heredoc start: <<EOF
+				if idx := strings.LastIndex(line, "<<"); idx != -1 {
+					delim := strings.TrimSpace(line[idx+2:])
+					if delim != "" && !strings.ContainsAny(delim, " \t\"'") {
+						r.heredocDelimiter = delim
+						r.heredocBuffer = []string{line[:idx]}
+						r.rl.SetPrompt(r.config.ContinuationPrompt)
+						continue
+					}
+				}
 				finalInput = line
 			}
 
@@ -529,6 +553,11 @@ func (r *REPL) ExecuteCommand(ctx context.Context, line string) error {
 // renderPrompt evaluates the prompt template and updates the readline instance.
 func (r *REPL) renderPrompt() {
 	if r.rl == nil {
+		return
+	}
+
+	// Do not override the continuation prompt if we are in a multi-line or heredoc state.
+	if r.heredocDelimiter != "" || len(r.multiLineBuffer) > 0 {
 		return
 	}
 
@@ -717,7 +746,7 @@ func splitCommand(line string) []string {
 		}
 
 		switch {
-		case c == '"':
+		case c == '"' || c == '\'':
 			inQuotes = !inQuotes
 			// Preserve quotes if we are inside a braced expression (like JSON)
 			if braceLevel > 0 {
