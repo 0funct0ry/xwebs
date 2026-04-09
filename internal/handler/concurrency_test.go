@@ -20,20 +20,20 @@ func TestHandler_ConcurrencyControl(t *testing.T) {
 	// Handler that sleeps for 100ms
 	// Use a shell command to simulate work
 	sleepCmd := "sleep 0.1"
-	
+
 	t.Run("Default (Concurrent)", func(t *testing.T) {
 		h := &Handler{
 			Name: "concurrent-handler",
 			Run:  sleepCmd,
 		}
-		
+
 		msg := &ws.Message{Data: []byte("test"), Metadata: ws.MessageMetadata{Direction: "received"}}
-		
+
 		start := time.Now()
 		var wg sync.WaitGroup
 		numRequests := 3
 		wg.Add(numRequests)
-		
+
 		for i := 0; i < numRequests; i++ {
 			go func() {
 				defer wg.Done()
@@ -41,10 +41,10 @@ func TestHandler_ConcurrencyControl(t *testing.T) {
 				assert.NoError(t, err)
 			}()
 		}
-		
+
 		wg.Wait()
 		duration := time.Since(start)
-		
+
 		// If concurrent, should take ~100ms (definitely less than 250ms)
 		assert.Less(t, duration, 250*time.Millisecond, "Concurrent handlers took too long: %v", duration)
 	})
@@ -56,14 +56,14 @@ func TestHandler_ConcurrencyControl(t *testing.T) {
 			Concurrent: &isConcurrent,
 			Run:        sleepCmd,
 		}
-		
+
 		msg := &ws.Message{Data: []byte("test"), Metadata: ws.MessageMetadata{Direction: "received"}}
-		
+
 		start := time.Now()
 		var wg sync.WaitGroup
 		numRequests := 3
 		wg.Add(numRequests)
-		
+
 		for i := 0; i < numRequests; i++ {
 			go func() {
 				defer wg.Done()
@@ -71,10 +71,10 @@ func TestHandler_ConcurrencyControl(t *testing.T) {
 				assert.NoError(t, err)
 			}()
 		}
-		
+
 		wg.Wait()
 		duration := time.Since(start)
-		
+
 		// If serialized, should take at least 300ms
 		assert.GreaterOrEqual(t, duration, 300*time.Millisecond, "Serialized handlers were too fast: %v", duration)
 	})
@@ -91,13 +91,13 @@ func TestHandler_ConcurrencyControl(t *testing.T) {
 			Concurrent: &isConcurrent,
 			Run:        sleepCmd,
 		}
-		
+
 		msg := &ws.Message{Data: []byte("test"), Metadata: ws.MessageMetadata{Direction: "received"}}
-		
+
 		start := time.Now()
 		var wg sync.WaitGroup
 		wg.Add(2)
-		
+
 		go func() {
 			defer wg.Done()
 			err := d.Execute(context.Background(), h1, msg)
@@ -108,10 +108,10 @@ func TestHandler_ConcurrencyControl(t *testing.T) {
 			err := d.Execute(context.Background(), h2, msg)
 			assert.NoError(t, err)
 		}()
-		
+
 		wg.Wait()
 		duration := time.Since(start)
-		
+
 		// Even if serialized individually, different handlers should run in parallel
 		// So total time should be ~100ms
 		assert.Less(t, duration, 250*time.Millisecond, "Independent serialized handlers blocked each other: %v", duration)

@@ -63,7 +63,7 @@ func TestREPLMultiLineRun(t *testing.T) {
 
 	// Close the pipe and wait for EOF
 	wPipe.Close()
-	
+
 	select {
 	case err := <-done:
 		if err != nil && err != io.EOF {

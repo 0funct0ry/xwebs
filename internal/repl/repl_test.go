@@ -210,7 +210,7 @@ func TestSessionCommands(t *testing.T) {
 	t.Run("cd", func(t *testing.T) {
 		initialDir, _ := os.Getwd()
 		home, _ := os.UserHomeDir()
-		
+
 		// Create a temp dir to test cd
 		tmpDir, err := os.MkdirTemp("", "xwebs-cd-test")
 		if err != nil {
@@ -273,7 +273,7 @@ func TestScriptingCommands(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to register alias: %v", err)
 		}
-		
+
 		err = r.ExecuteCommand(context.Background(), ":greet world")
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)

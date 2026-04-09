@@ -108,9 +108,9 @@ func (s *FormattingState) FormatMessage(msg *ws.Message, vars map[string]interfa
 		if msg.Metadata.Direction == "sent" && !s.Verbose {
 			return "", false
 		}
-		
+
 		body := s.formatBody(msg, vars, engine)
-		// Specifically for NoIndicators (pipes), if format is JSON and unmarshal failed, 
+		// Specifically for NoIndicators (pipes), if format is JSON and unmarshal failed,
 		// formatBody returns empty string or prefix. We'll skip if it's empty.
 		if body == "" {
 			return "", false
@@ -221,7 +221,7 @@ func (s *FormattingState) formatBody(msg *ws.Message, vars map[string]interface{
 		if engine == nil {
 			return string(msg.Data)
 		}
-		
+
 		typeStr := "text"
 		switch msg.Type {
 		case ws.BinaryMessage:
@@ -255,7 +255,7 @@ func (s *FormattingState) formatBody(msg *ws.Message, vars map[string]interface{
 		tmplCtx.Direction = msg.Metadata.Direction
 		// Direction and ID can be used in session if needed, or I could extend TemplateContext
 		// For now, let's just use the basic ones.
-		
+
 		res, err := engine.Execute("format", s.Template, tmplCtx)
 		if err != nil {
 			return s.colorizedText(fmt.Sprintf("[template error: %v] ", err), "red") + string(msg.Data)
@@ -339,4 +339,3 @@ func (s *FormattingState) colorizedText(text string, color string) string {
 		return text
 	}
 }
-

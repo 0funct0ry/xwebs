@@ -14,23 +14,22 @@ import (
 )
 
 var (
-	cfgFile      string
-	handlersFile string
-	verbose      bool
-	quiet       bool
-	color       string
-	logLevel    string
-	logFormat   string
-	profile     string
-	proxy       string
-	noShellFunc bool
-	onHandlers   []string
+	cfgFile         string
+	handlersFile    string
+	verbose         bool
+	quiet           bool
+	color           string
+	logLevel        string
+	logFormat       string
+	profile         string
+	proxy           string
+	noShellFunc     bool
+	onHandlers      []string
 	onMatchHandlers []string
 	respondTemplate string
 	sandboxEnabled  bool
 	allowlist       []string
 )
-
 
 var validLogLevels = []string{"debug", "info", "warn", "error"}
 var validColorModes = []string{"auto", "on", "off"}
@@ -54,7 +53,6 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&respondTemplate, "respond", "", "Default response template for inline handlers")
 	rootCmd.PersistentFlags().BoolVar(&sandboxEnabled, "sandbox", false, "Enable shell command allowlisting for handlers")
 	rootCmd.PersistentFlags().StringSliceVar(&allowlist, "allowlist", nil, "Comma-separated list of allowed shell commands")
-
 
 	_ = rootCmd.PersistentFlags().MarkDeprecated("toggle", "this flag is no longer used")
 
@@ -122,7 +120,6 @@ func initConfig() {
 	_ = viper.BindPFlag("sandbox", rootCmd.PersistentFlags().Lookup("sandbox"))
 	_ = viper.BindPFlag("allowlist", rootCmd.PersistentFlags().Lookup("allowlist"))
 
-
 	// Sync global variables from Viper and update flag defaults for help text
 	syncFlag := func(name string, ptr interface{}) {
 		f := rootCmd.PersistentFlags().Lookup(name)
@@ -154,7 +151,6 @@ func initConfig() {
 	syncFlag("respond", &respondTemplate)
 	syncFlag("sandbox", &sandboxEnabled)
 
-
 	// String slices need manual syncing from Viper if not set via flags
 	if !rootCmd.PersistentFlags().Changed("on") && viper.IsSet("on") {
 		onHandlers = viper.GetStringSlice("on")
@@ -166,7 +162,6 @@ func initConfig() {
 		allowlist = viper.GetStringSlice("allowlist")
 	}
 }
-
 
 func validateFlags() error {
 	logLevel = strings.ToLower(logLevel)

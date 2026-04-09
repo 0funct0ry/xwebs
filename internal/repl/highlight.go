@@ -12,27 +12,27 @@ var (
 	// Group 3: JSON Strings "value"
 	// Group 4: JSON Numbers
 	// Group 5: JSON Booleans/Null
-	keyRegex    = `"(?:[^"\\]|\\.)*"\s*:`
-	strRegex    = `"(?:[^"\\]|\\.)*"`
-	tmplRegex   = `\{\{.*?\}\}`
-	numRegex    = `\b\d+\b`
-	boolRegex   = `\b(?:true|false|null)\b`
+	keyRegex       = `"(?:[^"\\]|\\.)*"\s*:`
+	strRegex       = `"(?:[^"\\]|\\.)*"`
+	tmplRegex      = `\{\{.*?\}\}`
+	numRegex       = `\b\d+\b`
+	boolRegex      = `\b(?:true|false|null)\b`
 	highlightRegex = regexp.MustCompile(fmt.Sprintf("(%s)|(%s)|(%s)|(%s)|(%s)", tmplRegex, keyRegex, strRegex, numRegex, boolRegex))
 
 	// Standard ANSI colors used in the REPL
-	colorReset   = "\033[0m"
-	colorKey     = "\033[36m" // Cyan
-	colorString  = "\033[32m" // Green
-	colorNumber  = "\033[33m" // Yellow
-	colorBool    = "\033[31m" // Red
-	colorTmpl    = "\033[35m" // Magenta
+	colorReset  = "\033[0m"
+	colorKey    = "\033[36m" // Cyan
+	colorString = "\033[32m" // Green
+	colorNumber = "\033[33m" // Yellow
+	colorBool   = "\033[31m" // Red
+	colorTmpl   = "\033[35m" // Magenta
 
 	// Log specific colors
-	colorError   = "\033[1;31m" // Bold Red
-	colorWarn    = "\033[1;33m" // Bold Yellow
-	colorInfo    = "\033[1;36m" // Bold Cyan
-	colorDebug   = "\033[1;34m" // Bold Blue
-	colorDim     = "\033[2m"    // Dim
+	colorError = "\033[1;31m" // Bold Red
+	colorWarn  = "\033[1;33m" // Bold Yellow
+	colorInfo  = "\033[1;36m" // Bold Cyan
+	colorDebug = "\033[1;34m" // Bold Blue
+	colorDim   = "\033[2m"    // Dim
 )
 
 // Highlighter implements the readline.Painter interface to provide

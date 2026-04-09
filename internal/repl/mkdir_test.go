@@ -34,16 +34,16 @@ func TestMkdirCommand(t *testing.T) {
 		buf.Reset()
 		dirName := "simple_dir"
 		path := filepath.Join(testRoot, dirName)
-		
+
 		err := r.ExecuteCommand(context.Background(), ":mkdir "+path)
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
-		
+
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			t.Errorf("Directory %s was not created", path)
 		}
-		
+
 		output := buf.String()
 		if !strings.Contains(output, "Directory created") || !strings.Contains(output, dirName) {
 			t.Errorf("Unexpected output: %s", output)
@@ -53,12 +53,12 @@ func TestMkdirCommand(t *testing.T) {
 	t.Run("Create nested directory without -p (should fail)", func(t *testing.T) {
 		buf.Reset()
 		path := filepath.Join(testRoot, "nested", "fail")
-		
+
 		err := r.ExecuteCommand(context.Background(), ":mkdir "+path)
 		if err == nil {
 			t.Errorf("Expected error when creating nested directory without -p")
 		}
-		
+
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
 			t.Errorf("Directory %s should not have been created", path)
 		}
@@ -68,16 +68,16 @@ func TestMkdirCommand(t *testing.T) {
 		buf.Reset()
 		dirName := filepath.Join("nested", "success")
 		path := filepath.Join(testRoot, dirName)
-		
+
 		err := r.ExecuteCommand(context.Background(), ":mkdir -p "+path)
 		if err != nil {
 			t.Errorf("Unexpected error with -p: %v", err)
 		}
-		
+
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			t.Errorf("Directory %s was not created with -p", path)
 		}
-		
+
 		output := buf.String()
 		if !strings.Contains(output, "Directory created") || !strings.Contains(output, dirName) {
 			t.Errorf("Unexpected output: %s", output)
@@ -90,7 +90,7 @@ func TestMkdirCommand(t *testing.T) {
 		if err := os.Mkdir(path, 0755); err != nil {
 			t.Fatalf("Failed to create existing dir: %v", err)
 		}
-		
+
 		err := r.ExecuteCommand(context.Background(), ":mkdir "+path)
 		if err == nil {
 			t.Errorf("Expected error when creating already existing directory")
@@ -103,12 +103,12 @@ func TestMkdirCommand(t *testing.T) {
 		if err := os.Mkdir(path, 0755); err != nil {
 			t.Fatalf("Failed to create existing dir: %v", err)
 		}
-		
+
 		err := r.ExecuteCommand(context.Background(), ":mkdir -p "+path)
 		if err != nil {
 			t.Errorf("Unexpected error with -p on existing directory: %v", err)
 		}
-		
+
 		output := buf.String()
 		if !strings.Contains(output, "Directory created") {
 			t.Errorf("Unexpected output: %s", output)

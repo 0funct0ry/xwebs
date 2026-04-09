@@ -52,7 +52,7 @@ func TestDispatcher_ExecuteRetryLinear(t *testing.T) {
 	duration := time.Since(start)
 
 	require.NoError(t, err)
-	// Attempts 1 and 2 fail. 
+	// Attempts 1 and 2 fail.
 	// Wait after 1: 100ms * 1 = 100ms
 	// Wait after 2: 100ms * 2 = 200ms
 	// Total wait: 300ms

@@ -26,7 +26,7 @@ func (r *REPL) RunBenchmark(ctx context.Context, conn *ws.Connection, n int, mes
 	}
 
 	r.Printf("▶ Benchmarking %d iterations...\n", n)
-	
+
 	stats := &BenchmarkStats{
 		Count:     n,
 		Latencies: make([]time.Duration, 0, n),
@@ -83,7 +83,7 @@ report:
 func (r *REPL) printBenchmarkReport(stats *BenchmarkStats) {
 	duration := stats.EndTime.Sub(stats.StartTime)
 	success := len(stats.Latencies)
-	
+
 	r.Printf("\nBenchmark Results:\n")
 	r.Printf("  Total Time:     %v\n", duration.Round(time.Millisecond))
 	r.Printf("  Messages Sent:  %d\n", stats.Count)
@@ -192,14 +192,14 @@ func (r *REPL) RunWatch(ctx context.Context, conn *ws.Connection) {
 	}
 
 	r.Printf("▶ Watching connection %s (Ctrl+C to stop)...\n", conn.URL)
-	
+
 	msgCh := conn.Subscribe()
 	defer conn.Unsubscribe(msgCh)
 
 	start := time.Now()
 	recv := 0
 	bytesRecv := 0
-	
+
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
@@ -219,7 +219,7 @@ func (r *REPL) RunWatch(ctx context.Context, conn *ws.Connection) {
 			}
 		case <-ticker.C:
 			dur := time.Since(start)
-			r.Printf("  Uptime: %v, Recv: %d msgs, Rate: %.2f msgs/sec, Data: %s/s\r", 
+			r.Printf("  Uptime: %v, Recv: %d msgs, Rate: %.2f msgs/sec, Data: %s/s\r",
 				dur.Round(time.Second), recv, float64(recv)/dur.Seconds(), formatBytes(float64(bytesRecv)/dur.Seconds()))
 		}
 	}

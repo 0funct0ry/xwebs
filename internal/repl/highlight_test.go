@@ -1,8 +1,8 @@
 package repl
 
 import (
-	"testing"
 	"github.com/stretchr/testify/assert"
+	"testing"
 )
 
 func TestHighlighter_Paint(t *testing.T) {

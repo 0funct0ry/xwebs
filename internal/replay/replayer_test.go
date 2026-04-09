@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/0funct0ry/xwebs/internal/ws"
+	"github.com/gorilla/websocket"
 )
 
 var upgrader = websocket.Upgrader{}
@@ -94,10 +94,10 @@ func TestReplayTimingAndReliability(t *testing.T) {
 	defer conn.Close()
 
 	rep := NewReplayer()
-	
+
 	start := time.Now()
 	var events []int64
-	
+
 	// 0. Start a parallel reader to verify broadcast (multi-subscriber)
 	// This mimics the main REPL read loop.
 	parallelRecv := 0

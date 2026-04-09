@@ -79,10 +79,10 @@ func TestJSONSchemaMatcher(t *testing.T) {
 			engine := template.New(false)
 			ctx := template.NewContext()
 			ctx.Message = tt.message
-			
+
 			matches, err := reg.Match(msg, engine, ctx)
 			require.NoError(t, err)
-			
+
 			if tt.want {
 				assert.Len(t, matches, 1)
 				assert.Equal(t, "test-schema", matches[0].Name)
@@ -117,7 +117,7 @@ func TestJSONSchemaMatcherAbsolute(t *testing.T) {
 	engine := template.New(false)
 	ctx := template.NewContext()
 	ctx.Message = "123"
-	
+
 	matches, err := reg.Match(msg, engine, ctx)
 	require.NoError(t, err)
 	assert.Len(t, matches, 1)

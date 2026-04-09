@@ -395,20 +395,20 @@ func (r *REPL) RegisterClientCommands(cc ClientContext) {
 
 			filename := args[0]
 			rep := replay.NewReplayer()
-			
+
 			r.Printf("▶ Replaying messages from %s...\n", filename)
-			
+
 			// We use a background context or a derived one that can be cancelled?
 			// The REPL's ExecuteCommand passes a context which is usually cmd.Context()
-			
+
 			sent, recv, err := rep.Replay(ctx, conn, filename, 1.0, func(elapsed int64, dir string, msg string) {
 				r.Printf("  [%dms]  %s %s\n", elapsed, "→", msg)
 			})
-			
+
 			if err != nil {
 				return err
 			}
-			
+
 			r.Printf("✓ Replay complete. %d sent, %d received.\n", sent, recv)
 			return nil
 		},
@@ -432,14 +432,14 @@ func (r *REPL) RegisterClientCommands(cc ClientContext) {
 			if err := r.Mocker.LoadScenario(args[0]); err != nil {
 				return err
 			}
-			
+
 			conn := cc.GetConnection()
 			if conn != nil {
 				r.Mocker.StartBackgroundTasks(ctx, conn, func(f string, a ...interface{}) {
 					r.Notify(f+"\n", a...)
 				})
 			}
-			
+
 			r.Printf("✓ Mock loaded: %s\n", args[0])
 			return nil
 		},
@@ -469,7 +469,7 @@ func (r *REPL) RegisterClientCommands(cc ClientContext) {
 			if len(args) == 0 {
 				return fmt.Errorf("usage: :flood <message> [--rate <msgs/sec>]")
 			}
-			
+
 			var rate float64
 			var messageParts []string
 			for i := 0; i < len(args); i++ {

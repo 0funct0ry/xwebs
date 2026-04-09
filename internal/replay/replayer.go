@@ -87,9 +87,9 @@ func (rep *Replayer) Replay(ctx context.Context, conn *ws.Connection, filename s
 		}
 
 		var entry struct {
-			TS      int64  `json:"ts"`
-			Dir     string `json:"dir"`
-			Msg     string `json:"msg"`
+			TS        int64  `json:"ts"`
+			Dir       string `json:"dir"`
+			Msg       string `json:"msg"`
 			MsgBase64 string `json:"msg_b64"`
 		}
 

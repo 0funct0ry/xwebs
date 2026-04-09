@@ -19,7 +19,7 @@ func TestREPLConfigManagement(t *testing.T) {
 		path := "test.yaml"
 		abs, _ := filepath.Abs(path)
 		r.AddConfigPath(path)
-		
+
 		found := false
 		for _, p := range r.configPaths {
 			if p == abs {

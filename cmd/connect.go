@@ -22,12 +22,12 @@ import (
 )
 
 type connectClientContext struct {
-	conn            *ws.Connection
-	dialChan        chan string
-	tmplEngine      *template.Engine
-	repl            *repl.REPL
-	originalURL     string
-	originalHeaders map[string]string // Key: Template
+	conn              *ws.Connection
+	dialChan          chan string
+	tmplEngine        *template.Engine
+	repl              *repl.REPL
+	originalURL       string
+	originalHeaders   map[string]string // Key: Template
 	originalAuth      string            // Auth template
 	originalToken     string            // Token template
 	automationPending bool              // Flag to avoid premature --once exit
@@ -117,7 +117,7 @@ Example:
 		var isInteractive bool
 		target := args[0]
 		tmplEngine := template.New(false) // Not sandboxed for CLI usage
-		
+
 		// Load handlers if specified
 		var reg *handler.Registry
 		var dispatcher *handler.Dispatcher
@@ -131,7 +131,7 @@ Example:
 			}
 			handlers = append(handlers, cfg.Handlers...)
 			handlerVars = cfg.Variables
-			
+
 			// Load sandbox settings from handlers config
 			if !cmd.Flags().Changed("sandbox") && cfg.Sandbox {
 				sandboxEnabled = cfg.Sandbox
@@ -265,7 +265,7 @@ Example:
 			filterStr = watchPattern
 			quiet = true
 		}
-		
+
 		stat, _ := os.Stdin.Stat()
 		isTerminal := (stat.Mode() & os.ModeCharDevice) != 0
 
@@ -467,7 +467,7 @@ Example:
 				r.Display.Verbose = verbose
 				r.Display.Timestamps = timestamps
 				r.Display.Color = color
-				
+
 				// Enable clean output (no indicators) if the interactive REPL loop is not active
 				if !actuallyInteractive {
 					r.Display.NoIndicators = true
@@ -484,7 +484,6 @@ Example:
 					}
 				}
 
-				
 				// Handle --log and --record flags
 				if logFile != "" {
 					if err := r.Logger.Start(logFile); err != nil {
@@ -516,7 +515,7 @@ Example:
 		// Start the input reader exactly once
 		inputChan := make(chan string)
 		inputErrChan := make(chan error, 1)
-		
+
 		// Determine the context to use for the main session loop
 		var sessionCtx context.Context
 		var sessionCancel context.CancelFunc
@@ -531,7 +530,6 @@ Example:
 			sessionCtx, sessionCancel = context.WithTimeout(sessionCtx, timeout)
 			defer sessionCancel()
 		}
-
 
 		if colorsStr := cmd.Flag("color").Value.String(); colorsStr == "" {
 			// Auto-detect color if not specified
@@ -626,14 +624,14 @@ Example:
 				conn, err = ws.Dial(sessionCtx, details.URL, opts...)
 				if err != nil {
 					warn(r, isInteractive, "Connection failed: %v\n", err)
-					
+
 					// Trigger on_error handlers even if initial connection fails
 					if reg != nil {
-			var sessionVars map[string]interface{}
-			if cc.repl != nil {
-				sessionVars = cc.repl.GetVars()
-			}
-			tempDispatcher := handler.NewDispatcher(reg, nil, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist)
+						var sessionVars map[string]interface{}
+						if cc.repl != nil {
+							sessionVars = cc.repl.GetVars()
+						}
+						tempDispatcher := handler.NewDispatcher(reg, nil, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist)
 						if isInteractive && r != nil {
 
 							tempDispatcher.Log = func(f string, a ...interface{}) { r.Printf(f, a...) }
@@ -718,7 +716,7 @@ Example:
 				readDone := make(chan struct{})
 				go func() {
 					defer close(readDone)
-					
+
 					var fs *repl.FormattingState
 					if !isInteractive {
 						fs = repl.NewFormattingState()
@@ -740,11 +738,11 @@ Example:
 						if !ok {
 							break
 						}
-						
+
 						// Use REPL's centralized printing logic
 						if isInteractive && r != nil {
 							r.PrintMessage(msg, conn)
-							
+
 							// If interactive, try to extract JSON keys for completion
 							if msg.Type == ws.TextMessage {
 								var data interface{}
@@ -797,7 +795,7 @@ Example:
 						if untilMsg != "" && msg.Metadata.Direction == "received" {
 							// Reuse FormattingState filtering logic for until if available,
 							// or do a simple check. To be robust, we'll check if it matches.
-							// For simplicity, we can just check if fs.FormatMessage would have shown it 
+							// For simplicity, we can just check if fs.FormatMessage would have shown it
 							// if it had the filter set. But fs might not be used if isInteractive.
 							// Let's just use a temporary FormattingState for matching.
 							matchFS := repl.NewFormattingState()
@@ -822,7 +820,7 @@ Example:
 								return
 							}
 							msg := &ws.Message{
-								Type: ws.TextMessage, 
+								Type: ws.TextMessage,
 								Data: []byte(text),
 								Metadata: ws.MessageMetadata{
 									Direction: "sent",
@@ -849,14 +847,14 @@ Example:
 				// Execute automation pipeline if provided
 				automationCtx := sessionCtx
 				cc.automationPending = true
-				
+
 				// 1. Send messages from --send
 				for _, m := range sendMsgs {
 					if err := r.ExecuteCommand(automationCtx, ":send "+m); err != nil {
 						warn(r, isInteractive, "Send failed: %v\n", err)
-						if !actuallyInteractive { 
+						if !actuallyInteractive {
 							cc.automationPending = false
-							return err 
+							return err
 						}
 					}
 				}
@@ -866,16 +864,16 @@ Example:
 					content, err := os.ReadFile(inputFile)
 					if err != nil {
 						warn(r, isInteractive, "Failed to read input file %s: %v\n", inputFile, err)
-						if !actuallyInteractive { 
+						if !actuallyInteractive {
 							cc.automationPending = false
-							return err 
+							return err
 						}
 					} else {
 						if err := r.ExecuteCommand(automationCtx, ":send "+string(content)); err != nil {
 							warn(r, isInteractive, "Send from file failed: %v\n", err)
-							if !actuallyInteractive { 
+							if !actuallyInteractive {
 								cc.automationPending = false
-								return err 
+								return err
 							}
 						}
 					}
@@ -885,9 +883,9 @@ Example:
 				for _, e := range expectMsgs {
 					if err := r.ExecuteCommand(automationCtx, ":expect "+e); err != nil {
 						warn(r, isInteractive, "Expectation failed: %v\n", err)
-						if !actuallyInteractive { 
+						if !actuallyInteractive {
 							cc.automationPending = false
-							return err 
+							return err
 						}
 					}
 				}
@@ -914,7 +912,7 @@ Example:
 					}
 				}
 
-				// If in automation mode and not interactive, we might want to exit now 
+				// If in automation mode and not interactive, we might want to exit now
 				// if no more pending actions and not --watch.
 				if isAutomation && !actuallyInteractive && watchPattern == "" {
 					// 5. If --once is active, wait for the response to be received and printed
@@ -930,7 +928,7 @@ Example:
 						// Give a small grace period for any late responses if --once was not used
 						time.Sleep(500 * time.Millisecond)
 					}
-					
+
 					_ = conn.Close()
 					<-readDone
 				}
@@ -966,7 +964,7 @@ Example:
 				case <-conn.Done():
 					<-readDone
 					code, reason := conn.CloseStatus()
-					
+
 					// Log disconnection event
 					if isInteractive && r != nil && r.Logger.IsActive() {
 						_ = r.Logger.LogEvent("disconnected", map[string]interface{}{

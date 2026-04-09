@@ -49,11 +49,11 @@ type TemplateContext struct {
 	URL          string            `json:"url,omitempty"`
 	ConnectionID string            `json:"connection_id,omitempty"`
 	Host         string            `json:"host,omitempty"`
-	Path       string            `json:"path,omitempty"`
-	Scheme      string            `json:"scheme,omitempty"`
-	RemoteAddr  string            `json:"remote_addr,omitempty"`
-	Subprotocol string            `json:"subprotocol,omitempty"`
-	Headers     map[string]string `json:"headers,omitempty"`
+	Path         string            `json:"path,omitempty"`
+	Scheme       string            `json:"scheme,omitempty"`
+	RemoteAddr   string            `json:"remote_addr,omitempty"`
+	Subprotocol  string            `json:"subprotocol,omitempty"`
+	Headers      map[string]string `json:"headers,omitempty"`
 
 	// Message context (root-level convenience)
 	Message      string    `json:"message,omitempty"`

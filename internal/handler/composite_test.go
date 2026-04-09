@@ -12,7 +12,7 @@ import (
 func TestRegistry_CompositeMatch(t *testing.T) {
 	reg := NewRegistry()
 	falseVal := false
-	
+
 	reg.AddHandlers([]Handler{
 		{
 			Name: "all_match",
@@ -83,11 +83,11 @@ func TestRegistry_CompositeMatch(t *testing.T) {
 			engine := template.New(false)
 			ctx := template.NewContext()
 			ctx.Message = tt.input
-			
+
 			msg := &ws.Message{Data: []byte(tt.input), Type: tt.msgType}
 			matches, err := reg.Match(msg, engine, ctx)
 			require.NoError(t, err)
-			
+
 			var names []string
 			for _, m := range matches {
 				names = append(names, m.Name)

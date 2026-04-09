@@ -13,18 +13,18 @@ import (
 
 // RecordEntry represents a single line in the JSONL recording.
 type RecordEntry struct {
-	TS      int64  `json:"ts"`                // Milliseconds since recording start
-	Dir     string `json:"dir,omitempty"`     // "send" or "recv"
-	Msg     string `json:"msg,omitempty"`     // Raw message text
+	TS        int64  `json:"ts"`                // Milliseconds since recording start
+	Dir       string `json:"dir,omitempty"`     // "send" or "recv"
+	Msg       string `json:"msg,omitempty"`     // Raw message text
 	MsgBase64 string `json:"msg_b64,omitempty"` // Base64 payload (binary frames)
 }
 
 // RecordHeader defines the first line of the recording session.
 type RecordHeader struct {
-	XR       int    `json:"xwebs_recording"`
-	URL      string `json:"url"`
-	Started  string `json:"started"`
-	Version  string `json:"version"`
+	XR      int    `json:"xwebs_recording"`
+	URL     string `json:"url"`
+	Started string `json:"started"`
+	Version string `json:"version"`
 }
 
 // Recorder captures a WebSocket session for deterministic replay.

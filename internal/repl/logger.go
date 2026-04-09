@@ -21,18 +21,18 @@ type Logger struct {
 
 // LogEntry represents a single line in the JSONL log file.
 type LogEntry struct {
-	TS      string `json:"ts"`
-	Dir     string `json:"dir,omitempty"`
-	Type    string `json:"type,omitempty"`
-	Len     int    `json:"len,omitempty"`
-	Msg     string `json:"msg,omitempty"`
+	TS        string `json:"ts"`
+	Dir       string `json:"dir,omitempty"`
+	Type      string `json:"type,omitempty"`
+	Len       int    `json:"len,omitempty"`
+	Msg       string `json:"msg,omitempty"`
 	MsgBase64 string `json:"msg_b64,omitempty"`
-	Conn    string `json:"conn,omitempty"`
-	Event   string `json:"event,omitempty"`
-	URL     string `json:"url,omitempty"`
-	SubProto string `json:"subprotocol,omitempty"`
-	Code    int    `json:"code,omitempty"`
-	Reason  string `json:"reason,omitempty"`
+	Conn      string `json:"conn,omitempty"`
+	Event     string `json:"event,omitempty"`
+	URL       string `json:"url,omitempty"`
+	SubProto  string `json:"subprotocol,omitempty"`
+	Code      int    `json:"code,omitempty"`
+	Reason    string `json:"reason,omitempty"`
 }
 
 // NewLogger creates a new Logger instance.

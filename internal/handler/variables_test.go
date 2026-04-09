@@ -69,7 +69,7 @@ func TestHandlerVariables(t *testing.T) {
 	// Verify the output (which is stored in tmplCtx.Stdout by ExecuteAction/executeShell)
 	// Wait, Execute creates its own tmplCtx. We need to check what was "sent" or "logged" or "run".
 	// Our mockConn doesn't capture ExecuteAction results directly unless it's a "send".
-	
+
 	// Let's use a "send" action instead of "run" for easier verification
 	h.Actions = []Action{{Type: "send", Message: "Result: {{.Vars.msg}} - Env: {{.Vars.env_val}}"}}
 	h.Run = ""
@@ -107,7 +107,7 @@ func TestHandlerVariableOverride(t *testing.T) {
 
 	ctx := context.Background()
 	msg := &ws.Message{
-		Data: []byte("hello"),
+		Data:     []byte("hello"),
 		Metadata: ws.MessageMetadata{Direction: "received"},
 	}
 

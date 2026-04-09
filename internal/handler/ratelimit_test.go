@@ -13,10 +13,10 @@ import (
 
 func TestParseRateLimit(t *testing.T) {
 	tests := []struct {
-		input    string
-		wantPerS float64
+		input     string
+		wantPerS  float64
 		wantBurst int
-		wantErr  bool
+		wantErr   bool
 	}{
 		{"10/s", 10, 10, false},
 		{"10/sec", 10, 10, false},
@@ -55,12 +55,12 @@ func (m *rateLimitMockConn) Write(msg *ws.Message) error {
 	m.writeCount++
 	return nil
 }
-func (m *rateLimitMockConn) Subscribe() <-chan *ws.Message { return nil }
+func (m *rateLimitMockConn) Subscribe() <-chan *ws.Message     { return nil }
 func (m *rateLimitMockConn) Unsubscribe(ch <-chan *ws.Message) {}
-func (m *rateLimitMockConn) Done() <-chan struct{} { return make(chan struct{}) }
-func (m *rateLimitMockConn) GetURL() string { return "ws://localhost" }
-func (m *rateLimitMockConn) GetSubprotocol() string { return "" }
-func (m *rateLimitMockConn) IsCompressionEnabled() bool { return false }
+func (m *rateLimitMockConn) Done() <-chan struct{}             { return make(chan struct{}) }
+func (m *rateLimitMockConn) GetURL() string                    { return "ws://localhost" }
+func (m *rateLimitMockConn) GetSubprotocol() string            { return "" }
+func (m *rateLimitMockConn) IsCompressionEnabled() bool        { return false }
 
 func TestDispatcherRateLimit(t *testing.T) {
 	registry := NewRegistry()

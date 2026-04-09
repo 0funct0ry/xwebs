@@ -11,8 +11,6 @@ import (
 	"github.com/0funct0ry/xwebs/internal/template"
 )
 
-
-
 func TestLSCommand(t *testing.T) {
 	var buf bytes.Buffer
 	r, err := New(ClientMode, &Config{

@@ -137,6 +137,7 @@ When running in a terminal (TTY), `xwebs connect` enters a rich interactive REPL
 | `:exit`, `:quit` | Disconnect and quit the application (or `Ctrl+D`)    |
 | `:clear`         | Clear the terminal screen                            |
 | `:! [-i] <cmd>`  | Execute a shell command (use `-i` for interactive)   |
+| `:shell`, `:sh`  | Switch to a full interactive shell session (use `--yes` to skip prompt)|
 | `:format <type>` | Set display format: `json`, `raw`, `hex`, `template` |
 | `:filter <expr>` | Set a display filter (`.jq`, `/regex/`, or `off`)    |
 | `:quiet`         | Toggle non-message output suppression                |

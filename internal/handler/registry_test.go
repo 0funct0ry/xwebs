@@ -97,11 +97,11 @@ func TestRegistry_Match(t *testing.T) {
 			engine := template.New(false)
 			ctx := template.NewContext()
 			ctx.Message = tt.input
-			
+
 			msg := &ws.Message{Data: []byte(tt.input), Type: ws.TextMessage}
 			matches, err := reg.Match(msg, engine, ctx)
 			require.NoError(t, err)
-			
+
 			var names []string
 			for _, m := range matches {
 				names = append(names, m.Name)
@@ -142,14 +142,14 @@ func TestRegistry_BinaryMatch(t *testing.T) {
 			engine := template.New(false)
 			ctx := template.NewContext()
 			ctx.Message = tt.data
-			
+
 			msg := &ws.Message{
 				Type: tt.msgType,
 				Data: []byte(tt.data),
 			}
 			matches, err := reg.Match(msg, engine, ctx)
 			require.NoError(t, err)
-			
+
 			var names []string
 			for _, m := range matches {
 				names = append(names, m.Name)

@@ -68,17 +68,17 @@ type Connection struct {
 	NegotiatedSubprotocol string
 	HandshakeResponse     *http.Response
 
-	_readCh chan *Message
+	_readCh  chan *Message
 	_writeCh chan *Message
 	_done    chan struct{}
-	
+
 	ID string // Unique connection ID
 
 	_mu       sync.Mutex
 	_closed   bool
 	_lastErr  error
 	_closeErr error
-	
+
 	_msgCount uint64 // Internal counter for messages
 
 	_pingInterval         time.Duration
@@ -411,10 +411,10 @@ func (c *Connection) readLoop() {
 				ID:           c.ID,
 				Timestamp:    time.Now(),
 				Direction:    "received",
-				Opcode:     mt,
-				Length:     len(data),
-				Compressed: c.IsCompressionEnabled(),
-				Masked:     false,
+				Opcode:       mt,
+				Length:       len(data),
+				Compressed:   c.IsCompressionEnabled(),
+				Masked:       false,
 				MessageIndex: count,
 				URL:          c.URL,
 			},
@@ -544,10 +544,10 @@ func (c *Connection) sendMessage(msg *Message) error {
 		ID:           c.ID,
 		Timestamp:    time.Now(),
 		Direction:    "sent",
-		Opcode:     mt,
-		Length:     len(msg.Data),
-		Compressed: c.IsCompressionEnabled(),
-		Masked:     true,
+		Opcode:       mt,
+		Length:       len(msg.Data),
+		Compressed:   c.IsCompressionEnabled(),
+		Masked:       true,
 		MessageIndex: count,
 		URL:          c.URL,
 	}
@@ -583,7 +583,7 @@ func NewConnection(conn *websocket.Conn, url string, resp *http.Response, opts *
 		_compressionRequested: opts.Compress,
 		_onDisconnect:         opts.OnDisconnect,
 		_closing:              make(chan struct{}),
-		_closeCode:            1000, // Default to normal closure
+		_closeCode:            1000,                                          // Default to normal closure
 		ID:                    fmt.Sprintf("conn-%d", time.Now().UnixNano()), // Simple unique ID
 	}
 

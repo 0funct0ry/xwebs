@@ -44,7 +44,6 @@ type Dispatcher struct {
 	allowlist        []string
 }
 
-
 // NewDispatcher creates a new dispatcher.
 // NewDispatcher creates a new dispatcher.
 func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine, verbose bool, vars map[string]interface{}, session map[string]interface{}, sandbox bool, allowlist []string) *Dispatcher {
@@ -59,15 +58,15 @@ func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine,
 	}
 
 	return &Dispatcher{
-		registry:       registry,
-		conn:           conn,
-		templateEngine: engine,
-		verbose:        verbose,
-		variables:      vars,
+		registry:         registry,
+		conn:             conn,
+		templateEngine:   engine,
+		verbose:          verbose,
+		variables:        vars,
 		sessionVariables: session,
-		systemEnv:      env,
-		sandbox:        sandbox,
-		allowlist:      allowlist,
+		systemEnv:        env,
+		sandbox:          sandbox,
+		allowlist:        allowlist,
 		Log: func(f string, a ...interface{}) {
 
 			fmt.Printf(f, a...)
@@ -89,7 +88,6 @@ func (d *Dispatcher) errorf(f string, a ...interface{}) {
 		d.Error(f, a...)
 	}
 }
-
 
 // Start begins the dispatch loop.
 func (d *Dispatcher) Start(ctx context.Context) {
@@ -170,7 +168,7 @@ func (d *Dispatcher) handleMessage(ctx context.Context, msg *ws.Message) {
 			})
 			continue
 		}
-		
+
 		go func(handler Handler) {
 			if err := d.Execute(ctx, &handler, msg); err != nil {
 				d.errorf("  [handler] error executing %q: %v\n", handler.Name, err)
@@ -271,7 +269,6 @@ func (d *Dispatcher) Execute(ctx context.Context, h *Handler, msg *ws.Message) e
 	return lastErr
 }
 
-
 // executeMainActions runs the core logic of a handler (Actions, Pipeline, Run, or Builtin).
 // It does NOT run Respond:, which is handled by the caller (the retry loop).
 func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx *template.TemplateContext, msg *ws.Message) error {
@@ -325,8 +322,6 @@ func (d *Dispatcher) calculateBackoff(cfg *RetryConfig, attempt int) time.Durati
 	// Return calculated wait duration
 	return wait
 }
-
-
 
 // executePipeline runs a sequence of steps.
 func (d *Dispatcher) executePipeline(ctx context.Context, pipeline []PipelineStep, tmplCtx *template.TemplateContext, msg *ws.Message) error {
@@ -437,7 +432,7 @@ func (d *Dispatcher) populateTemplateContext(tmplCtx *template.TemplateContext, 
 			tmplCtx.Scheme = u.Scheme
 		}
 		tmplCtx.Subprotocol = d.conn.GetSubprotocol()
-		
+
 		tmplCtx.Conn = &template.ConnectionContext{
 			URL:                d.conn.GetURL(),
 			Subprotocol:        d.conn.GetSubprotocol(),
@@ -456,7 +451,7 @@ func evaluateVariables(engine *template.Engine, vars map[string]interface{}, ctx
 	// Max 3 passes to resolve inter-variable dependencies
 	for pass := 0; pass < 3; pass++ {
 		changed := false
-		
+
 		// Sort keys for deterministic evaluation
 		keys := make([]string, 0, len(result))
 		for k := range result {
@@ -550,7 +545,6 @@ func (d *Dispatcher) executeShell(ctx context.Context, a *Action, tmplCtx *templ
 	}
 	result, err := shell.Execute(childCtx, cmdStr, stdin, a.Env, shellAllowlist)
 
-
 	// Update template context with execution results for subsequent actions
 	tmplCtx.Handler = &template.HandlerContext{
 		Stdout:   result.Stdout,
@@ -640,10 +634,10 @@ func (d *Dispatcher) HandleConnect() {
 
 	for _, h := range onConnect {
 		d.log("  [hook] on_connect: %s\n", h.Name)
-		
+
 		tmplCtx := template.NewContext()
 		d.populateTemplateContext(tmplCtx, nil)
-		
+
 		for _, a := range h.OnConnect {
 			if err := d.ExecuteAction(context.Background(), &a, tmplCtx, nil); err != nil {
 				d.errorf("  [hook] error in on_connect for %s: %v\n", h.Name, err)
@@ -659,10 +653,10 @@ func (d *Dispatcher) HandleDisconnect() {
 
 	for _, h := range onDisconnect {
 		d.log("  [hook] on_disconnect: %s\n", h.Name)
-		
+
 		tmplCtx := template.NewContext()
 		d.populateTemplateContext(tmplCtx, nil)
-		
+
 		for _, a := range h.OnDisconnect {
 			if err := d.ExecuteAction(context.Background(), &a, tmplCtx, nil); err != nil {
 				d.errorf("  [hook] error in on_disconnect for %s: %v\n", h.Name, err)
@@ -678,11 +672,11 @@ func (d *Dispatcher) HandleError(err error) {
 
 	for _, h := range onError {
 		d.log("  [hook] on_error: %s (%v)\n", h.Name, err)
-		
+
 		tmplCtx := template.NewContext()
 		d.populateTemplateContext(tmplCtx, nil)
 		tmplCtx.Error = err.Error()
-		
+
 		for _, a := range h.OnError {
 			if err := d.ExecuteAction(context.Background(), &a, tmplCtx, nil); err != nil {
 				d.errorf("  [hook] error in on_error for %s: %v\n", h.Name, err)

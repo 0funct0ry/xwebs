@@ -22,11 +22,11 @@ type Scenario struct {
 
 // Step represents a single interaction in a mock scenario.
 type Step struct {
-	Expect  *Expectation `yaml:"expect,omitempty"`
-	Respond string       `yaml:"respond,omitempty"`
+	Expect  *Expectation  `yaml:"expect,omitempty"`
+	Respond string        `yaml:"respond,omitempty"`
 	Delay   time.Duration `yaml:"delay,omitempty"`
 	After   time.Duration `yaml:"after,omitempty"`
-	Send    string       `yaml:"send,omitempty"`
+	Send    string        `yaml:"send,omitempty"`
 }
 
 // Expectation defines what an incoming message must match.
@@ -37,11 +37,11 @@ type Expectation struct {
 
 // Mocker manages active mock scenarios and responds to messages.
 type Mocker struct {
-	mu           sync.Mutex
-	scenario     *Scenario
-	currentStep  int
-	filename     string
-	stopChan     chan struct{}
+	mu          sync.Mutex
+	scenario    *Scenario
+	currentStep int
+	filename    string
+	stopChan    chan struct{}
 }
 
 // NewMocker creates a new Mocker instance.
@@ -76,7 +76,7 @@ func (m *Mocker) LoadScenario(filename string) error {
 	m.scenario = &doc.Scenarios[0]
 	m.currentStep = 0
 	m.filename = filename
-	
+
 	// Reset stop channel
 	close(m.stopChan)
 	m.stopChan = make(chan struct{})
@@ -107,7 +107,7 @@ func (m *Mocker) StartBackgroundTasks(ctx context.Context, conn *ws.Connection, 
 							m.currentStep = 0
 						}
 						m.mu.Unlock()
-						
+
 						if logger != nil {
 							logger("  [mock] firing 'after' step: %s", payload)
 						}
@@ -163,7 +163,7 @@ func (m *Mocker) MatchAndRespond(ctx context.Context, msg *ws.Message, conn *ws.
 					}
 					if _, ok := v.(error); ok {
 						// Quietly treat runtime errors as a non-match.
-						// This is expected when a JQ expression tries to access 
+						// This is expected when a JQ expression tries to access
 						// a field that isn't present in every incoming message.
 						continue
 					}

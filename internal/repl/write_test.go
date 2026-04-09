@@ -62,7 +62,7 @@ func TestWriteCommand(t *testing.T) {
 	t.Run("append mode", func(t *testing.T) {
 		filename := "append.txt"
 		_ = os.WriteFile(filename, []byte("part 1"), 0644)
-		
+
 		err := r.ExecuteCommand(context.Background(), ":write -a "+filename+" \" part 2\"")
 		assert.NoError(t, err)
 
@@ -142,7 +142,7 @@ func TestHeredocInREPL(t *testing.T) {
 	// But we can test the logic by manually feeding lines.
 	// Actually, let's just test that the delimiter detection and buffering works
 	// if we were to simulate the loop logic.
-	
+
 	cfg := &Config{
 		Terminal: false,
 		Stdout:   &dummyWriteCloser{io.Discard},
@@ -150,25 +150,25 @@ func TestHeredocInREPL(t *testing.T) {
 	r, err := New(ClientMode, cfg)
 	require.NoError(t, err)
 	r.RegisterCommonCommands()
-	
+
 	// Simulating: :write file.txt <<EOF
 	// line 1
 	// line 2
 	// EOF
-	
+
 	line1 := ":write file.txt <<EOF"
 	idx := strings.LastIndex(line1, "<<")
 	require.NotEqual(t, -1, idx)
 	delim := strings.TrimSpace(line1[idx+2:])
 	assert.Equal(t, "EOF", delim)
-	
+
 	r.heredocDelimiter = delim
 	r.heredocBuffer = []string{line1[:idx]}
-	
+
 	// Feed lines
 	r.heredocBuffer = append(r.heredocBuffer, "line 1")
 	r.heredocBuffer = append(r.heredocBuffer, "line 2")
-	
+
 	// End of heredoc
 	lastLine := "EOF"
 	if strings.TrimSpace(lastLine) == r.heredocDelimiter {

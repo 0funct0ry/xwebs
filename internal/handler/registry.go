@@ -37,10 +37,10 @@ type debouncer struct {
 // NewRegistry creates a new handler registry.
 func NewRegistry() *Registry {
 	return &Registry{
-		handlers:  make([]Handler, 0),
-		schemas:   make(map[string]*gojsonschema.Schema),
-		handlerMu: make(map[string]*sync.Mutex),
-		limiters:  make(map[string]*rate.Limiter),
+		handlers:   make([]Handler, 0),
+		schemas:    make(map[string]*gojsonschema.Schema),
+		handlerMu:  make(map[string]*sync.Mutex),
+		limiters:   make(map[string]*rate.Limiter),
 		debouncers: make(map[string]*debouncer),
 	}
 }
@@ -340,7 +340,7 @@ func (r *Registry) matchGlob(pattern, msg string) (bool, error) {
 	// Convert glob pattern to regex
 	// 1. Quote all regex metacharacters
 	regexStr := regexp.QuoteMeta(pattern)
-	
+
 	// 2. Unescape and convert glob wildcards
 	// QuoteMeta escapes '*' as '\*' and '?' as '\?'
 	regexStr = strings.ReplaceAll(regexStr, "\\*", ".*")
@@ -457,7 +457,7 @@ func (r *Registry) matchJSONSchema(schemaPath, baseDir, msg string) (bool, error
 	if !filepath.IsAbs(fullPath) && baseDir != "" {
 		fullPath = filepath.Join(baseDir, schemaPath)
 	}
-	
+
 	// Ensure absolute path for canonical file:// URI
 	if !filepath.IsAbs(fullPath) {
 		if abs, err := filepath.Abs(fullPath); err == nil {

@@ -2,8 +2,8 @@ package shell
 
 import (
 	"context"
-	"testing"
 	"github.com/stretchr/testify/assert"
+	"testing"
 )
 
 func TestValidateCommand(t *testing.T) {
@@ -101,7 +101,7 @@ func TestValidateCommand(t *testing.T) {
 
 func TestExecuteWithSandbox(t *testing.T) {
 	ctx := context.Background()
-	
+
 	t.Run("allowed command", func(t *testing.T) {
 		result, err := Execute(ctx, "echo hello", nil, nil, []string{"echo"})
 		assert.NoError(t, err)

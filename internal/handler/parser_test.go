@@ -64,7 +64,7 @@ func TestValidateConfigErrors(t *testing.T) {
 			wantErr: "missing a match condition (pattern, regex, jq, json_path, json_schema, template, binary, all, or any)",
 		},
 		{
-			name:    "binary shorthand",
+			name: "binary shorthand",
 			content: `
 handlers:
   - name: "binary_shorthand"
@@ -77,7 +77,7 @@ handlers:
 			wantErr: "", // Should not error
 		},
 		{
-			name:    "template shorthand",
+			name: "template shorthand",
 			content: `
 handlers:
   - name: "template_shorthand"
@@ -90,7 +90,7 @@ handlers:
 			wantErr: "", // Should not error
 		},
 		{
-			name:    "jq shorthand",
+			name: "jq shorthand",
 			content: `
 handlers:
   - name: "jq_shorthand"
@@ -103,7 +103,7 @@ handlers:
 			wantErr: "", // Should not error
 		},
 		{
-			name:    "json_path shorthand",
+			name: "json_path shorthand",
 			content: `
 handlers:
   - name: "json_path_shorthand"
@@ -117,7 +117,7 @@ handlers:
 			wantErr: "", // Should not error
 		},
 		{
-			name:    "regex shorthand",
+			name: "regex shorthand",
 			content: `
 handlers:
   - name: "regex_shorthand"
@@ -130,7 +130,7 @@ handlers:
 			wantErr: "", // Should not error
 		},
 		{
-			name:    "json_schema shorthand",
+			name: "json_schema shorthand",
 			content: `
 handlers:
   - name: "json_schema_shorthand"

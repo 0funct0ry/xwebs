@@ -8,7 +8,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-
 // Config represents the root structure of a handlers.yaml file.
 type Config struct {
 	Variables map[string]interface{} `yaml:"variables"`
@@ -18,28 +17,27 @@ type Config struct {
 	BaseDir   string                 `yaml:"-"` // Directory from which the config was loaded
 }
 
-
 // Handler defines a single message handler with a name, match conditions, and actions.
 type Handler struct {
-	Name         string         `yaml:"name"`
-	Priority     int            `yaml:"priority,omitempty"`
-	Exclusive    bool           `yaml:"exclusive,omitempty"`
-	Concurrent   *bool          `yaml:"concurrent,omitempty"` // Pointer to distinguish between false and not set (default true)
-	Match        Matcher        `yaml:"match"`
-	Run          string         `yaml:"run,omitempty"`      // Shorthand for shell action
-	Respond      string         `yaml:"respond,omitempty"`  // Shorthand for send action (after run)
-	Builtin      string         `yaml:"builtin,omitempty"`  // Shorthand for builtin action
-	Pipeline     []PipelineStep `yaml:"pipeline,omitempty"` // Multi-step pipeline
-	Timeout      string         `yaml:"timeout,omitempty"`  // Per-handler timeout
-	Retry        *RetryConfig   `yaml:"retry,omitempty"`    // Automatic retry on failure
-	RateLimit    string         `yaml:"rate_limit,omitempty"` // Per-handler rate limit (e.g. "10/s", "100/m")
-	Debounce     string         `yaml:"debounce,omitempty"`   // Per-handler debounce duration (e.g. "500ms")
+	Name         string                 `yaml:"name"`
+	Priority     int                    `yaml:"priority,omitempty"`
+	Exclusive    bool                   `yaml:"exclusive,omitempty"`
+	Concurrent   *bool                  `yaml:"concurrent,omitempty"` // Pointer to distinguish between false and not set (default true)
+	Match        Matcher                `yaml:"match"`
+	Run          string                 `yaml:"run,omitempty"`        // Shorthand for shell action
+	Respond      string                 `yaml:"respond,omitempty"`    // Shorthand for send action (after run)
+	Builtin      string                 `yaml:"builtin,omitempty"`    // Shorthand for builtin action
+	Pipeline     []PipelineStep         `yaml:"pipeline,omitempty"`   // Multi-step pipeline
+	Timeout      string                 `yaml:"timeout,omitempty"`    // Per-handler timeout
+	Retry        *RetryConfig           `yaml:"retry,omitempty"`      // Automatic retry on failure
+	RateLimit    string                 `yaml:"rate_limit,omitempty"` // Per-handler rate limit (e.g. "10/s", "100/m")
+	Debounce     string                 `yaml:"debounce,omitempty"`   // Per-handler debounce duration (e.g. "500ms")
 	Actions      []Action               `yaml:"actions,omitempty"`
 	Variables    map[string]interface{} `yaml:"variables,omitempty"`
 	OnConnect    []Action               `yaml:"on_connect,omitempty"`
-	OnDisconnect []Action       `yaml:"on_disconnect,omitempty"`
-	OnError      []Action       `yaml:"on_error,omitempty"`
-	BaseDir      string         `yaml:"-"` // Directory from which the handler was loaded
+	OnDisconnect []Action               `yaml:"on_disconnect,omitempty"`
+	OnError      []Action               `yaml:"on_error,omitempty"`
+	BaseDir      string                 `yaml:"-"` // Directory from which the handler was loaded
 }
 
 // RetryConfig defines the settings for automatic retries.
@@ -50,12 +48,11 @@ type RetryConfig struct {
 	MaxInterval string `yaml:"max_interval,omitempty"` // Cap for exponential backoff (default "30s")
 }
 
-
 // PipelineStep defines a single step in a multi-step handler execution.
 type PipelineStep struct {
 	Run         string `yaml:"run,omitempty"`
 	Builtin     string `yaml:"builtin,omitempty"`
-	As          string `yaml:"as,omitempty"`      // Key to store results in .Steps.<name>
+	As          string `yaml:"as,omitempty"` // Key to store results in .Steps.<name>
 	Timeout     string `yaml:"timeout,omitempty"`
 	IgnoreError bool   `yaml:"ignore_error,omitempty"`
 }
@@ -97,16 +94,16 @@ func (m *Matcher) UnmarshalYAML(value *yaml.Node) error {
 // Action defines an operation to perform when a handler matches or a lifecycle event occurs.
 type Action struct {
 	Type    string            `yaml:"action,omitempty"`  // "shell", "send", "log", "builtin"
-	Run     string            `yaml:"run,omitempty"`      // Shorthand for shell action
-	Send    string            `yaml:"send,omitempty"`     // Shorthand for send action
-	Builtin string            `yaml:"builtin,omitempty"`  // Shorthand for builtin action
-	Log     string            `yaml:"log,omitempty"`      // Shorthand for log message
-	Message string            `yaml:"message,omitempty"`  // For legacy "send" action (shorthand preferred)
-	Command string            `yaml:"command,omitempty"`  // For legacy "shell" action (shorthand preferred)
-	Target  string            `yaml:"target,omitempty"`   // For "log" action (e.g. filename or "stdout", "stderr")
-	Timeout string            `yaml:"timeout,omitempty"`  // Timeout for shell/builtin actions
-	Env     map[string]string `yaml:"env,omitempty"`      // Environment variables for shell actions
-	Silent  bool              `yaml:"silent,omitempty"`   // Suppress output for shell actions
+	Run     string            `yaml:"run,omitempty"`     // Shorthand for shell action
+	Send    string            `yaml:"send,omitempty"`    // Shorthand for send action
+	Builtin string            `yaml:"builtin,omitempty"` // Shorthand for builtin action
+	Log     string            `yaml:"log,omitempty"`     // Shorthand for log message
+	Message string            `yaml:"message,omitempty"` // For legacy "send" action (shorthand preferred)
+	Command string            `yaml:"command,omitempty"` // For legacy "shell" action (shorthand preferred)
+	Target  string            `yaml:"target,omitempty"`  // For "log" action (e.g. filename or "stdout", "stderr")
+	Timeout string            `yaml:"timeout,omitempty"` // Timeout for shell/builtin actions
+	Env     map[string]string `yaml:"env,omitempty"`     // Environment variables for shell actions
+	Silent  bool              `yaml:"silent,omitempty"`  // Suppress output for shell actions
 }
 
 // UnmarshalYAML implements custom unmarshaling for Action to support shorthand keys.
@@ -142,15 +139,15 @@ func (c *Config) Validate() error {
 		if h.Name == "" {
 			return fmt.Errorf("handler[%d] is missing a name", i)
 		}
-		
+
 		// Match is required if we have execution logic
-		hasMatch := h.Match.Pattern != "" || h.Match.Regex != "" || h.Match.JQ != "" || 
-			h.Match.JSONPath != "" || h.Match.JSONSchema != "" || h.Match.Template != "" || 
+		hasMatch := h.Match.Pattern != "" || h.Match.Regex != "" || h.Match.JQ != "" ||
+			h.Match.JSONPath != "" || h.Match.JSONSchema != "" || h.Match.Template != "" ||
 			h.Match.Binary != nil || len(h.Match.All) > 0 || len(h.Match.Any) > 0
-		
-		hasExecution := len(h.Actions) > 0 || h.Run != "" || h.Respond != "" || 
+
+		hasExecution := len(h.Actions) > 0 || h.Run != "" || h.Respond != "" ||
 			h.Builtin != "" || len(h.Pipeline) > 0
-		
+
 		if !hasMatch && hasExecution {
 			return fmt.Errorf("handler %q is missing a match condition (pattern, regex, jq, json_path, json_schema, template, binary, all, or any)", h.Name)
 		}
@@ -295,4 +292,3 @@ func ParseRateLimit(s string) (float64, int, error) {
 
 	return perSec, burst, nil
 }
-

@@ -89,7 +89,7 @@ func TestLifecycleHooks(t *testing.T) {
 			},
 		},
 	})
-	
+
 	testErr := errors.New("something went wrong")
 	d.HandleError(testErr)
 
@@ -105,9 +105,9 @@ func TestHandlerErrorTrigger(t *testing.T) {
 	// Handler that fails
 	reg.AddHandlers([]Handler{
 		{
-			Name: "failing_handler",
+			Name:  "failing_handler",
 			Match: Matcher{Type: "glob", Pattern: "*"},
-			Run: "exit 1",
+			Run:   "exit 1",
 		},
 		{
 			Name: "error_watcher",
@@ -118,10 +118,10 @@ func TestHandlerErrorTrigger(t *testing.T) {
 	})
 
 	d := NewDispatcher(reg, conn, engine, true, nil, nil, false, nil)
-	
+
 	msg := &ws.Message{
-		Type: ws.TextMessage,
-		Data: []byte("trigger"),
+		Type:     ws.TextMessage,
+		Data:     []byte("trigger"),
 		Metadata: ws.MessageMetadata{Direction: "received"},
 	}
 

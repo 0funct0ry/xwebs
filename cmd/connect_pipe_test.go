@@ -25,7 +25,7 @@ func TestPipeSupport_Redirection(t *testing.T) {
 
 	r, err := repl.New(repl.ClientMode, cfg)
 	require.NoError(t, err)
-	
+
 	// Ensure detection works
 	assert.False(t, r.IsStdoutTTY(), "Expected Stdout to be detected as non-TTY")
 
@@ -39,12 +39,12 @@ func TestPipeSupport_Redirection(t *testing.T) {
 	// Notify should go to Stderr when not interactive and Stdout is piped
 	r.IsInteractive = false
 	r.Notify("Connecting to %s...", "wss://example.com")
-	
+
 	w_pipe.Close()
 	var buf bytes.Buffer
 	_, err = io.Copy(&buf, r_pipe)
 	require.NoError(t, err)
-	
+
 	assert.Contains(t, buf.String(), "Connecting to wss://example.com...", "Notify should have redirected to Stderr")
 
 	// Verify Stdout is clean
@@ -56,18 +56,18 @@ func TestPipeSupport_Redirection(t *testing.T) {
 func TestPipeSupport_FormattingNoIndicators(t *testing.T) {
 	fs := repl.NewFormattingState()
 	fs.NoIndicators = true
-	
+
 	msg := &ws.Message{
 		Data: []byte("hello world"),
 		Metadata: ws.MessageMetadata{
 			Direction: "received",
 		},
 	}
-	
+
 	formatted, ok := fs.FormatMessage(msg, nil, nil)
 	assert.True(t, ok)
 	assert.Equal(t, "hello world", formatted, "Expected clean output with no indicators")
-	
+
 	fs.NoIndicators = false
 	formatted, ok = fs.FormatMessage(msg, nil, nil)
 	assert.True(t, ok)

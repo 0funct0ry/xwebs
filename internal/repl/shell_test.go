@@ -72,5 +72,3 @@ func TestShellCommand(t *testing.T) {
 		}
 	})
 }
-
-

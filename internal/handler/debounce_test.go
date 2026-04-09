@@ -19,12 +19,12 @@ func TestRegistry_Debounce(t *testing.T) {
 		var wg sync.WaitGroup
 		wg.Add(1)
 		var received *ws.Message
-		
+
 		reg.Debounce("h1", 50*time.Millisecond, msg1, func(m *ws.Message) {
 			received = m
 			wg.Done()
 		})
-		
+
 		wg.Wait()
 		assert.Equal(t, msg1, received)
 	})
@@ -52,7 +52,7 @@ func TestRegistry_Debounce(t *testing.T) {
 		reg.Debounce("h2", 50*time.Millisecond, msg3, handlerFn)
 
 		wg.Wait()
-		
+
 		mu.Lock()
 		assert.Equal(t, 1, count, "Should only execute once")
 		assert.Equal(t, msg3, received, "Should receive the most recent message")
@@ -62,9 +62,9 @@ func TestRegistry_Debounce(t *testing.T) {
 	t.Run("Independent debouncers", func(t *testing.T) {
 		var wg sync.WaitGroup
 		wg.Add(2)
-		
+
 		var m1, m2 *ws.Message
-		
+
 		reg.Debounce("h3", 50*time.Millisecond, msg1, func(m *ws.Message) {
 			m1 = m
 			wg.Done()
@@ -73,7 +73,7 @@ func TestRegistry_Debounce(t *testing.T) {
 			m2 = m
 			wg.Done()
 		})
-		
+
 		wg.Wait()
 		assert.Equal(t, msg1, m1)
 		assert.Equal(t, msg2, m2)

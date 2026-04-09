@@ -110,11 +110,28 @@ func (r *REPL) RegisterCommonCommands() {
 			if len(args) == 0 {
 				return fmt.Errorf("usage: :! [-i] <command>")
 			}
-			// Note: This handler is a fallback. Direct :! usage is intercepted 
+			// Note: This handler is a fallback. Direct :! usage is intercepted
 			// in ExecuteCommand to preserve the raw command string including quotes/pipes.
 			return r.executeShellCommand(ctx, strings.Join(args, " "))
 		},
 	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "shell",
+		help: "Switch to a full interactive shell session: :shell [--yes|-y]",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			var skipConfirm bool
+			fs := pflag.NewFlagSet("shell", pflag.ContinueOnError)
+			fs.SetOutput(nil)
+			fs.BoolVarP(&skipConfirm, "yes", "y", false, "Skip confirmation prompt")
+
+			if err := fs.Parse(args); err != nil {
+				return fmt.Errorf("parsing flags: %w", err)
+			}
+			return r.switchToShell(ctx, skipConfirm)
+		},
+	})
+	r.RegisterAlias("sh", "shell")
 
 	r.RegisterCommand(&BuiltinCommand{
 		name: "set",
@@ -200,7 +217,7 @@ func (r *REPL) RegisterCommonCommands() {
 			return nil
 		},
 	})
- 
+
 	r.RegisterCommand(&BuiltinCommand{
 		name: "cd",
 		help: "Change the current working directory: :cd [path|-]",
@@ -334,7 +351,7 @@ func (r *REPL) RegisterCommonCommands() {
 			}
 
 			path := strings.Trim(remaining[0], "\"'")
-			
+
 			var err error
 			if parents {
 				err = os.MkdirAll(path, 0755)
@@ -377,7 +394,7 @@ func (r *REPL) RegisterCommonCommands() {
 
 			const maxLines = 500
 			const maxSize = 1024 * 1024 // 1MB
-			
+
 			scanner := bufio.NewScanner(f)
 			lineNum := 0
 			totalSize := 0
@@ -408,7 +425,7 @@ func (r *REPL) RegisterCommonCommands() {
 			return nil
 		},
 	})
- 
+
 	r.RegisterCommand(&BuiltinCommand{
 		name: "edit",
 		help: "Open a file in $EDITOR: :edit <filename>",
@@ -417,7 +434,7 @@ func (r *REPL) RegisterCommonCommands() {
 				return fmt.Errorf("usage: :edit <filename>")
 			}
 			path := strings.Trim(args[0], "\"'")
-			
+
 			// Handle absolute/relative paths
 			absPath, err := filepath.Abs(path)
 			if err != nil {
@@ -485,13 +502,13 @@ func (r *REPL) RegisterCommonCommands() {
 
 				if isKnownConfig || isPotentialConfig {
 					r.Printf("\nFile %q modified. Reload configuration? (y/N) ", path)
-					
+
 					// Read user input - Note: this might be tricky in some terminal environments
 					// but since we are in a REPL, it should be okay.
 					var answer string
 					_, _ = fmt.Scanln(&answer)
 					answer = strings.TrimSpace(strings.ToLower(answer))
-					
+
 					if answer == "y" || answer == "yes" {
 						if err := r.ReloadConfig(absPath); err != nil {
 							return fmt.Errorf("reloading configuration: %w", err)
@@ -732,7 +749,7 @@ func (r *REPL) RegisterCommonCommands() {
 						tmplCtx.Env[parts[0]] = parts[1]
 					}
 				}
-				
+
 				// Add scripting context
 				if lastMsg := r.GetLastMessage(); lastMsg != nil {
 					tmplCtx.Last = string(lastMsg.Data)
@@ -861,7 +878,7 @@ func (r *REPL) RegisterCommonCommands() {
 
 			// Clean result for check
 			res = strings.TrimSpace(strings.ToLower(res))
-			
+
 			// Fails if empty, "false", or "0"
 			if res == "" || res == "false" || res == "0" {
 				if msg == "" {
@@ -1077,7 +1094,7 @@ func (r *REPL) RegisterCommonCommands() {
 					if newCfg.Variables != nil {
 						r.ReplaceVars(newCfg.Variables)
 					}
-					
+
 					r.Printf("Handler configuration updated successfully.\n")
 					return nil
 				}
@@ -1203,8 +1220,8 @@ func (r *REPL) RegisterCommonCommands() {
 	})
 
 	r.RegisterCommand(&BuiltinCommand{
-		name: "write",
-		help: "Save content to a file: :write [flags] <filename> [content]",
+		name:    "write",
+		help:    "Save content to a file: :write [flags] <filename> [content]",
 		handler: r.executeWrite,
 	})
 }

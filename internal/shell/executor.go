@@ -54,9 +54,9 @@ func Execute(ctx context.Context, command string, stdin io.Reader, env map[strin
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			result.ExitCode = exitErr.ExitCode()
-			return result, nil // Non-zero exit code is a defined state, not a fatal execution error 
+			return result, nil // Non-zero exit code is a defined state, not a fatal execution error
 		}
-		
+
 		// Fatal execution errors (cannot start, timeout, context cancel)
 		result.ExitCode = -1
 		if ctx.Err() != nil {
@@ -64,7 +64,6 @@ func Execute(ctx context.Context, command string, stdin io.Reader, env map[strin
 		}
 		return result, fmt.Errorf("command execution failed: %w", err)
 	}
-
 
 	result.ExitCode = 0
 	return result, nil
@@ -157,7 +156,7 @@ func ValidateCommand(command string, allowlist []string) error {
 		}
 
 		baseCmd := words[cmdIdx]
-		
+
 		allowed := false
 		for _, a := range allowlist {
 			if baseCmd == a {
@@ -173,4 +172,3 @@ func ValidateCommand(command string, allowlist []string) error {
 
 	return nil
 }
-

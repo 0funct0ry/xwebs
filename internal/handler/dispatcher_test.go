@@ -27,12 +27,12 @@ func (m *mockConn) Write(msg *ws.Message) error {
 	return nil
 }
 
-func (m *mockConn) Subscribe() <-chan *ws.Message { return nil }
+func (m *mockConn) Subscribe() <-chan *ws.Message     { return nil }
 func (m *mockConn) Unsubscribe(ch <-chan *ws.Message) {}
-func (m *mockConn) Done() <-chan struct{} { return nil }
-func (m *mockConn) IsCompressionEnabled() bool { return false }
-func (m *mockConn) GetURL() string { return "ws://localhost:8080" }
-func (m *mockConn) GetSubprotocol() string { return "" }
+func (m *mockConn) Done() <-chan struct{}             { return nil }
+func (m *mockConn) IsCompressionEnabled() bool        { return false }
+func (m *mockConn) GetURL() string                    { return "ws://localhost:8080" }
+func (m *mockConn) GetSubprotocol() string            { return "" }
 
 func TestDispatcher_ExecutePipeline(t *testing.T) {
 	reg := NewRegistry()
@@ -291,7 +291,7 @@ func TestDispatcher_ExclusiveShortCircuit(t *testing.T) {
 		},
 	}
 
-	// This is async by default in Dispatcher.Start, 
+	// This is async by default in Dispatcher.Start,
 	// but here we can call handleMessage directly (it's internal to dispatcher.go but visible in package)
 	d.handleMessage(context.Background(), msg)
 
@@ -300,7 +300,7 @@ func TestDispatcher_ExclusiveShortCircuit(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
-	
+
 	assert.Contains(t, executed, "h1")
 	assert.Contains(t, executed, "h2")
 	assert.NotContains(t, executed, "h3")

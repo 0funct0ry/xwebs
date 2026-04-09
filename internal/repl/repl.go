@@ -37,12 +37,12 @@ const (
 
 // REPL is the core engine for interactive CLI handling.
 type REPL struct {
-	mode   Mode
-	rl     *readline.Instance
+	mode          Mode
+	rl            *readline.Instance
 	config        *Config
 	IsInteractive bool // Flag to indicate if real-time interactive REPL is active
-	commands       map[string]Command
-	aliases        map[string]string
+	commands      map[string]Command
+	aliases       map[string]string
 	scriptAliases map[string]string
 
 	// execDepth tracks recursion depth for :source and aliases
@@ -56,7 +56,7 @@ type REPL struct {
 	completionData map[string][]string
 
 	onInput func(ctx context.Context, text string) error
-	
+
 	// TemplateEngine is used for :format template
 	TemplateEngine *template.Engine
 
@@ -79,17 +79,17 @@ type REPL struct {
 	// lastInput stores the most recently typed line to suppress redundant markers
 	lastInput   string
 	lastInputMu sync.Mutex
-	
+
 	// multiLineBuffer stores partial lines for \ continuation
 	multiLineBuffer []string
 
 	// Command execution context management
-	cmdMu      sync.Mutex
-	cmdCancel  context.CancelFunc
-	cmdActive  bool
+	cmdMu     sync.Mutex
+	cmdCancel context.CancelFunc
+	cmdActive bool
 
 	isStdoutTTY bool
-	done chan struct{}
+	done        chan struct{}
 
 	// Prompt management
 	promptTemplate    string
@@ -170,7 +170,7 @@ func New(mode Mode, cfg *Config) (*REPL, error) {
 		if f, ok := cfg.Stdout.(*os.File); ok {
 			if stat, err := f.Stat(); err == nil {
 				if (stat.Mode() & os.ModeCharDevice) == 0 {
-					// Fallback readline internally to os.Stderr if output is a file, 
+					// Fallback readline internally to os.Stderr if output is a file,
 					// so r.Printf can write to the file cleanly via fmt.Fprintf.
 					rlConfig.Stdout = os.Stderr
 				}
@@ -183,7 +183,7 @@ func New(mode Mode, cfg *Config) (*REPL, error) {
 		config:         cfg,
 		commands:       make(map[string]Command),
 		aliases:        make(map[string]string),
-		scriptAliases: make(map[string]string),
+		scriptAliases:  make(map[string]string),
 		vars:           make(map[string]interface{}),
 		completionData: make(map[string][]string),
 		done:           make(chan struct{}),
@@ -212,17 +212,18 @@ func New(mode Mode, cfg *Config) (*REPL, error) {
 
 	r.Display = NewFormattingState()
 	r.Display.IsTTY = r.isStdoutTTY
-	
+
 	if cfg.Terminal {
 		rlConfig.Painter = NewHighlighter(r.Display)
 		rlConfig.AutoComplete = r
+		rlConfig.Listener = r
 		rl, err := readline.NewEx(rlConfig)
 		if err != nil {
 			return nil, fmt.Errorf("initializing readline: %w", err)
 		}
 		r.rl = rl
 	}
-	
+
 	r.Logger = NewLogger()
 	r.Recorder = NewRecorder()
 	r.Mocker = mock.NewMocker()
@@ -293,7 +294,7 @@ func (r *REPL) Notify(format string, args ...interface{}) {
 	if r.Display.Quiet {
 		return
 	}
-	// If we are not in interactive mode, send notifications to stderr 
+	// If we are not in interactive mode, send notifications to stderr
 	// to avoid polluting data streams on stdout.
 	if !r.IsInteractive {
 		_, _ = fmt.Fprintf(os.Stderr, format, args...)
@@ -335,7 +336,7 @@ func (r *REPL) PrintMessage(msg *ws.Message, conn *ws.Connection) {
 
 	formatted, ok := r.Display.FormatMessage(msg, r.GetVars(), r.TemplateEngine)
 	if ok {
-		// Suppression logic: if this is a sent message that exactly matches the last typed input, 
+		// Suppression logic: if this is a sent message that exactly matches the last typed input,
 		// we skip the terminal display to avoid redundancy, but we still log/record it (done above).
 		if msg.Metadata.Direction == "sent" && msg.Type == ws.TextMessage {
 			r.lastInputMu.Lock()
@@ -494,7 +495,7 @@ func (r *REPL) ExecuteCommand(ctx context.Context, line string) error {
 	if len(parts) == 0 {
 		return nil
 	}
-	
+
 	fullCmd := parts[0]
 	cmdName := strings.TrimPrefix(fullCmd, ":")
 	args := parts[1:]
@@ -515,7 +516,7 @@ func (r *REPL) ExecuteCommand(ctx context.Context, line string) error {
 		}
 		// Handle $@ (all args)
 		expanded = strings.ReplaceAll(expanded, "$@", strings.Join(args, " "))
-		
+
 		// Optional: clean up unused placeholders $1-$9 (expanded to empty string as per story)
 		for i := 1; i <= 9; i++ {
 			expanded = strings.ReplaceAll(expanded, fmt.Sprintf("$%d", i), "")
@@ -598,7 +599,7 @@ func (r *REPL) renderPrompt() {
 		}
 		tmplCtx.URL = last.Metadata.URL
 		tmplCtx.ConnectionID = last.Metadata.ID
-		
+
 		// Extract Host from URL
 		if idx := strings.Index(tmplCtx.URL, "://"); idx != -1 {
 			hostPart := tmplCtx.URL[idx+3:]
@@ -660,6 +661,17 @@ func (r *REPL) SetLastSendTime(t time.Time) {
 // Do satisfies the readline.AutoCompleter interface.
 func (r *REPL) Do(line []rune, pos int) (newLine [][]rune, length int) {
 	return r.DoContext(line, pos)
+}
+
+// OnChange implements the readline.Listener interface.
+// It intercepts Ctrl+O (rune 15) to trigger shell mode.
+func (r *REPL) OnChange(line []rune, pos int, key rune) (newLine []rune, newPos int, ok bool) {
+	// Ctrl+O is rune 15. We intercept it to inject ":shell" command.
+	if key == 15 {
+		// We return the command with --yes to allow immediate entry upon pressing Enter.
+		return []rune(":shell --yes"), 12, true
+	}
+	return nil, 0, false
 }
 
 // GetVar returns a session variable.
@@ -814,7 +826,7 @@ func (r *REPL) openInEditor(ctx context.Context, initialContent string) (string,
 
 	// 3. Spawn editor
 	// We need to use exec.Command and connect Stdin/Stdout/Stderr to the real terminal.
-	// We don't use CommandContext here because we want the editor to handle signals itself 
+	// We don't use CommandContext here because we want the editor to handle signals itself
 	// (e.g. ^C in vim should not kill the editor process if the user is just typing).
 	cmd := exec.Command(editor, tmpFile.Name())
 	cmd.Stdin = os.Stdin
