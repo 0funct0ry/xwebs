@@ -560,6 +560,9 @@ func (r *REPL) ExecuteCommand(ctx context.Context, line string) error {
 		if cmdCtx.Err() == context.Canceled {
 			return nil
 		}
+		if strings.Contains(err.Error(), "disabled in sandbox mode") {
+			return err
+		}
 		return fmt.Errorf("command error: %w", err)
 	}
 	return nil

@@ -239,6 +239,9 @@ func (r *REPL) RegisterClientCommands(cc ClientContext) {
 
 			res, err := engine.Execute("repl", tmpl, tmplCtx)
 			if err != nil {
+				if strings.Contains(err.Error(), "disabled in sandbox mode") {
+					return err
+				}
 				return fmt.Errorf("rendering template: %w", err)
 			}
 			r.SetLastSendTime(time.Now())

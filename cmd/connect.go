@@ -124,7 +124,7 @@ Example:
 		var r *repl.REPL
 		var isInteractive bool
 		target := args[0]
-		tmplEngine := template.New(false) // Not sandboxed for CLI usage
+		tmplEngine := template.New(noShellFunc)
 
 		// Load handlers if specified
 		var reg *handler.Registry

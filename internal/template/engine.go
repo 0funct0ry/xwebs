@@ -350,6 +350,13 @@ func (e *Engine) Execute(name, text string, data interface{}) (string, error) {
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
+		errStr := err.Error()
+		if strings.Contains(errStr, "is disabled in sandbox mode") {
+			// Extract the specific sandbox error message (last part of the error chain)
+			if idx := strings.LastIndex(errStr, ": "); idx != -1 {
+				return "", fmt.Errorf("%s", errStr[idx+2:])
+			}
+		}
 		return "", fmt.Errorf("executing template %s: %w", name, err)
 	}
 

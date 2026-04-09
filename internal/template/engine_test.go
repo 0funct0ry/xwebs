@@ -2,6 +2,7 @@ package template
 
 import (
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -239,6 +240,38 @@ func TestEngine_Execute(t *testing.T) {
 			data: nil,
 			want: "12",
 		},
+		{
+			name: "system user",
+			tmpl: "{{user}}",
+			data: nil,
+			// want: verified via regex or existence
+		},
+		{
+			name: "system home",
+			tmpl: "{{home}}",
+			data: nil,
+		},
+		{
+			name: "system xwebsVersion",
+			tmpl: "{{xwebsVersion}}",
+			data: nil,
+			want: "dev", // Default when not set by ldflags
+		},
+		{
+			name: "system cpuUsage",
+			tmpl: "{{cpuUsage}}",
+			data: nil,
+		},
+		{
+			name: "system memUsage",
+			tmpl: "{{memUsage}}",
+			data: nil,
+		},
+		{
+			name: "system diskUsage",
+			tmpl: "{{diskUsage}}",
+			data: nil,
+		},
 	}
 
 	for _, tt := range tests {
@@ -246,6 +279,14 @@ func TestEngine_Execute(t *testing.T) {
 			got, err := e.Execute(tt.name, tt.tmpl, tt.data)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Engine.Execute() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if tt.name == "system user" || tt.name == "system home" || 
+			   tt.name == "system cpuUsage" || tt.name == "system memUsage" || 
+			   tt.name == "system diskUsage" {
+				if got == "" {
+					t.Errorf("%s returned empty string", tt.name)
+				}
 				return
 			}
 			if got != tt.want {
@@ -285,6 +326,31 @@ func TestEngine_Sandbox(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:    "user disabled",
+			tmpl:    "{{user}}",
+			wantErr: true,
+		},
+		{
+			name:    "home disabled",
+			tmpl:    "{{home}}",
+			wantErr: true,
+		},
+		{
+			name:    "cpuUsage disabled",
+			tmpl:    "{{cpuUsage}}",
+			wantErr: true,
+		},
+		{
+			name:    "memUsage disabled",
+			tmpl:    "{{memUsage}}",
+			wantErr: true,
+		},
+		{
+			name:    "diskUsage disabled",
+			tmpl:    "{{diskUsage}}",
+			wantErr: true,
+		},
+		{
 			name:    "math works in sandbox",
 			tmpl:    "{{add 1 2}}",
 			wantErr: false,
@@ -301,6 +367,15 @@ func TestEngine_Sandbox(t *testing.T) {
 			_, err := e.Execute(tt.name, tt.tmpl, tt.data)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Engine.Execute() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr && err != nil {
+				if !strings.Contains(err.Error(), "is disabled in sandbox mode") {
+					t.Errorf("Engine.Execute() error message = %v, want it to contain 'is disabled in sandbox mode'", err)
+				}
+				// Verify simplification - no boilerplate from text/template
+				if strings.Contains(err.Error(), "template:") || strings.Contains(err.Error(), "executing") {
+					t.Errorf("Engine.Execute() error message still contains boilerplate: %v", err)
+				}
 			}
 		})
 	}

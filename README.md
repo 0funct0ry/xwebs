@@ -932,14 +932,21 @@ You can dynamically change the REPL prompt using the `:prompt set` command. The 
 
 #### System Functions
 
-| Function     | Description                     | Example                                   |
-|--------------|---------------------------------|-------------------------------------------|
-| `env`        | Returns an environment variable | `{{ env "HOME" }}`                        |
-| `shell`      | Executes a shell command        | `{{ shell "ls -l" }}`                     |
-| `hostname`   | Returns the system hostname     | `{{ hostname }}`                          |
-| `pid`        | Returns the process ID          | `{{ pid }}`                               |
-| `fileRead`   | Reads a file's content          | `{{ fileRead "config.json" }}`            |
-| `fileExists` | Checks if a file exists         | `{{ if fileExists "a.txt" }}...{{ end }}` |
+| Function       | Description                     | Example                                   |
+|----------------|---------------------------------|-------------------------------------------|
+| `env`          | Returns an environment variable | `{{ env "HOME" }}`                        |
+| `shell`        | Executes a shell command        | `{{ shell "ls -l" }}`                     |
+| `hostname`     | Returns the system hostname     | `{{ hostname }}`                          |
+| `user`         | Returns the current username    | `{{ user }}`                              |
+| `home`         | Returns user home directory     | `{{ home }}`                              |
+| `pid`          | Returns the process ID          | `{{ pid }}`                               |
+| `tty`          | Returns session TTY             | `{{ tty }}`                               |
+| `xwebsVersion` | Returns xwebs version           | `{{ xwebsVersion }}`                      |
+| `cpuUsage`     | CPU utilization percentage      | `{{ cpuUsage }}`                          |
+| `memUsage`     | System memory usage             | `{{ memUsage }}`                          |
+| `diskUsage`    | Root disk usage                 | `{{ diskUsage }}`                         |
+| `fileRead`     | Reads a file's content          | `{{ fileRead "config.json" }}`            |
+| `fileExists`   | Checks if a file exists         | `{{ if fileExists "a.txt" }}...{{ end }}` |
 
 > [!NOTE]
 > These functions can be disabled for security using the `--no-shell-func` global flag. See [Template Sandboxing](#template-sandboxing) for details.
@@ -950,6 +957,7 @@ For security-sensitive environments or when running untrusted configurations, yo
 
 When enabled, the following functions are restricted and will return an error if called:
 - `env`, `shell`, `fileRead`, `fileExists`, `glob`, `hostname`, `pid`, `cwd`, `tempFile`
+- `user`, `home`, `tty`, `cpuUsage`, `memUsage`, `diskUsage`, `xwebsVersion`
 
 Safe functions (string manipulation, JSON processing, math, time, encoding, cryptography, etc.) continue to work normally in sandbox mode.
 
