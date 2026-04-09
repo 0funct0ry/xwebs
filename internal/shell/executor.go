@@ -70,6 +70,42 @@ func Execute(ctx context.Context, command string, stdin io.Reader, env map[strin
 	return result, nil
 }
 
+// ExecuteStreaming runs a shell command and streams its output to the provided writers.
+// It returns an ExecutionResult after the command completes.
+func ExecuteStreaming(ctx context.Context, command string, stdoutWriter, stderrWriter io.Writer, stdin io.Reader, env map[string]string) (*ExecutionResult, error) {
+	cmd := exec.CommandContext(ctx, "sh", "-c", command)
+
+	cmd.Stdout = stdoutWriter
+	cmd.Stderr = stderrWriter
+	cmd.Stdin = stdin
+
+	// Set environment variables
+	cmd.Env = os.Environ()
+	for k, v := range env {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
+	}
+
+	start := time.Now()
+	err := cmd.Run()
+	duration := time.Since(start)
+
+	result := &ExecutionResult{
+		Duration: duration,
+	}
+
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			result.ExitCode = exitErr.ExitCode()
+			return result, nil
+		}
+		result.ExitCode = -1
+		return result, fmt.Errorf("command execution failed: %w", err)
+	}
+
+	result.ExitCode = 0
+	return result, nil
+}
+
 // ValidateCommand checks if a command string is allowed under the given allowlist.
 func ValidateCommand(command string, allowlist []string) error {
 	if len(allowlist) == 0 {

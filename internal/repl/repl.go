@@ -281,6 +281,8 @@ func (r *REPL) Printf(format string, args ...interface{}) {
 func (r *REPL) Errorf(format string, args ...interface{}) {
 	if r.rl != nil && r.IsInteractive {
 		_, _ = r.rl.Write([]byte(fmt.Sprintf(format, args...)))
+	} else if r.config != nil && r.config.Stdout != nil {
+		_, _ = fmt.Fprintf(r.config.Stdout, format, args...)
 	} else {
 		_, _ = fmt.Fprintf(os.Stderr, format, args...)
 	}
@@ -479,6 +481,13 @@ func (r *REPL) ExecuteCommand(ctx context.Context, line string) error {
 	// Handle bare text (non-command) as :send if it doesn't start with :
 	if !strings.HasPrefix(trimmed, ":") {
 		return r.ExecuteCommand(ctx, ":send "+trimmed)
+	}
+
+	// Intercept shell commands (:! <cmd>) before splitting
+	// to preserve the raw command string (quotes, pipes, etc.)
+	if strings.HasPrefix(trimmed, ":!") {
+		shellCmd := strings.TrimPrefix(trimmed, ":!")
+		return r.executeShellCommand(ctx, shellCmd)
 	}
 
 	parts := splitCommand(trimmed)

@@ -41,6 +41,7 @@ Every WebSocket tool does one thing: connect and send messages. That's the equiv
 - **Message Handlers** — Declarative YAML-based message matching and action execution with lifecycle support
 - **RTT & Latency Tracking** — Real-time performance metrics for round-trip time, accessible via `.LastLatencyMs` in templates
 - **Real-time Syntax Highlighting** — Visual feedback for JSON and Go template expressions as typed in the REPL
+- **Shell Direct Execution** — Run arbitrary shell commands with `:! <command>` directly from the REPL, supporting both captured output and interactive modes
 
 ### On the Roadmap (Planned)
 - **Server Mode** — WebSocket server with handler dispatch and administration REPL
@@ -135,6 +136,7 @@ When running in a terminal (TTY), `xwebs connect` enters a rich interactive REPL
 | `:watch`         | Monitor connection statistics in real-time           |
 | `:exit`, `:quit` | Disconnect and quit the application (or `Ctrl+D`)    |
 | `:clear`         | Clear the terminal screen                            |
+| `:! [-i] <cmd>`  | Execute a shell command (use `-i` for interactive)   |
 | `:format <type>` | Set display format: `json`, `raw`, `hex`, `template` |
 | `:filter <expr>` | Set a display filter (`.jq`, `/regex/`, or `off`)    |
 | `:quiet`         | Toggle non-message output suppression                |

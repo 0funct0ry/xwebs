@@ -104,6 +104,19 @@ func (r *REPL) RegisterCommonCommands() {
 	})
 
 	r.RegisterCommand(&BuiltinCommand{
+		name: "!",
+		help: "Execute a shell command: :! [-i] <command>",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if len(args) == 0 {
+				return fmt.Errorf("usage: :! [-i] <command>")
+			}
+			// Note: This handler is a fallback. Direct :! usage is intercepted 
+			// in ExecuteCommand to preserve the raw command string including quotes/pipes.
+			return r.executeShellCommand(ctx, strings.Join(args, " "))
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
 		name: "set",
 		help: "Set a session variable: :set <key> <value>",
 		handler: func(ctx context.Context, r *REPL, args []string) error {

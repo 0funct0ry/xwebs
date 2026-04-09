@@ -3,7 +3,6 @@ package repl
 import (
 	"bytes"
 	"context"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,11 +11,7 @@ import (
 	"github.com/0funct0ry/xwebs/internal/template"
 )
 
-type nopCloser struct {
-	io.Writer
-}
 
-func (n *nopCloser) Close() error { return nil }
 
 func TestLSCommand(t *testing.T) {
 	var buf bytes.Buffer
