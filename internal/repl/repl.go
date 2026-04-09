@@ -99,6 +99,8 @@ type REPL struct {
 	// prevDir stores the previous working directory for :cd -
 	prevDir string
 
+	clientCtx ClientContext
+
 	// configPaths tracks loaded configuration files for :edit reloading
 	configPaths []string
 
@@ -591,28 +593,53 @@ func (r *REPL) renderPrompt() {
 	r.mu.RUnlock()
 	tmplCtx.Vars = tmplCtx.Session
 
-	// Populate connection info from last message if available
-	last := r.GetLastMessage()
-	if last != nil {
+	// Populate connection info
+	var conn *ws.Connection
+	if r.clientCtx != nil {
+		conn = r.clientCtx.GetConnection()
+	}
+
+	if conn != nil && !conn.IsClosed() {
+		tmplCtx.URL = conn.GetURL()
+		tmplCtx.ConnectionID = conn.ID
+		tmplCtx.Subprotocol = conn.GetSubprotocol()
+		tmplCtx.RemoteAddr = conn.RemoteAddr()
+		tmplCtx.LocalAddr = conn.LocalAddr()
+		tmplCtx.ConnectedSince = conn.ConnectedAt()
+		tmplCtx.Uptime = time.Since(conn.ConnectedAt())
+		tmplCtx.UptimeFormatted = template.FormatUptime(tmplCtx.Uptime)
+		tmplCtx.MessageCount = conn.MessageCount()
+
 		tmplCtx.Conn = &template.ConnectionContext{
-			URL: last.Metadata.URL,
+			URL:                conn.GetURL(),
+			Subprotocol:        conn.GetSubprotocol(),
+			CompressionEnabled: conn.IsCompressionEnabled(),
+			RemoteAddr:         conn.RemoteAddr(),
+			LocalAddr:          conn.LocalAddr(),
+			ConnectedAt:        conn.ConnectedAt(),
+			Uptime:             tmplCtx.Uptime,
+			UptimeFormatted:    tmplCtx.UptimeFormatted,
+			MessageCount:       tmplCtx.MessageCount,
 		}
-		tmplCtx.URL = last.Metadata.URL
-		tmplCtx.ConnectionID = last.Metadata.ID
 
 		// Extract Host from URL
-		if idx := strings.Index(tmplCtx.URL, "://"); idx != -1 {
-			hostPart := tmplCtx.URL[idx+3:]
-			if slashIdx := strings.Index(hostPart, "/"); slashIdx != -1 {
-				tmplCtx.Host = hostPart[:slashIdx]
-			} else {
-				tmplCtx.Host = hostPart
-			}
+		if parts := strings.Split(tmplCtx.URL, "://"); len(parts) > 1 {
+			host := strings.Split(parts[1], "/")[0]
+			tmplCtx.Host = host
 		}
 	} else {
 		tmplCtx.Host = "not connected"
-		tmplCtx.ConnectionID = "none"
+		tmplCtx.ConnectionID = "🔌" // Plugs symbol for disconnected
+		tmplCtx.RemoteAddr = "❓"
+		tmplCtx.LocalAddr = "❓"
+		tmplCtx.ClientIP = "❓"
+		tmplCtx.MessageCount = 0
+		tmplCtx.Uptime = 0
+		tmplCtx.UptimeFormatted = "0s"
 	}
+
+	// Always set session meta even if not connected
+	tmplCtx.SessionID = r.TemplateEngine.GetSessionID()
 
 	res, err := r.TemplateEngine.Execute("prompt", r.promptTemplate, tmplCtx)
 	if err != nil {

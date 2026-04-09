@@ -33,6 +33,10 @@ func (m *mockConn) Done() <-chan struct{}             { return nil }
 func (m *mockConn) IsCompressionEnabled() bool        { return false }
 func (m *mockConn) GetURL() string                    { return "ws://localhost:8080" }
 func (m *mockConn) GetSubprotocol() string            { return "" }
+func (m *mockConn) RemoteAddr() string                { return "127.0.0.1:12345" }
+func (m *mockConn) LocalAddr() string                 { return "127.0.0.1:8080" }
+func (m *mockConn) ConnectedAt() time.Time            { return time.Now().Add(-1 * time.Minute) }
+func (m *mockConn) MessageCount() uint64              { return 10 }
 
 func TestDispatcher_ExecutePipeline(t *testing.T) {
 	reg := NewRegistry()

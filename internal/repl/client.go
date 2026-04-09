@@ -64,6 +64,7 @@ func (c *DefaultClientContext) GetTemplateEngine() *template.Engine {
 
 // RegisterClientCommands adds WebSocket client-specific commands to the REPL.
 func (r *REPL) RegisterClientCommands(cc ClientContext) {
+	r.clientCtx = cc
 	r.RegisterCommand(&BuiltinCommand{
 		name: "send",
 		help: "Send a message: :send <message>",

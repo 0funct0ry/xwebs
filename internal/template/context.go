@@ -11,6 +11,11 @@ type ConnectionContext struct {
 	Headers            map[string]string `json:"headers"`
 	LocalAddr          string            `json:"local_addr"`
 	RemoteAddr         string            `json:"remote_addr"`
+	ClientIP           string            `json:"client_ip"`
+	ConnectedAt        time.Time         `json:"connected_at"`
+	Uptime             time.Duration     `json:"uptime"`
+	UptimeFormatted    string            `json:"uptime_formatted"`
+	MessageCount       uint64            `json:"message_count"`
 	CompressionEnabled bool              `json:"compression_enabled"`
 }
 
@@ -63,6 +68,15 @@ type TemplateContext struct {
 	MessageIndex uint64    `json:"message_index,omitempty"`
 	Timestamp    time.Time `json:"timestamp,omitempty"`
 	Direction    string    `json:"direction,omitempty"`
+
+	// Session-level stats
+	SessionID       string        `json:"session_id,omitempty"`
+	MessageCount    uint64        `json:"message_count,omitempty"`
+	ConnectedSince  time.Time     `json:"connected_since,omitempty"`
+	Uptime          time.Duration `json:"uptime,omitempty"`
+	UptimeFormatted string        `json:"uptime_formatted,omitempty"`
+	ClientIP        string        `json:"client_ip,omitempty"`
+	LocalAddr       string        `json:"local_addr,omitempty"`
 
 	// Execution results (root-level convenience for single action)
 	Stdout     string `json:"stdout,omitempty"`

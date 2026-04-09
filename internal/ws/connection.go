@@ -74,10 +74,11 @@ type Connection struct {
 
 	ID string // Unique connection ID
 
-	_mu       sync.Mutex
-	_closed   bool
-	_lastErr  error
-	_closeErr error
+	_mu          sync.Mutex
+	_closed      bool
+	_lastErr     error
+	_closeErr    error
+	_connectedAt time.Time
 
 	_msgCount uint64 // Internal counter for messages
 
@@ -95,6 +96,34 @@ type Connection struct {
 
 	_subscribers []chan *Message
 	_subMu       sync.RWMutex
+}
+
+// ConnectedAt returns the time when the connection was established.
+func (c *Connection) ConnectedAt() time.Time {
+	return c._connectedAt
+}
+
+// RemoteAddr returns the remote network address.
+func (c *Connection) RemoteAddr() string {
+	if c.Conn != nil {
+		return c.Conn.RemoteAddr().String()
+	}
+	return ""
+}
+
+// LocalAddr returns the local network address.
+func (c *Connection) LocalAddr() string {
+	if c.Conn != nil {
+		return c.Conn.LocalAddr().String()
+	}
+	return ""
+}
+
+// MessageCount returns the total number of messages processed.
+func (c *Connection) MessageCount() uint64 {
+	c._mu.Lock()
+	defer c._mu.Unlock()
+	return c._msgCount
 }
 
 // Start launches the read and write loops for the connection.
@@ -585,7 +614,9 @@ func NewConnection(conn *websocket.Conn, url string, resp *http.Response, opts *
 		_closing:              make(chan struct{}),
 		_closeCode:            1000,                                          // Default to normal closure
 		ID:                    fmt.Sprintf("conn-%d", time.Now().UnixNano()), // Simple unique ID
+		_connectedAt:          time.Now(),
 	}
+
 
 	// Initialize subscriber list with the default read channel
 	c._subscribers = append(c._subscribers, c._readCh)

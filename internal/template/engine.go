@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/spf13/cast"
 )
@@ -19,6 +20,7 @@ type Engine struct {
 	funcs     template.FuncMap
 	sandboxed bool
 	session   map[string]interface{}
+	sessionID string
 }
 
 // New creates a new template engine with the standard functions registered.
@@ -27,6 +29,7 @@ func New(sandboxed bool) *Engine {
 		funcs:     make(template.FuncMap),
 		sandboxed: sandboxed,
 		session:   make(map[string]interface{}),
+		sessionID: "sess-" + cast.ToString(time.Now().UnixNano()),
 	}
 	e.registerStringFuncs()
 	e.registerJSONFuncs()
@@ -38,6 +41,7 @@ func New(sandboxed bool) *Engine {
 	e.registerIDFuncs()
 	e.registerCollectionFuncs()
 	e.registerContextFuncs()
+	e.registerConnFuncs()
 	e.registerColorFuncs()
 	return e
 }
@@ -199,7 +203,105 @@ func (e *Engine) Execute(name, text string, data interface{}) (string, error) {
 		}
 	}
 
-	tmpl, err := template.New(name).Funcs(e.funcs).Parse(text)
+	funcs := make(template.FuncMap)
+	for k, v := range e.funcs {
+		funcs[k] = v
+	}
+
+	if ctx, ok := data.(*TemplateContext); ok {
+		// Connection-specific contextual functions
+		funcs["connID"] = func() string {
+			if ctx.ConnectionID != "" {
+				return ctx.ConnectionID
+			}
+			if ctx.Conn != nil && ctx.Conn.URL != "" {
+				return ctx.Conn.URL
+			}
+			return "🔌"
+		}
+		funcs["shortConnID"] = func() string {
+			id := ctx.ConnectionID
+			if id == "" && ctx.Conn != nil {
+				id = ctx.Conn.URL
+			}
+			if id == "" {
+				return "🔌"
+			}
+			if len(id) > 8 {
+				return id[:8]
+			}
+			return id
+		}
+		funcs["sessionID"] = func() string { return ctx.SessionID }
+		funcs["clientIP"] = func() string {
+			if ctx.ClientIP != "" {
+				return ctx.ClientIP
+			}
+			if ctx.Conn != nil {
+				return ctx.Conn.ClientIP
+			}
+			return "❓"
+		}
+		funcs["remoteAddr"] = func() string {
+			if ctx.RemoteAddr != "" {
+				return ctx.RemoteAddr
+			}
+			if ctx.Conn != nil {
+				return ctx.Conn.RemoteAddr
+			}
+			return "❓"
+		}
+		funcs["localAddr"] = func() string {
+			if ctx.LocalAddr != "" {
+				return ctx.LocalAddr
+			}
+			if ctx.Conn != nil {
+				return ctx.Conn.LocalAddr
+			}
+			return "❓"
+		}
+		funcs["subprotocol"] = func() string {
+			if ctx.Subprotocol != "" {
+				return ctx.Subprotocol
+			}
+			if ctx.Conn != nil {
+				return ctx.Conn.Subprotocol
+			}
+			return ""
+		}
+		funcs["connectedSince"] = func() time.Time {
+			if !ctx.ConnectedSince.IsZero() {
+				return ctx.ConnectedSince
+			}
+			if ctx.Conn != nil {
+				return ctx.Conn.ConnectedAt
+			}
+			return time.Time{}
+		}
+		funcs["uptime"] = func() time.Duration {
+			if ctx.Uptime > 0 {
+				return ctx.Uptime
+			}
+			if ctx.Conn != nil {
+				return ctx.Conn.Uptime
+			}
+			if !ctx.ConnectedSince.IsZero() {
+				return time.Since(ctx.ConnectedSince)
+			}
+			return 0
+		}
+		funcs["messageCount"] = func() uint64 {
+			if ctx.MessageCount > 0 {
+				return ctx.MessageCount
+			}
+			if ctx.Conn != nil {
+				return ctx.Conn.MessageCount
+			}
+			return 0
+		}
+	}
+
+	tmpl, err := template.New(name).Funcs(funcs).Parse(text)
 	if err != nil {
 		return "", fmt.Errorf("parsing template %s: %w", name, err)
 	}
@@ -220,4 +322,9 @@ func (e *Engine) FuncNames() []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+// GetSessionID returns the session ID.
+func (e *Engine) GetSessionID() string {
+	return e.sessionID
 }

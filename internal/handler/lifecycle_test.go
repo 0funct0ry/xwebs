@@ -44,6 +44,13 @@ func (m *mockLifecycleConn) IsCompressionEnabled() bool {
 	return false
 }
 
+func (m *mockLifecycleConn) RemoteAddr() string { return "127.0.0.1:12345" }
+func (m *mockLifecycleConn) LocalAddr() string  { return "127.0.0.1:8080" }
+func (m *mockLifecycleConn) ConnectedAt() time.Time {
+	return time.Now().Add(-1 * time.Minute)
+}
+func (m *mockLifecycleConn) MessageCount() uint64 { return 0 }
+
 func TestLifecycleHooks(t *testing.T) {
 	reg := NewRegistry()
 	engine := template.New(false)

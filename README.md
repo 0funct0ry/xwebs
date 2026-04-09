@@ -794,6 +794,23 @@ The following string manipulation functions are available in templates:
 | `setJSON`      | Sets a field in a JSON object           | `{{ setJSON "key" "val" .obj }}`                  |
 | `deleteJSON`   | Deletes a field from a JSON object      | `{{ deleteJSON "key" .obj }}`                     |
 
+#### Connection & Session Context Functions
+
+The following functions provide access to connection-level metadata and session state. These are particularly useful in custom REPL prompts (`:prompt`) and reactive handlers.
+
+| Function         | Description                                     | Example                                           |
+|------------------|-------------------------------------------------|---------------------------------------------------|
+| `connID`         | Full unique ID or URL of the active connection  | `{{ connID }}`                                    |
+| `shortConnID`    | Shortened version of the connection ID (8 chars)| `{{ shortConnID }}`                               |
+| `sessionID`      | Unique ID for the current xwebs session         | `{{ sessionID }}`                                 |
+| `clientIP`       | IP address of the local client                  | `{{ clientIP }}`                                  |
+| `remoteAddr`     | Remote network address (IP:Port)                | `{{ remoteAddr }}`                                |
+| `localAddr`      | Local network address (IP:Port)                 | `{{ localAddr }}`                                 |
+| `subprotocol`    | Negotiated WebSocket subprotocol                | `{{ subprotocol }}`                               |
+| `connectedSince` | Timestamp when the connection was established   | `{{ connectedSince \| date "15:04:05" }}`         |
+| `uptime`         | Duration since the connection was established   | `{{ uptime }}`                                    |
+| `messageCount`   | Total number of messages processed (TX + RX)    | `{{ messageCount }}`                              |
+
 #### Encoding Functions
 
 | Function        | Description                             | Example                                           |

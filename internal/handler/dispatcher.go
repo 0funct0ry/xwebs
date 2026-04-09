@@ -26,6 +26,10 @@ type Connection interface {
 	IsCompressionEnabled() bool
 	GetURL() string
 	GetSubprotocol() string
+	RemoteAddr() string
+	LocalAddr() string
+	ConnectedAt() time.Time
+	MessageCount() uint64
 }
 
 // Dispatcher coordinates the execution of handlers for a connection.
@@ -432,11 +436,23 @@ func (d *Dispatcher) populateTemplateContext(tmplCtx *template.TemplateContext, 
 			tmplCtx.Scheme = u.Scheme
 		}
 		tmplCtx.Subprotocol = d.conn.GetSubprotocol()
+		tmplCtx.RemoteAddr = d.conn.RemoteAddr()
+		tmplCtx.LocalAddr = d.conn.LocalAddr()
+		tmplCtx.ConnectedSince = d.conn.ConnectedAt()
+		tmplCtx.Uptime = time.Since(d.conn.ConnectedAt())
+		tmplCtx.UptimeFormatted = template.FormatUptime(tmplCtx.Uptime)
+		tmplCtx.MessageCount = d.conn.MessageCount()
 
 		tmplCtx.Conn = &template.ConnectionContext{
 			URL:                d.conn.GetURL(),
 			Subprotocol:        d.conn.GetSubprotocol(),
 			CompressionEnabled: d.conn.IsCompressionEnabled(),
+			RemoteAddr:         tmplCtx.RemoteAddr,
+			LocalAddr:          tmplCtx.LocalAddr,
+			ConnectedAt:        tmplCtx.ConnectedSince,
+			Uptime:             tmplCtx.Uptime,
+			UptimeFormatted:    tmplCtx.UptimeFormatted,
+			MessageCount:       tmplCtx.MessageCount,
 		}
 	}
 }
