@@ -849,8 +849,21 @@ The following functions provide access to connection-level metadata and session 
 | Function        | Description                             | Example                                           |
 |-----------------|-----------------------------------------|---------------------------------------------------|
 | `now`           | Returns current time object             | `{{ now.Year }}`                                  |
-| `nowUnix`       | Returns current Unix timestamp          | `{{ nowUnix }}`                                   |
+| `time`          | Current time (HH:MM:SS)                 | `{{ time }}` -> `22:08:16`                        |
+| `shortTime`     | Current time (HH:MM)                    | `{{ shortTime }}` -> `22:08`                      |
+| `date`          | Current date (YYYY-MM-DD)               | `{{ date }}` -> `2026-04-09`                      |
+| `isoTime`       | Current time in ISO 8601 / RFC3339      | `{{ isoTime }}`                                   |
+| `weekday`       | Current day of the week                 | `{{ weekday }}` -> `Thursday`                     |
+| `hour`          | Current hour (24h)                      | `{{ hour }}` -> `22`                              |
+| `minute`        | Current minute                          | `{{ minute }}` -> `08`                            |
+| `unix`          | Current Unix timestamp (seconds)        | `{{ unix }}`                                      |
+| `unixMilli`     | Current Unix timestamp (milliseconds)   | `{{ unixMilli }}`                                 |
+| `elapsed`       | Concise process uptime                  | `{{ elapsed }}` -> `1h2m3s`                       |
+| `uptime`        | Process uptime (Duration object)        | `{{ uptime }}`                                    |
 | `formatTime`    | Formats a time object or timestamp      | `{{ formatTime "2006-01-02" .t }}`                |
+| `parseTime`     | Parses a time string                    | `{{ parseTime "2006-01-02" "2023-01-01" }}`       |
+| `duration`      | Parses a duration string                | `{{ duration "1h30m" }}`                          |
+| `since`         | Calculated duration since time          | `{{ since .start }}`                              |
 
 #### Color and Style Functions
 
@@ -901,10 +914,7 @@ You can dynamically change the REPL prompt using the `:prompt set` command. The 
 # Branded Console
 > :prompt set "[xwebs:{{blue .ConnectionID}}] {{italic \"active\"}} → "
 ```
-| `parseTime`     | Parses a time string                    | `{{ parseTime "2006-01-02" "2023-01-01" }}`       |
-| `duration`      | Parses a duration string                | `{{ duration "1h30m" }}`                          |
-| `since`         | Calculated duration since time          | `{{ since .start }}`                              |
-| `uptime`        | Returns xwebs process uptime            | `{{ uptime }}`                                    |
+
 
 #### Math Functions
 

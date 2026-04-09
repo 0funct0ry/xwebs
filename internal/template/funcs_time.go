@@ -64,4 +64,44 @@ func (e *Engine) registerTimeFuncs() {
 	e.funcs["uptime"] = func() time.Duration {
 		return time.Since(startTime)
 	}
+
+	e.funcs["time"] = func() string {
+		return time.Now().Format("15:04:05")
+	}
+
+	e.funcs["shortTime"] = func() string {
+		return time.Now().Format("15:04")
+	}
+
+	e.funcs["date"] = func() string {
+		return time.Now().Format("2006-01-02")
+	}
+
+	e.funcs["weekday"] = func() string {
+		return time.Now().Weekday().String()
+	}
+
+	e.funcs["isoTime"] = func() string {
+		return time.Now().Format(time.RFC3339)
+	}
+
+	e.funcs["unix"] = func() int64 {
+		return time.Now().Unix()
+	}
+
+	e.funcs["unixMilli"] = func() int64 {
+		return time.Now().UnixMilli()
+	}
+
+	e.funcs["elapsed"] = func() string {
+		return FormatUptime(time.Since(startTime))
+	}
+
+	e.funcs["hour"] = func() string {
+		return time.Now().Format("15")
+	}
+
+	e.funcs["minute"] = func() string {
+		return time.Now().Format("04")
+	}
 }
