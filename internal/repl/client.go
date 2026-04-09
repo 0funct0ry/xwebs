@@ -25,6 +25,7 @@ type ClientContext interface {
 	CloseConnection() error
 	CloseConnectionWithCode(code int, reason string) error
 	GetTemplateEngine() *template.Engine
+	GetHandlerStats() (hits uint64, active int32)
 }
 
 // DefaultClientContext is a simple implementation of ClientContext.
@@ -60,6 +61,10 @@ func (c *DefaultClientContext) CloseConnectionWithCode(code int, reason string) 
 
 func (c *DefaultClientContext) GetTemplateEngine() *template.Engine {
 	return nil
+}
+
+func (c *DefaultClientContext) GetHandlerStats() (hits uint64, active int32) {
+	return 0, 0
 }
 
 // RegisterClientCommands adds WebSocket client-specific commands to the REPL.
@@ -290,7 +295,8 @@ func (r *REPL) RegisterClientCommands(cc ClientContext) {
 			r.Printf("\nConnection Status:\n")
 			r.Printf("  URL:            %s\n", conn.URL)
 			r.Printf("  Subprotocol:    %s\n", conn.NegotiatedSubprotocol)
-			r.Printf("  Compression:    %v\n", conn.IsCompressionEnabled())
+			r.Printf("  Messages:       %d↑, %d↓\n", conn.MsgsOut(), conn.MsgsIn())
+			r.Printf("  Latency (RTT):  %v (avg: %v)\n", conn.RTT(), conn.AvgRTT())
 			r.Printf("  Closed:         %v\n", conn.IsClosed())
 			if conn.IsClosed() {
 				code, reason := conn.CloseStatus()

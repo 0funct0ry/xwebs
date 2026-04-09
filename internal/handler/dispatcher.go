@@ -10,6 +10,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/0funct0ry/xwebs/internal/shell"
@@ -30,6 +31,12 @@ type Connection interface {
 	LocalAddr() string
 	ConnectedAt() time.Time
 	MessageCount() uint64
+	MsgsIn() uint64
+	MsgsOut() uint64
+	LastMsgReceivedAt() time.Time
+	LastMsgSentAt() time.Time
+	RTT() time.Duration
+	AvgRTT() time.Duration
 }
 
 // Dispatcher coordinates the execution of handlers for a connection.
@@ -46,6 +53,9 @@ type Dispatcher struct {
 	systemEnv        map[string]string
 	sandbox          bool
 	allowlist        []string
+
+	_handlerHits    uint64
+	_activeHandlers int32
 }
 
 // NewDispatcher creates a new dispatcher.
@@ -188,6 +198,10 @@ func (d *Dispatcher) handleMessage(ctx context.Context, msg *ws.Message) {
 
 // Execute runs the actions defined in a handler.
 func (d *Dispatcher) Execute(ctx context.Context, h *Handler, msg *ws.Message) error {
+	atomic.AddUint64(&d._handlerHits, 1)
+	atomic.AddInt32(&d._activeHandlers, 1)
+	defer atomic.AddInt32(&d._activeHandlers, -1)
+
 	// Handle concurrency control
 	if h.Concurrent != nil && !*h.Concurrent {
 		mu := d.registry.GetHandlerMu(h.Name)
@@ -443,6 +457,9 @@ func (d *Dispatcher) populateTemplateContext(tmplCtx *template.TemplateContext, 
 		tmplCtx.UptimeFormatted = template.FormatUptime(tmplCtx.Uptime)
 		tmplCtx.MessageCount = d.conn.MessageCount()
 
+		tmplCtx.HandlerHits = atomic.LoadUint64(&d._handlerHits)
+		tmplCtx.ActiveHandlers = int(atomic.LoadInt32(&d._activeHandlers))
+
 		tmplCtx.Conn = &template.ConnectionContext{
 			URL:                d.conn.GetURL(),
 			Subprotocol:        d.conn.GetSubprotocol(),
@@ -453,6 +470,12 @@ func (d *Dispatcher) populateTemplateContext(tmplCtx *template.TemplateContext, 
 			Uptime:             tmplCtx.Uptime,
 			UptimeFormatted:    tmplCtx.UptimeFormatted,
 			MessageCount:       tmplCtx.MessageCount,
+			MsgsIn:             d.conn.MsgsIn(),
+			MsgsOut:            d.conn.MsgsOut(),
+			LastMsgReceivedAt:  d.conn.LastMsgReceivedAt(),
+			LastMsgSentAt:      d.conn.LastMsgSentAt(),
+			RTT:                d.conn.RTT(),
+			AvgRTT:             d.conn.AvgRTT(),
 		}
 	}
 }
@@ -705,4 +728,14 @@ func (d *Dispatcher) sortHandlers(hs []*Handler) {
 	sort.SliceStable(hs, func(i, j int) bool {
 		return hs[i].Priority > hs[j].Priority
 	})
+}
+
+// HandlerHits returns the total number of handler executions.
+func (d *Dispatcher) HandlerHits() uint64 {
+	return atomic.LoadUint64(&d._handlerHits)
+}
+
+// ActiveHandlers returns the number of currently executing handlers.
+func (d *Dispatcher) ActiveHandlers() int32 {
+	return atomic.LoadInt32(&d._activeHandlers)
 }

@@ -50,6 +50,16 @@ func (m *mockLifecycleConn) ConnectedAt() time.Time {
 	return time.Now().Add(-1 * time.Minute)
 }
 func (m *mockLifecycleConn) MessageCount() uint64 { return 0 }
+func (m *mockLifecycleConn) MsgsIn() uint64       { return 0 }
+func (m *mockLifecycleConn) MsgsOut() uint64      { return 0 }
+func (m *mockLifecycleConn) LastMsgReceivedAt() time.Time {
+	return time.Time{}
+}
+func (m *mockLifecycleConn) LastMsgSentAt() time.Time {
+	return time.Time{}
+}
+func (m *mockLifecycleConn) RTT() time.Duration    { return 0 }
+func (m *mockLifecycleConn) AvgRTT() time.Duration { return 0 }
 
 func TestLifecycleHooks(t *testing.T) {
 	reg := NewRegistry()

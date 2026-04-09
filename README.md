@@ -798,18 +798,29 @@ The following string manipulation functions are available in templates:
 
 The following functions provide access to connection-level metadata and session state. These are particularly useful in custom REPL prompts (`:prompt`) and reactive handlers.
 
-| Function         | Description                                     | Example                                           |
-|------------------|-------------------------------------------------|---------------------------------------------------|
-| `connID`         | Full unique ID or URL of the active connection  | `{{ connID }}`                                    |
-| `shortConnID`    | Shortened version of the connection ID (8 chars)| `{{ shortConnID }}`                               |
-| `sessionID`      | Unique ID for the current xwebs session         | `{{ sessionID }}`                                 |
-| `clientIP`       | IP address of the local client                  | `{{ clientIP }}`                                  |
-| `remoteAddr`     | Remote network address (IP:Port)                | `{{ remoteAddr }}`                                |
-| `localAddr`      | Local network address (IP:Port)                 | `{{ localAddr }}`                                 |
-| `subprotocol`    | Negotiated WebSocket subprotocol                | `{{ subprotocol }}`                               |
-| `connectedSince` | Timestamp when the connection was established   | `{{ connectedSince \| date "15:04:05" }}`         |
-| `uptime`         | Duration since the connection was established   | `{{ uptime }}`                                    |
-| `messageCount`   | Total number of messages processed (TX + RX)    | `{{ messageCount }}`                              |
+| Function         | Description                                    | Example                                    |
+|------------------|------------------------------------------------|--------------------------------------------|
+| `connID`         | Returns unique ID for the current connection   | `{{ connID }}`                             |
+| `shortConnID`    | Returns first 8 chars of connection ID         | `{{ shortConnID }}`                        |
+| `sessionID`      | Returns unique ID for the user session         | `{{ sessionID }}`                          |
+| `clientIP`       | Returns the client's public IP address         | `{{ clientIP }}`                           |
+| `remoteAddr`     | Returns the remote host:port                   | `{{ remoteAddr }}`                         |
+| `localAddr`      | Returns the local host:port                    | `{{ localAddr }}`                          |
+| `subprotocol`    | Returns the negotiated WebSocket subprotocol   | `{{ subprotocol }}`                        |
+| `uptime`         | Returns duration since connection opened       | `{{ uptime }}`                             |
+| `connectedSince` | Returns timestamp of connection start          | `{{ connectedSince \| date "15:04" }}`     |
+| `msgsIn`         | Total messages received in current session     | `{{ msgsIn }}↓`                            |
+| `msgsOut`        | Total messages sent in current session         | `{{ msgsOut }}↑`                           |
+| `messageCount`   | Total messages (In + Out)                      | `{{ messageCount }}`                       |
+| `lastMsgAgo`     | Time since last received message               | `{{ lastMsgAgo }} ago`                     |
+| `lastSendAgo`    | Time since last sent message                   | `{{ lastSendAgo }} ago`                    |
+| `rtt`            | Last measured Round Trip Time (via ping/pong)  | `{{ rtt }}`                                |
+| `avgRtt`         | Moving average Round Trip Time                 | `{{ avgRtt }}`                             |
+| `handlerHits`    | Total number of handler executions             | `{{ handlerHits }}`                        |
+| `activeHandlers` | Number of currently executing handlers         | `{{ activeHandlers }}`                     |
+| `sessionSet`     | Sets a session variable                        | `{{ sessionSet "key" "val" }}`             |
+| `sessionGet`     | Gets a session variable                        | `{{ sessionGet "key" }}`                   |
+| `sessionClear`   | Clears all session variables                  | `{{ sessionClear }}`                       |
 
 #### Encoding Functions
 

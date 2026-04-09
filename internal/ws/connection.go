@@ -81,6 +81,15 @@ type Connection struct {
 	_connectedAt time.Time
 
 	_msgCount uint64 // Internal counter for messages
+	_msgsIn   uint64 // Number of received messages
+	_msgsOut  uint64 // Number of sent messages
+
+	_lastMsgReceivedAt time.Time
+	_lastMsgSentAt     time.Time
+	_lastPingSentAt    time.Time
+	_rtt               time.Duration
+	_avgRtt            time.Duration
+	_rttCount          uint64
 
 	_pingInterval         time.Duration
 	_pongWait             time.Duration
@@ -124,6 +133,48 @@ func (c *Connection) MessageCount() uint64 {
 	c._mu.Lock()
 	defer c._mu.Unlock()
 	return c._msgCount
+}
+
+// MsgsIn returns the total number of received messages.
+func (c *Connection) MsgsIn() uint64 {
+	c._mu.Lock()
+	defer c._mu.Unlock()
+	return c._msgsIn
+}
+
+// MsgsOut returns the total number of sent messages.
+func (c *Connection) MsgsOut() uint64 {
+	c._mu.Lock()
+	defer c._mu.Unlock()
+	return c._msgsOut
+}
+
+// LastMsgReceivedAt returns the time when the last message was received.
+func (c *Connection) LastMsgReceivedAt() time.Time {
+	c._mu.Lock()
+	defer c._mu.Unlock()
+	return c._lastMsgReceivedAt
+}
+
+// LastMsgSentAt returns the time when the last message was sent.
+func (c *Connection) LastMsgSentAt() time.Time {
+	c._mu.Lock()
+	defer c._mu.Unlock()
+	return c._lastMsgSentAt
+}
+
+// RTT returns the last measured Round Trip Time.
+func (c *Connection) RTT() time.Duration {
+	c._mu.Lock()
+	defer c._mu.Unlock()
+	return c._rtt
+}
+
+// AvgRTT returns the average Round Trip Time.
+func (c *Connection) AvgRTT() time.Duration {
+	c._mu.Lock()
+	defer c._mu.Unlock()
+	return c._avgRtt
 }
 
 // Start launches the read and write loops for the connection.
@@ -332,11 +383,17 @@ func (c *Connection) readLoop() {
 		_ = c.Conn.WriteControl(websocket.CloseMessage, message, time.Now().Add(time.Second))
 		return nil
 	})
-
 	c.Conn.SetPingHandler(func(data string) error {
 		if c._verbose {
 			fmt.Fprintf(os.Stderr, "  [ws] received ping from %s (%d bytes)\n", c.URL, len(data))
 		}
+
+		c._mu.Lock()
+		c._msgCount++
+		c._msgsIn++
+		c._lastMsgReceivedAt = time.Now()
+		c._mu.Unlock()
+
 		// Forward to all subscribers
 		msg := &Message{Type: PingMessage, Data: []byte(data)}
 		c._subMu.RLock()
@@ -354,6 +411,24 @@ func (c *Connection) readLoop() {
 	})
 
 	c.Conn.SetPongHandler(func(data string) error {
+		c._mu.Lock()
+		c._msgCount++
+		c._msgsIn++
+		c._lastMsgReceivedAt = time.Now()
+		if !c._lastPingSentAt.IsZero() {
+			rtt := time.Since(c._lastPingSentAt)
+			c._rtt = rtt
+			c._rttCount++
+			if c._rttCount == 1 {
+				c._avgRtt = rtt
+			} else {
+				// Moving average: (avg * (count-1) + new) / count
+				c._avgRtt = (c._avgRtt*time.Duration(c._rttCount-1) + rtt) / time.Duration(c._rttCount)
+			}
+			c._lastPingSentAt = time.Time{} // Reset
+		}
+		c._mu.Unlock()
+
 		if c._pongWait > 0 {
 			if err := c.Conn.SetReadDeadline(time.Now().Add(c._pongWait)); err != nil {
 				if c._verbose {
@@ -430,6 +505,8 @@ func (c *Connection) readLoop() {
 
 		c._mu.Lock()
 		c._msgCount++
+		c._msgsIn++
+		c._lastMsgReceivedAt = time.Now()
 		count := c._msgCount
 		c._mu.Unlock()
 
@@ -487,6 +564,12 @@ func (c *Connection) writeLoop() {
 			if c._verbose {
 				fmt.Fprintf(os.Stderr, "  [ws] sending ping message to %s (0 bytes)\n", c.URL)
 			}
+			c._mu.Lock()
+			c._msgCount++
+			c._msgsOut++
+			c._lastMsgSentAt = time.Now()
+			c._lastPingSentAt = c._lastMsgSentAt
+			c._mu.Unlock()
 			if err := c.Conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				c._mu.Lock()
 				if c._lastErr == nil && !c._closed {
@@ -563,9 +646,13 @@ func (c *Connection) sendMessage(msg *Message) error {
 		return err
 	}
 
-	// Populate metadata for sent messages (echo)
 	c._mu.Lock()
+	if msg.Type == PingMessage {
+		c._lastPingSentAt = time.Now()
+	}
 	c._msgCount++
+	c._msgsOut++
+	c._lastMsgSentAt = time.Now()
 	count := c._msgCount
 	c._mu.Unlock()
 

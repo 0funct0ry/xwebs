@@ -16,6 +16,12 @@ type ConnectionContext struct {
 	Uptime             time.Duration     `json:"uptime"`
 	UptimeFormatted    string            `json:"uptime_formatted"`
 	MessageCount       uint64            `json:"message_count"`
+	MsgsIn             uint64            `json:"msgs_in"`
+	MsgsOut            uint64            `json:"msgs_out"`
+	LastMsgReceivedAt  time.Time         `json:"last_msg_received_at"`
+	LastMsgSentAt      time.Time         `json:"last_msg_sent_at"`
+	RTT                time.Duration     `json:"rtt"`
+	AvgRTT             time.Duration     `json:"avg_rtt"`
 	CompressionEnabled bool              `json:"compression_enabled"`
 }
 
@@ -96,6 +102,12 @@ type TemplateContext struct {
 	Last          string `json:"last,omitempty"`
 	LastLatencyMs int64  `json:"last_latency_ms,omitempty"`
 	Error         string `json:"error,omitempty"`
+
+	// Activity stats
+	MsgsIn         uint64 `json:"msgs_in,omitempty"`
+	MsgsOut        uint64 `json:"msgs_out,omitempty"`
+	HandlerHits    uint64 `json:"handler_hits,omitempty"`
+	ActiveHandlers int    `json:"active_handlers,omitempty"`
 }
 
 // NewContext creates a new TemplateContext with initialized maps.

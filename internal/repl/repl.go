@@ -609,6 +609,8 @@ func (r *REPL) renderPrompt() {
 		tmplCtx.Uptime = time.Since(conn.ConnectedAt())
 		tmplCtx.UptimeFormatted = template.FormatUptime(tmplCtx.Uptime)
 		tmplCtx.MessageCount = conn.MessageCount()
+		tmplCtx.MsgsIn = conn.MsgsIn()
+		tmplCtx.MsgsOut = conn.MsgsOut()
 
 		tmplCtx.Conn = &template.ConnectionContext{
 			URL:                conn.GetURL(),
@@ -620,6 +622,12 @@ func (r *REPL) renderPrompt() {
 			Uptime:             tmplCtx.Uptime,
 			UptimeFormatted:    tmplCtx.UptimeFormatted,
 			MessageCount:       tmplCtx.MessageCount,
+			MsgsIn:             conn.MsgsIn(),
+			MsgsOut:            conn.MsgsOut(),
+			LastMsgReceivedAt:  conn.LastMsgReceivedAt(),
+			LastMsgSentAt:      conn.LastMsgSentAt(),
+			RTT:                conn.RTT(),
+			AvgRTT:             conn.AvgRTT(),
 		}
 
 		// Extract Host from URL
@@ -640,6 +648,12 @@ func (r *REPL) renderPrompt() {
 
 	// Always set session meta even if not connected
 	tmplCtx.SessionID = r.TemplateEngine.GetSessionID()
+
+	if r.clientCtx != nil {
+		hits, active := r.clientCtx.GetHandlerStats()
+		tmplCtx.HandlerHits = hits
+		tmplCtx.ActiveHandlers = int(active)
+	}
 
 	res, err := r.TemplateEngine.Execute("prompt", r.promptTemplate, tmplCtx)
 	if err != nil {

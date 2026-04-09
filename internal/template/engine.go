@@ -299,6 +299,48 @@ func (e *Engine) Execute(name, text string, data interface{}) (string, error) {
 			}
 			return 0
 		}
+		funcs["msgsIn"] = func() uint64 {
+			if ctx.Conn != nil {
+				return ctx.Conn.MsgsIn
+			}
+			return ctx.MsgsIn
+		}
+		funcs["msgsOut"] = func() uint64 {
+			if ctx.Conn != nil {
+				return ctx.Conn.MsgsOut
+			}
+			return ctx.MsgsOut
+		}
+		funcs["lastMsgAgo"] = func() string {
+			if ctx.Conn != nil && !ctx.Conn.LastMsgReceivedAt.IsZero() {
+				return FormatUptime(time.Since(ctx.Conn.LastMsgReceivedAt))
+			}
+			return "∅"
+		}
+		funcs["lastSendAgo"] = func() string {
+			if ctx.Conn != nil && !ctx.Conn.LastMsgSentAt.IsZero() {
+				return FormatUptime(time.Since(ctx.Conn.LastMsgSentAt))
+			}
+			return "∅"
+		}
+		funcs["rtt"] = func() string {
+			if ctx.Conn != nil && ctx.Conn.RTT > 0 {
+				return ctx.Conn.RTT.Round(time.Millisecond).String()
+			}
+			return "∅"
+		}
+		funcs["avgRtt"] = func() string {
+			if ctx.Conn != nil && ctx.Conn.AvgRTT > 0 {
+				return ctx.Conn.AvgRTT.Round(time.Millisecond).String()
+			}
+			return "∅"
+		}
+		funcs["handlerHits"] = func() uint64 {
+			return ctx.HandlerHits
+		}
+		funcs["activeHandlers"] = func() int {
+			return ctx.ActiveHandlers
+		}
 	}
 
 	tmpl, err := template.New(name).Funcs(funcs).Parse(text)

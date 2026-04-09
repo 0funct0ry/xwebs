@@ -15,6 +15,8 @@ type mockClientContext struct {
 	closeCode   int
 	closeReason string
 	tmplEngine  *template.Engine
+	handlerHits uint64
+	activeHandlers int32
 }
 
 func (m *mockClientContext) GetConnection() *ws.Connection     { return m.conn }
@@ -35,6 +37,9 @@ func (m *mockClientContext) CloseConnection() error {
 	return nil
 }
 func (m *mockClientContext) GetTemplateEngine() *template.Engine { return m.tmplEngine }
+func (m *mockClientContext) GetHandlerStats() (hits uint64, active int32) {
+	return m.handlerHits, m.activeHandlers
+}
 
 func TestClientCommands(t *testing.T) {
 	r, _ := New(ClientMode, nil)

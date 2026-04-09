@@ -26,12 +26,20 @@ type connectClientContext struct {
 	dialChan          chan string
 	tmplEngine        *template.Engine
 	repl              *repl.REPL
+	dispatcher        *handler.Dispatcher
 	originalURL       string
 	originalHeaders   map[string]string // Key: Template
 	originalAuth      string            // Auth template
 	originalToken     string            // Token template
 	automationPending bool              // Flag to avoid premature --once exit
 	receivedOnce      chan struct{}     // Pulse when --once condition is met
+}
+
+func (c *connectClientContext) GetHandlerStats() (hits uint64, active int32) {
+	if c.dispatcher != nil {
+		return c.dispatcher.HandlerHits(), c.dispatcher.ActiveHandlers()
+	}
+	return 0, 0
 }
 
 func (c *connectClientContext) GetConnection() *ws.Connection {
@@ -699,6 +707,7 @@ Example:
 						sessionVars = cc.repl.GetVars()
 					}
 					dispatcher = handler.NewDispatcher(handlerReg, conn, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist)
+					cc.dispatcher = dispatcher
 					if isInteractive && r != nil {
 
 						dispatcher.Log = func(f string, a ...interface{}) {

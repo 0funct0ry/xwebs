@@ -14,30 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// mockConn implements ws.Connection interface for testing
-type mockConn struct {
-	lastWritten string
-	mu          sync.Mutex
-}
-
-func (m *mockConn) Write(msg *ws.Message) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.lastWritten = string(msg.Data)
-	return nil
-}
-
-func (m *mockConn) Subscribe() <-chan *ws.Message     { return nil }
-func (m *mockConn) Unsubscribe(ch <-chan *ws.Message) {}
-func (m *mockConn) Done() <-chan struct{}             { return nil }
-func (m *mockConn) IsCompressionEnabled() bool        { return false }
-func (m *mockConn) GetURL() string                    { return "ws://localhost:8080" }
-func (m *mockConn) GetSubprotocol() string            { return "" }
-func (m *mockConn) RemoteAddr() string                { return "127.0.0.1:12345" }
-func (m *mockConn) LocalAddr() string                 { return "127.0.0.1:8080" }
-func (m *mockConn) ConnectedAt() time.Time            { return time.Now().Add(-1 * time.Minute) }
-func (m *mockConn) MessageCount() uint64              { return 10 }
-
 func TestDispatcher_ExecutePipeline(t *testing.T) {
 	reg := NewRegistry()
 	engine := template.New(false)

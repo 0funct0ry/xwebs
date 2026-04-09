@@ -363,3 +363,32 @@ func TestREPLPrompt(t *testing.T) {
 		}
 	})
 }
+
+func TestREPLPromptStats(t *testing.T) {
+	r, _ := New(ClientMode, &Config{Terminal: true})
+	r.TemplateEngine = template.New(false)
+	r.RegisterCommonCommands()
+
+	// 1. Test MSGS stats
+	mcc := &mockClientContext{
+		handlerHits:    42,
+		activeHandlers: 3,
+	}
+	r.RegisterClientCommands(mcc)
+
+	err := r.ExecuteCommand(context.Background(), ":prompt set \"{{msgsIn}} {{msgsOut}} {{handlerHits}} {{activeHandlers}}\"")
+	if err != nil {
+		t.Fatalf("Failed to set prompt: %v", err)
+	}
+
+	// Stats should be 0 as mcc.conn is nil
+	if r.GetPrompt() != "0 0 42 3" {
+		t.Errorf("Expected '0 0 42 3', got %q", r.GetPrompt())
+	}
+
+	// 2. Test with a connection context
+	// We need a way to mock ws.Connection or at least its stats.
+	// Since ws.Connection is a struct, we can't easily mock its methods unless they are exported and we can override them.
+	// But MsgsIn() etc. are methods on *Connection.
+	// In replenish tests, we often use a real connection pointing to a local server or a specialized mock.
+}

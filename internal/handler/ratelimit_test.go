@@ -65,6 +65,12 @@ func (m *rateLimitMockConn) RemoteAddr() string                { return "127.0.0
 func (m *rateLimitMockConn) LocalAddr() string                 { return "127.0.0.1:8080" }
 func (m *rateLimitMockConn) ConnectedAt() time.Time            { return time.Now().Add(-1 * time.Minute) }
 func (m *rateLimitMockConn) MessageCount() uint64              { return 0 }
+func (m *rateLimitMockConn) MsgsIn() uint64                    { return 0 }
+func (m *rateLimitMockConn) MsgsOut() uint64                   { return 0 }
+func (m *rateLimitMockConn) LastMsgReceivedAt() time.Time      { return time.Time{} }
+func (m *rateLimitMockConn) LastMsgSentAt() time.Time          { return time.Time{} }
+func (m *rateLimitMockConn) RTT() time.Duration                { return 0 }
+func (m *rateLimitMockConn) AvgRTT() time.Duration             { return 0 }
 
 func TestDispatcherRateLimit(t *testing.T) {
 	registry := NewRegistry()
