@@ -68,6 +68,19 @@ func TestFakerFuncs(t *testing.T) {
 		{"fakePassword_20", "{{fakePassword 20}}"},
 		{"fakeLoremIpsum", "{{fakeLoremIpsum}}"},
 		{"fakeLoremIpsum_20", "{{fakeLoremIpsum 20}}"},
+		{"fakePastDate", "{{fakePastDate}}"},
+		{"fakePastDate_30", "{{fakePastDate 30}}"},
+		{"fakePastDate_format", `{{fakePastDate 30 "2006-01-02"}}`},
+		{"fakeFutureDate", "{{fakeFutureDate}}"},
+		{"fakeRecentDate", "{{fakeRecentDate}}"},
+		{"fakeTimestamp", "{{fakeTimestamp}}"},
+		{"fakeUnixTime", "{{fakeUnixTime}}"},
+		{"fakeOrderID", "{{fakeOrderID}}"},
+		{"fakeTransactionID", "{{fakeTransactionID}}"},
+		{"fakeSessionID", "{{fakeSessionID}}"},
+		{"fakeHexColor", "{{fakeHexColor}}"},
+		{"fakeImageURL", "{{fakeImageURL}}"},
+		{"fakeImageURL_size", "{{fakeImageURL 800 600}}"},
 	}
 
 	for _, tt := range tests {
@@ -108,6 +121,19 @@ func TestFakerFuncs(t *testing.T) {
 				assert.Len(t, res1, 20)
 			case "fakeEmoji":
 				assert.NotEmpty(t, res1)
+			case "fakePastDate_format":
+				assert.Regexp(t, `^\d{4}-\d{2}-\d{2}$`, res1)
+			case "fakePastDate", "fakeFutureDate", "fakeRecentDate", "fakeTimestamp":
+				assert.Contains(t, res1, "T") // RFC3339 typically has T
+			case "fakeOrderID":
+				assert.True(t, strings.HasPrefix(res1, "ORD-"))
+			case "fakeTransactionID":
+				assert.True(t, strings.HasPrefix(res1, "TXN-"))
+			case "fakeHexColor":
+				assert.True(t, strings.HasPrefix(res1, "#"))
+				assert.Len(t, res1, 7)
+			case "fakeImageURL_size":
+				assert.Contains(t, res1, "800/600")
 			}
 		})
 	}

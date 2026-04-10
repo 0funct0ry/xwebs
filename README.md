@@ -1065,6 +1065,16 @@ The template engine includes basic fake data generation helpers, useful for crea
 | `fakeEmoji`     | Generates a random emoji                | `{{ fakeEmoji }}`                     |
 | `fakePassword`  | Generates a random password             | `{{ fakePassword 16 }}`               |
 | `fakeLoremIpsum`| Generates random Lorem Ipsum text       | `{{ fakeLoremIpsum 20 }}`             |
+| `fakePastDate`   | Generates a random date in the past     | `{{ fakePastDate 30 "2006-01-02" }}`  |
+| `fakeFutureDate` | Generates a random date in the future   | `{{ fakeFutureDate 30 "2006-01-02" }}`|
+| `fakeRecentDate` | Generates a random date from last 24h   | `{{ fakeRecentDate }}`                |
+| `fakeTimestamp`  | Generates a random timestamp string      | `{{ fakeTimestamp }}`                 |
+| `fakeUnixTime`   | Generates a random Unix timestamp (`int64`)| `{{ fakeUnixTime }}`                 |
+| `fakeOrderID`    | Generates a realistic order ID          | `{{ fakeOrderID }}`                   |
+| `fakeTransactionID`| Generates a realistic transaction ID   | `{{ fakeTransactionID }}`             |
+| `fakeSessionID`  | Generates a unique session ID           | `{{ fakeSessionID }}`                 |
+| `fakeHexColor`   | Generates a random hex color            | `{{ fakeHexColor }}`                  |
+| `fakeImageURL`   | Generates a random placeholder image URL| `{{ fakeImageURL 800 600 }}`          |
 
 #### Visual & Flair Functions
 

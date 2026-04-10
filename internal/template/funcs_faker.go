@@ -1,7 +1,9 @@
 package template
 
 import (
+	"fmt"
 	"strings"
+	"time"
 
 	"github.com/brianvoe/gofakeit/v7"
 	"github.com/google/uuid"
@@ -212,5 +214,90 @@ func (e *Engine) registerFakerFuncs() {
 			wordCount = count[0]
 		}
 		return gofakeit.LoremIpsumSentence(wordCount)
+	}
+
+	// Date & Time functions
+	e.funcs["fakePastDate"] = func(args ...interface{}) string {
+		days := 0
+		format := time.RFC3339
+		for _, arg := range args {
+			switch v := arg.(type) {
+			case int:
+				days = v
+			case string:
+				format = v
+			}
+		}
+		var t time.Time
+		if days > 0 {
+			t = gofakeit.DateRange(time.Now().AddDate(0, 0, -days), time.Now())
+		} else {
+			t = gofakeit.PastDate()
+		}
+		return t.Format(format)
+	}
+	e.funcs["fakeFutureDate"] = func(args ...interface{}) string {
+		days := 0
+		format := time.RFC3339
+		for _, arg := range args {
+			switch v := arg.(type) {
+			case int:
+				days = v
+			case string:
+				format = v
+			}
+		}
+		var t time.Time
+		if days > 0 {
+			t = gofakeit.DateRange(time.Now(), time.Now().AddDate(0, 0, days))
+		} else {
+			t = gofakeit.FutureDate()
+		}
+		return t.Format(format)
+	}
+	e.funcs["fakeRecentDate"] = func(format ...string) string {
+		f := time.RFC3339
+		if len(format) > 0 {
+			f = format[0]
+		}
+		t := gofakeit.DateRange(time.Now().Add(-24*time.Hour), time.Now())
+		return t.Format(f)
+	}
+	e.funcs["fakeTimestamp"] = func(format ...string) string {
+		f := time.RFC3339
+		if len(format) > 0 {
+			f = format[0]
+		}
+		return gofakeit.Date().Format(f)
+	}
+	e.funcs["fakeUnixTime"] = func() int64 {
+		return gofakeit.Date().Unix()
+	}
+
+	// Custom ID functions
+	e.funcs["fakeOrderID"] = func() string {
+		return fmt.Sprintf("ORD-%08d", gofakeit.Number(10000000, 99999999))
+	}
+	e.funcs["fakeTransactionID"] = func() string {
+		return fmt.Sprintf("TXN-%X", gofakeit.Uint64())
+	}
+	e.funcs["fakeSessionID"] = func() string {
+		return gofakeit.ID()
+	}
+
+	// Visual & Media functions
+	e.funcs["fakeHexColor"] = func() string {
+		return gofakeit.HexColor()
+	}
+	e.funcs["fakeImageURL"] = func(args ...int) string {
+		w := 640
+		h := 480
+		if len(args) > 0 {
+			w = args[0]
+		}
+		if len(args) > 1 {
+			h = args[1]
+		}
+		return fmt.Sprintf("https://picsum.photos/%d/%d", w, h)
 	}
 }
