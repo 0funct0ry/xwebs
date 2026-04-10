@@ -1029,6 +1029,15 @@ The template engine includes basic fake data generation helpers, useful for crea
 | `fakeUsername`  | Generates a fake username               | `{{ fakeUsername }}`                  |
 | `fakePhone`     | Generates a fake phone number           | `{{ fakePhone }}`                     |
 | `fakeCompany`   | Generates a fake company name           | `{{ fakeCompany }}`                   |
+| `fakeCompanyCatchPhrase`| Generates a fake catch phrase  | `{{ fakeCompanyCatchPhrase }}`        |
+| `fakeProductName`| Generates a fake product name          | `{{ fakeProductName }}`               |
+| `fakeProductCategory`| Generates a random product category| `{{ fakeProductCategory }}`           |
+| `fakeColor`     | Generates a random color name           | `{{ fakeColor }}`                     |
+| `fakePrice`     | Generates a fake price (optional range) | `{{ fakePrice 10.0 100.0 }}`          |
+| `fakeAmount`    | Generates a fake amount (optional range)| `{{ fakeAmount 10.0 100.0 }}`         |
+| `fakeCurrency`  | Generates a fake currency code          | `{{ fakeCurrency }}`                  |
+| `fakeCreditCard`| Generates a fake credit card number     | `{{ fakeCreditCard }}`                |
+| `fakeAccountNumber`| Generates a fake bank account number | `{{ fakeAccountNumber }}`             |
 | `fakeURL`       | Generates a fake URL (optional protocol)| `{{ fakeURL "https" }}`               |
 | `fakeDomain`    | Generates a fake domain name            | `{{ fakeDomain }}`                    |
 | `fakeIPv4`      | Generates a fake IPv4 address           | `{{ fakeIPv4 }}`                      |

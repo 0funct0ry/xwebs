@@ -46,6 +46,16 @@ func TestFakerFuncs(t *testing.T) {
 		{"fakeLongitude_range", "{{fakeLongitude 10.0 20.0}}"},
 		{"fakeStreet", "{{fakeStreet}}"},
 		{"fakeState", "{{fakeState}}"},
+		{"fakePrice", "{{fakePrice}}"},
+		{"fakePrice_range", "{{fakePrice 100.0 200.0}}"},
+		{"fakeAmount", "{{fakeAmount}}"},
+		{"fakeCurrency", "{{fakeCurrency}}"},
+		{"fakeCreditCard", "{{fakeCreditCard}}"},
+		{"fakeAccountNumber", "{{fakeAccountNumber}}"},
+		{"fakeProductName", "{{fakeProductName}}"},
+		{"fakeCompanyCatchPhrase", "{{fakeCompanyCatchPhrase}}"},
+		{"fakeColor", "{{fakeColor}}"},
+		{"fakeProductCategory", "{{fakeProductCategory}}"},
 	}
 
 	for _, tt := range tests {
@@ -76,6 +86,12 @@ func TestFakerFuncs(t *testing.T) {
 				assert.Len(t, res1, 36) // Standard UUID length
 			case "fakeULID":
 				assert.Len(t, res1, 26) // Standard ULID length
+			case "fakeCurrency":
+				assert.Len(t, res1, 3) // Typically 3-letter currency code (USD, EUR, etc)
+			case "fakeCreditCard":
+				assert.GreaterOrEqual(t, len(res1), 13) // Basic CC length check
+			case "fakeAccountNumber":
+				assert.NotEmpty(t, res1)
 			}
 		})
 	}

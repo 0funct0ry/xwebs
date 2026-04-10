@@ -127,4 +127,47 @@ func (e *Engine) registerFakerFuncs() {
 	e.funcs["fakeState"] = func() string {
 		return gofakeit.State()
 	}
+
+	// Finance functions
+	e.funcs["fakePrice"] = func(r ...float64) float64 {
+		min := 0.0
+		max := 1000.0
+		if len(r) >= 2 {
+			min = r[0]
+			max = r[1]
+		}
+		return gofakeit.Price(min, max)
+	}
+	e.funcs["fakeAmount"] = func(r ...float64) float64 {
+		min := 0.0
+		max := 1000.0
+		if len(r) >= 2 {
+			min = r[0]
+			max = r[1]
+		}
+		return gofakeit.Price(min, max)
+	}
+	e.funcs["fakeCurrency"] = func() string {
+		return gofakeit.CurrencyShort()
+	}
+	e.funcs["fakeCreditCard"] = func() string {
+		return gofakeit.CreditCardNumber(nil)
+	}
+	e.funcs["fakeAccountNumber"] = func() string {
+		return gofakeit.AchAccount()
+	}
+
+	// Commerce & Product functions
+	e.funcs["fakeProductName"] = func() string {
+		return gofakeit.ProductName()
+	}
+	e.funcs["fakeCompanyCatchPhrase"] = func() string {
+		return gofakeit.BS()
+	}
+	e.funcs["fakeColor"] = func() string {
+		return gofakeit.Color()
+	}
+	e.funcs["fakeProductCategory"] = func() string {
+		return gofakeit.ProductCategory()
+	}
 }
