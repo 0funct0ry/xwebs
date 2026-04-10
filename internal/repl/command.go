@@ -1227,10 +1227,43 @@ func (r *REPL) RegisterCommonCommands() {
 
 	r.RegisterCommand(&BuiltinCommand{
 		name: "shortcuts",
-		help: "List all active keyboard shortcuts: :shortcuts",
+		help: "List all active keyboard shortcuts: :shortcuts [-d|--defaults]",
 		handler: func(ctx context.Context, r *REPL, args []string) error {
+			var showDefaults bool
+			fs := pflag.NewFlagSet("shortcuts", pflag.ContinueOnError)
+			fs.SetOutput(nil)
+			fs.BoolVarP(&showDefaults, "defaults", "d", false, "Show default readline key bindings")
+
+			if err := fs.Parse(args); err != nil {
+				return fmt.Errorf("parsing flags: %w", err)
+			}
+
+			if showDefaults {
+				r.Printf("\nDefault Readline Shortcuts:\n")
+				r.Printf("  %-10s  %s\n", "Shortcut", "Action")
+				r.Printf("  %-10s  %s\n", "----------", "------")
+				r.Printf("  %-10s  %s\n", "Ctrl+A", "Beginning of line")
+				r.Printf("  %-10s  %s\n", "Ctrl+B", "Backward one character")
+				r.Printf("  %-10s  %s\n", "Ctrl+E", "End of line")
+				r.Printf("  %-10s  %s\n", "Ctrl+F", "Forward one character")
+				r.Printf("  %-10s  %s\n", "Ctrl+H", "Delete previous character (Backspace)")
+				r.Printf("  %-10s  %s\n", "Ctrl+I", "Completion (Tab)")
+				r.Printf("  %-10s  %s\n", "Ctrl+K", "Cut text to the end of line")
+				r.Printf("  %-10s  %s\n", "Ctrl+L", "Clear screen")
+				r.Printf("  %-10s  %s\n", "Ctrl+N", "Next line in history")
+				r.Printf("  %-10s  %s\n", "Ctrl+P", "Previous line in history")
+				r.Printf("  %-10s  %s\n", "Ctrl+R", "Search backwards in history")
+				r.Printf("  %-10s  %s\n", "Ctrl+S", "Search forwards in history")
+				r.Printf("  %-10s  %s\n", "Ctrl+U", "Cut text to the beginning of line")
+				r.Printf("  %-10s  %s\n", "Ctrl+W", "Cut previous word")
+				r.Printf("  %-10s  %s\n", "Meta+B", "Backward one word")
+				r.Printf("  %-10s  %s\n", "Meta+F", "Forward one word")
+				r.Printf("  %-10s  %s\n", "Meta+D", "Delete one word")
+				return nil
+			}
+
 			if len(r.shortcuts) == 0 {
-				r.Printf("No shortcuts defined.\n")
+				r.Printf("No custom shortcuts defined. Use -d to see defaults.\n")
 				return nil
 			}
 
@@ -1248,7 +1281,7 @@ func (r *REPL) RegisterCommonCommands() {
 			}
 			sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
 
-			r.Printf("\nActive Keyboard Shortcuts:\n")
+			r.Printf("\nActive Custom Shortcuts:\n")
 			for _, k := range keys {
 				name, ok := runeToName[k]
 				if !ok {

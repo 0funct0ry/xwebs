@@ -47,6 +47,7 @@ func New(sandboxed bool) *Engine {
 	e.registerMathFuncs()
 	e.registerSystemFuncs()
 	e.registerIDFuncs()
+	e.registerFakerFuncs()
 	e.registerCollectionFuncs()
 	e.registerContextFuncs()
 	e.registerConnFuncs()

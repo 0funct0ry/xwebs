@@ -144,7 +144,7 @@ When running in a terminal (TTY), `xwebs connect` enters a rich interactive REPL
 | `:verbose`       | Toggle frame-level metadata display                  |
 | `:timestamps`    | Toggle ISO 8601 message timestamps                   |
 | `:color <mode>`  | Set coloring mode: `on`, `off`, `auto`               |
-| `:shortcuts`, `:keys` | List active keyboard bindings                   |
+| `:shortcuts`, `:keys` | List active keyboard bindings: `:shortcuts [-d]`     |
 | `:source <f>`    | Execute a `.xwebs` script file                       |
 | `:alias <n> <c>` | Create a command alias with positional args          |
 | `:wait <dur>`    | Pause execution (e.g., `1s`, `500ms`)                |
@@ -177,7 +177,7 @@ repl:
     "Ctrl+S": ":send "   # Note the trailing space; cursor is positioned at the end
 ```
 
-Run `:shortcuts` inside the REPL to see all active bindings.
+Run `:shortcuts` inside the REPL to see all active custom bindings, or `:shortcuts -d` to see the default `readline` key bindings.
 
 **Multi-line Input:**
 
@@ -1015,6 +1015,22 @@ Safe functions (string manipulation, JSON processing, math, time, encoding, cryp
 | `msgCounter`| Increments/returns message counter     | `{{ msgCounter }}`                    |
 | `errorCount`| Increments/returns error counter       | `{{ errorCount }}`                    |
 | `seq`       | Increments/returns generic sequence    | `{{ seq }}`                           |
+
+#### Fake Data (Faker) Functions
+
+The template engine includes basic fake data generation helpers, useful for creating realistic test payloads and messages.
+
+| Function        | Description                             | Example                               |
+|-----------------|-----------------------------------------|---------------------------------------|
+| `fakeName`      | Generates a full name                   | `{{ fakeName }}`                      |
+| `fakeFirstName` | Generates a first name                  | `{{ fakeFirstName }}`                 |
+| `fakeLastName`  | Generates a last name                   | `{{ fakeLastName }}`                  |
+| `fakeEmail`     | Generates a fake email address          | `{{ fakeEmail }}`                     |
+| `fakeUsername`  | Generates a fake username               | `{{ fakeUsername }}`                  |
+| `fakePhone`     | Generates a fake phone number           | `{{ fakePhone }}`                     |
+| `fakeCompany`   | Generates a fake company name           | `{{ fakeCompany }}`                   |
+| `fakeUUID`      | Generates a UUID v4                     | `{{ fakeUUID }}`                      |
+| `fakeULID`      | Generates a ULID                        | `{{ fakeULID }}`                      |
 
 #### Visual & Flair Functions
 

@@ -1,0 +1,80 @@
+package template
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestFakerFuncs(t *testing.T) {
+	e := New(false)
+
+	tests := []struct {
+		name     string
+		template string
+	}{
+		{"fakeName", "{{fakeName}}"},
+		{"fakeFirstName", "{{fakeFirstName}}"},
+		{"fakeLastName", "{{fakeLastName}}"},
+		{"fakeEmail", "{{fakeEmail}}"},
+		{"fakeUsername", "{{fakeUsername}}"},
+		{"fakePhone", "{{fakePhone}}"},
+		{"fakeCompany", "{{fakeCompany}}"},
+		{"fakeUUID", "{{fakeUUID}}"},
+		{"fakeULID", "{{fakeULID}}"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Test first call
+			res1, err := e.Execute(tt.name, tt.template, nil)
+			require.NoError(t, err)
+			assert.NotEmpty(t, res1)
+
+			// Test second call to ensure variation (statistically likely to be different)
+			res2, err := e.Execute(tt.name, tt.template, nil)
+			require.NoError(t, err)
+			assert.NotEmpty(t, res2)
+
+			// Specific validations
+			switch tt.name {
+			case "fakeEmail":
+				assert.Contains(t, res1, "@")
+			case "fakeUUID":
+				assert.Len(t, res1, 36) // Standard UUID length
+			case "fakeULID":
+				assert.Len(t, res1, 26) // Standard ULID length
+			}
+		})
+	}
+}
+
+func TestFakerFunctionsVariability(t *testing.T) {
+    e := New(false)
+    
+    // Test that multiple calls produce different results
+    // We use a loop to ensure we don't just get lucky with the same name twice
+    // (though in reality the chance of two random names being the same is low)
+    
+    seen := make(map[string]bool)
+    for i := 0; i < 10; i++ {
+        res, err := e.Execute("test", "{{fakeName}}", nil)
+        require.NoError(t, err)
+        seen[res] = true
+    }
+    
+    // We expect to have seen multiple different names
+    assert.Greater(t, len(seen), 1, "Expected varied output from fakeName")
+}
+
+func TestFakerAvailabilityInJSON(t *testing.T) {
+    e := New(false)
+    tmpl := `{"name": "{{fakeName}}", "email": "{{fakeEmail}}"}`
+    res, err := e.Execute("json", tmpl, nil)
+    require.NoError(t, err)
+    
+    assert.True(t, strings.HasPrefix(res, `{"name": "`))
+    assert.Contains(t, res, `"email": "`)
+}
