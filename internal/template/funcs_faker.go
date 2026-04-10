@@ -170,4 +170,47 @@ func (e *Engine) registerFakerFuncs() {
 	e.funcs["fakeProductCategory"] = func() string {
 		return gofakeit.ProductCategory()
 	}
+
+	// Text & Content functions
+	e.funcs["fakeWord"] = func() string {
+		return gofakeit.Word()
+	}
+	e.funcs["fakeSentence"] = func(count ...int) string {
+		wordCount := 5
+		if len(count) > 0 {
+			wordCount = count[0]
+		}
+		return gofakeit.Sentence(wordCount)
+	}
+	e.funcs["fakeParagraph"] = func(count ...int) string {
+		sentenceCount := 3
+		if len(count) > 0 {
+			sentenceCount = count[0]
+		}
+		return gofakeit.Paragraph(1, sentenceCount, 10, "\n")
+	}
+	e.funcs["fakeTitle"] = func() string {
+		return gofakeit.Sentence(3)
+	}
+	e.funcs["fakeText"] = e.funcs["fakeParagraph"]
+	e.funcs["fakeEmoji"] = func() string {
+		return gofakeit.Emoji()
+	}
+	e.funcs["fakePassword"] = func(length ...int) string {
+		l := 12
+		if len(length) > 0 {
+			l = length[0]
+		}
+		// lower, upper, numeric, special, space bool, num int
+		return gofakeit.Password(true, true, true, true, false, l)
+	}
+
+	// Lorem Ipsum functions
+	e.funcs["fakeLoremIpsum"] = func(count ...int) string {
+		wordCount := 10
+		if len(count) > 0 {
+			wordCount = count[0]
+		}
+		return gofakeit.LoremIpsumSentence(wordCount)
+	}
 }

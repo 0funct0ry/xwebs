@@ -56,6 +56,18 @@ func TestFakerFuncs(t *testing.T) {
 		{"fakeCompanyCatchPhrase", "{{fakeCompanyCatchPhrase}}"},
 		{"fakeColor", "{{fakeColor}}"},
 		{"fakeProductCategory", "{{fakeProductCategory}}"},
+		{"fakeWord", "{{fakeWord}}"},
+		{"fakeSentence", "{{fakeSentence}}"},
+		{"fakeSentence_10", "{{fakeSentence 10}}"},
+		{"fakeParagraph", "{{fakeParagraph}}"},
+		{"fakeParagraph_5", "{{fakeParagraph 5}}"},
+		{"fakeTitle", "{{fakeTitle}}"},
+		{"fakeText", "{{fakeText}}"},
+		{"fakeEmoji", "{{fakeEmoji}}"},
+		{"fakePassword", "{{fakePassword}}"},
+		{"fakePassword_20", "{{fakePassword 20}}"},
+		{"fakeLoremIpsum", "{{fakeLoremIpsum}}"},
+		{"fakeLoremIpsum_20", "{{fakeLoremIpsum 20}}"},
 	}
 
 	for _, tt := range tests {
@@ -91,6 +103,10 @@ func TestFakerFuncs(t *testing.T) {
 			case "fakeCreditCard":
 				assert.GreaterOrEqual(t, len(res1), 13) // Basic CC length check
 			case "fakeAccountNumber":
+				assert.NotEmpty(t, res1)
+			case "fakePassword_20":
+				assert.Len(t, res1, 20)
+			case "fakeEmoji":
 				assert.NotEmpty(t, res1)
 			}
 		})

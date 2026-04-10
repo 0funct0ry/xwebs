@@ -1057,6 +1057,14 @@ The template engine includes basic fake data generation helpers, useful for crea
 | `fakeState`     | Generates a random state name           | `{{ fakeState }}`                     |
 | `fakeUUID`      | Generates a UUID v4                     | `{{ fakeUUID }}`                      |
 | `fakeULID`      | Generates a ULID                        | `{{ fakeULID }}`                      |
+| `fakeWord`      | Generates a random word                 | `{{ fakeWord }}`                      |
+| `fakeSentence`  | Generates a random sentence             | `{{ fakeSentence 10 }}`               |
+| `fakeParagraph` | Generates a random paragraph            | `{{ fakeParagraph 3 }}`               |
+| `fakeTitle`     | Generates a random job/content title    | `{{ fakeTitle }}`                     |
+| `fakeText`      | Alias for `fakeParagraph`               | `{{ fakeText 3 }}`                    |
+| `fakeEmoji`     | Generates a random emoji                | `{{ fakeEmoji }}`                     |
+| `fakePassword`  | Generates a random password             | `{{ fakePassword 16 }}`               |
+| `fakeLoremIpsum`| Generates random Lorem Ipsum text       | `{{ fakeLoremIpsum 20 }}`             |
 
 #### Visual & Flair Functions
 
