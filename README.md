@@ -1029,6 +1029,14 @@ The template engine includes basic fake data generation helpers, useful for crea
 | `fakeUsername`  | Generates a fake username               | `{{ fakeUsername }}`                  |
 | `fakePhone`     | Generates a fake phone number           | `{{ fakePhone }}`                     |
 | `fakeCompany`   | Generates a fake company name           | `{{ fakeCompany }}`                   |
+| `fakeURL`       | Generates a fake URL (optional protocol)| `{{ fakeURL "https" }}`               |
+| `fakeDomain`    | Generates a fake domain name            | `{{ fakeDomain }}`                    |
+| `fakeIPv4`      | Generates a fake IPv4 address           | `{{ fakeIPv4 }}`                      |
+| `fakeIPv6`      | Generates a fake IPv6 address           | `{{ fakeIPv6 }}`                      |
+| `fakeUserAgent` | Generates a fake user agent             | `{{ fakeUserAgent "chrome" }}`        |
+| `fakeHTTPMethod`| Generates a fake HTTP method            | `{{ fakeHTTPMethod }}`                |
+| `fakeMacAddress`| Generates a fake MAC address            | `{{ fakeMacAddress }}`                |
+| `fakePort`      | Generates a fake port (optional range)  | `{{ fakePort 1024 65535 }}`           |
 | `fakeUUID`      | Generates a UUID v4                     | `{{ fakeUUID }}`                      |
 | `fakeULID`      | Generates a ULID                        | `{{ fakeULID }}`                      |
 

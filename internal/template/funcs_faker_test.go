@@ -22,6 +22,17 @@ func TestFakerFuncs(t *testing.T) {
 		{"fakeUsername", "{{fakeUsername}}"},
 		{"fakePhone", "{{fakePhone}}"},
 		{"fakeCompany", "{{fakeCompany}}"},
+		{"fakeURL", "{{fakeURL}}"},
+		{"fakeURL_https", `{{fakeURL "https"}}`},
+		{"fakeDomain", "{{fakeDomain}}"},
+		{"fakeIPv4", "{{fakeIPv4}}"},
+		{"fakeIPv6", "{{fakeIPv6}}"},
+		{"fakeUserAgent", "{{fakeUserAgent}}"},
+		{"fakeUserAgent_chrome", `{{fakeUserAgent "chrome"}}`},
+		{"fakeHTTPMethod", "{{fakeHTTPMethod}}"},
+		{"fakeMacAddress", "{{fakeMacAddress}}"},
+		{"fakePort", "{{fakePort}}"},
+		{"fakePort_range", "{{fakePort 8000 9000}}"},
 		{"fakeUUID", "{{fakeUUID}}"},
 		{"fakeULID", "{{fakeULID}}"},
 	}
@@ -42,6 +53,14 @@ func TestFakerFuncs(t *testing.T) {
 			switch tt.name {
 			case "fakeEmail":
 				assert.Contains(t, res1, "@")
+			case "fakeURL_https":
+				assert.True(t, strings.HasPrefix(res1, "https://"))
+			case "fakeIPv4":
+				assert.Contains(t, res1, ".")
+			case "fakeIPv6":
+				assert.Contains(t, res1, ":")
+			case "fakeMacAddress":
+				assert.Contains(t, res1, ":")
 			case "fakeUUID":
 				assert.Len(t, res1, 36) // Standard UUID length
 			case "fakeULID":
