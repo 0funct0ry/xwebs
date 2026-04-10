@@ -108,6 +108,15 @@ type TemplateContext struct {
 	MsgsOut        uint64 `json:"msgs_out,omitempty"`
 	HandlerHits    uint64 `json:"handler_hits,omitempty"`
 	ActiveHandlers int    `json:"active_handlers,omitempty"`
+
+	// Mode and State Indicators
+	Mode           string `json:"mode,omitempty"`
+	Status         string `json:"status,omitempty"`
+	ReconnectCount int    `json:"reconnect_count,omitempty"`
+	Port           int    `json:"port,omitempty"`
+	IsSecure       bool   `json:"is_secure,omitempty"`
+	RTT            string `json:"rtt,omitempty"`
+	AvgRTT         string `json:"avg_rtt,omitempty"`
 }
 
 // NewContext creates a new TemplateContext with initialized maps.

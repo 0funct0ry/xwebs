@@ -26,6 +26,9 @@ type ClientContext interface {
 	CloseConnectionWithCode(code int, reason string) error
 	GetTemplateEngine() *template.Engine
 	GetHandlerStats() (hits uint64, active int32)
+	GetStatus() string
+	GetReconnectCount() int
+	GetURL() string
 }
 
 // DefaultClientContext is a simple implementation of ClientContext.
@@ -65,6 +68,24 @@ func (c *DefaultClientContext) GetTemplateEngine() *template.Engine {
 
 func (c *DefaultClientContext) GetHandlerStats() (hits uint64, active int32) {
 	return 0, 0
+}
+
+func (c *DefaultClientContext) GetStatus() string {
+	if c.conn == nil || c.conn.IsClosed() {
+		return "closed"
+	}
+	return "connected"
+}
+
+func (c *DefaultClientContext) GetReconnectCount() int {
+	return 0
+}
+
+func (c *DefaultClientContext) GetURL() string {
+	if c.conn != nil {
+		return c.conn.URL
+	}
+	return ""
 }
 
 // RegisterClientCommands adds WebSocket client-specific commands to the REPL.
@@ -235,7 +256,7 @@ func (r *REPL) RegisterClientCommands(cc ClientContext) {
 			}
 
 			tmplCtx := template.NewContext()
-			tmplCtx.Session = r.GetVars()
+			r.PopulateContext(tmplCtx)
 
 			res, err := engine.Execute("repl", tmpl, tmplCtx)
 			if err != nil {

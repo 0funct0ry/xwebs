@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -92,6 +94,7 @@ type REPL struct {
 	done        chan struct{}
 
 	// Prompt management
+	prompt            string
 	promptTemplate    string
 	originalPrompt    string
 	promptErrReported bool
@@ -191,6 +194,7 @@ func New(mode Mode, cfg *Config) (*REPL, error) {
 		done:           make(chan struct{}),
 		Handlers:       handler.NewRegistry(),
 		originalPrompt: cfg.Prompt,
+		prompt:         cfg.Prompt,
 		promptTemplate: cfg.PromptTemplate,
 	}
 
@@ -568,6 +572,87 @@ func (r *REPL) ExecuteCommand(ctx context.Context, line string) error {
 	return nil
 }
 
+// PopulateContext fills a TemplateContext with current REPL and connection state.
+func (r *REPL) PopulateContext(tmplCtx *template.TemplateContext) {
+	tmplCtx.Session = r.GetVars()
+
+	// Populate connection info
+	var conn *ws.Connection
+	if r.clientCtx != nil {
+		conn = r.clientCtx.GetConnection()
+		tmplCtx.Status = r.clientCtx.GetStatus()
+		tmplCtx.ReconnectCount = r.clientCtx.GetReconnectCount()
+		tmplCtx.URL = r.clientCtx.GetURL()
+	}
+
+	if r.mode == ClientMode {
+		tmplCtx.Mode = "client"
+	} else {
+		tmplCtx.Mode = "server"
+	}
+
+	if conn != nil && !conn.IsClosed() {
+		tmplCtx.ConnectionID = conn.ID
+		tmplCtx.RemoteAddr = conn.RemoteAddr()
+		tmplCtx.LocalAddr = conn.LocalAddr()
+		tmplCtx.Subprotocol = conn.NegotiatedSubprotocol
+		tmplCtx.ConnectedSince = conn.ConnectedAt()
+		tmplCtx.Uptime = time.Since(conn.ConnectedAt())
+		tmplCtx.MessageCount = conn.MessageCount()
+		tmplCtx.MsgsIn = conn.MsgsIn()
+		tmplCtx.MsgsOut = conn.MsgsOut()
+		tmplCtx.RTT = conn.RTT().String()
+		tmplCtx.AvgRTT = conn.AvgRTT().String()
+
+		// Extract Host and Port from URL
+		uStr := tmplCtx.URL
+		if u, err := url.Parse(uStr); err == nil {
+			tmplCtx.Host = u.Hostname()
+			if p := u.Port(); p != "" {
+				if pi, err := strconv.Atoi(p); err == nil {
+					tmplCtx.Port = pi
+				}
+			} else {
+				if u.Scheme == "wss" {
+					tmplCtx.Port = 443
+				} else {
+					tmplCtx.Port = 80
+				}
+			}
+			tmplCtx.IsSecure = (u.Scheme == "wss")
+			tmplCtx.Path = u.Path
+		}
+	} else {
+		tmplCtx.Host = "not connected"
+	}
+
+	if r.clientCtx != nil {
+		hits, active := r.clientCtx.GetHandlerStats()
+		tmplCtx.HandlerHits = hits
+		tmplCtx.ActiveHandlers = int(active)
+	}
+
+	// Extract Host and Port from URL (even if not connected, using clientCtx.GetURL)
+	if tmplCtx.URL != "" && tmplCtx.Host == "not connected" {
+		if u, err := url.Parse(tmplCtx.URL); err == nil {
+			tmplCtx.Host = u.Hostname()
+			if p := u.Port(); p != "" {
+				if pi, err := strconv.Atoi(p); err == nil {
+					tmplCtx.Port = pi
+				}
+			} else {
+				if u.Scheme == "wss" {
+					tmplCtx.Port = 443
+				} else {
+					tmplCtx.Port = 80
+				}
+			}
+			tmplCtx.IsSecure = (u.Scheme == "wss")
+			tmplCtx.Path = u.Path
+		}
+	}
+}
+
 // renderPrompt evaluates the prompt template and updates the readline instance.
 func (r *REPL) renderPrompt() {
 	if r.rl == nil {
@@ -588,77 +673,16 @@ func (r *REPL) renderPrompt() {
 	}
 
 	tmplCtx := template.NewContext()
-	r.mu.RLock()
-	tmplCtx.Session = make(map[string]interface{}, len(r.vars))
-	for k, v := range r.vars {
-		tmplCtx.Session[k] = v
-	}
-	r.mu.RUnlock()
-	tmplCtx.Vars = tmplCtx.Session
+	r.PopulateContext(tmplCtx)
 
-	// Populate connection info
-	var conn *ws.Connection
+	engine := template.New(false)
 	if r.clientCtx != nil {
-		conn = r.clientCtx.GetConnection()
-	}
-
-	if conn != nil && !conn.IsClosed() {
-		tmplCtx.URL = conn.GetURL()
-		tmplCtx.ConnectionID = conn.ID
-		tmplCtx.Subprotocol = conn.GetSubprotocol()
-		tmplCtx.RemoteAddr = conn.RemoteAddr()
-		tmplCtx.LocalAddr = conn.LocalAddr()
-		tmplCtx.ConnectedSince = conn.ConnectedAt()
-		tmplCtx.Uptime = time.Since(conn.ConnectedAt())
-		tmplCtx.UptimeFormatted = template.FormatUptime(tmplCtx.Uptime)
-		tmplCtx.MessageCount = conn.MessageCount()
-		tmplCtx.MsgsIn = conn.MsgsIn()
-		tmplCtx.MsgsOut = conn.MsgsOut()
-
-		tmplCtx.Conn = &template.ConnectionContext{
-			URL:                conn.GetURL(),
-			Subprotocol:        conn.GetSubprotocol(),
-			CompressionEnabled: conn.IsCompressionEnabled(),
-			RemoteAddr:         conn.RemoteAddr(),
-			LocalAddr:          conn.LocalAddr(),
-			ConnectedAt:        conn.ConnectedAt(),
-			Uptime:             tmplCtx.Uptime,
-			UptimeFormatted:    tmplCtx.UptimeFormatted,
-			MessageCount:       tmplCtx.MessageCount,
-			MsgsIn:             conn.MsgsIn(),
-			MsgsOut:            conn.MsgsOut(),
-			LastMsgReceivedAt:  conn.LastMsgReceivedAt(),
-			LastMsgSentAt:      conn.LastMsgSentAt(),
-			RTT:                conn.RTT(),
-			AvgRTT:             conn.AvgRTT(),
+		if e := r.clientCtx.GetTemplateEngine(); e != nil {
+			engine = e
 		}
-
-		// Extract Host from URL
-		if parts := strings.Split(tmplCtx.URL, "://"); len(parts) > 1 {
-			host := strings.Split(parts[1], "/")[0]
-			tmplCtx.Host = host
-		}
-	} else {
-		tmplCtx.Host = "not connected"
-		tmplCtx.ConnectionID = "🔌" // Plugs symbol for disconnected
-		tmplCtx.RemoteAddr = "❓"
-		tmplCtx.LocalAddr = "❓"
-		tmplCtx.ClientIP = "❓"
-		tmplCtx.MessageCount = 0
-		tmplCtx.Uptime = 0
-		tmplCtx.UptimeFormatted = "0s"
 	}
 
-	// Always set session meta even if not connected
-	tmplCtx.SessionID = r.TemplateEngine.GetSessionID()
-
-	if r.clientCtx != nil {
-		hits, active := r.clientCtx.GetHandlerStats()
-		tmplCtx.HandlerHits = hits
-		tmplCtx.ActiveHandlers = int(active)
-	}
-
-	res, err := r.TemplateEngine.Execute("prompt", r.promptTemplate, tmplCtx)
+	res, err := engine.Execute("prompt", r.promptTemplate, tmplCtx)
 	if err != nil {
 		if !r.promptErrReported {
 			r.Errorf("\n[prompt template error: %v]\n", err)
@@ -669,6 +693,7 @@ func (r *REPL) renderPrompt() {
 	}
 
 	r.promptErrReported = false
+	r.prompt = res
 	r.rl.Config.Prompt = res
 	r.rl.SetPrompt(res)
 }

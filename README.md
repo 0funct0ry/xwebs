@@ -812,6 +812,13 @@ The following functions provide access to connection-level metadata and session 
 | `msgsIn`         | Total messages received in current session     | `{{ msgsIn }}↓`                            |
 | `msgsOut`        | Total messages sent in current session         | `{{ msgsOut }}↑`                           |
 | `messageCount`   | Total messages (In + Out)                      | `{{ messageCount }}`                       |
+| `mode`           | Current operating mode (client/server)         | `{{ mode }}`                               |
+| `status`         | Connection state (connected, reconnecting, etc)| `{{ status }}`                             |
+| `port`           | Current connection numeric port                | `{{ port }}`                               |
+| `path`           | WebSocket endpoint path                        | `{{ path }}`                               |
+| `tls`            | Security symbol (🔒 for TLS, empty for plain)   | `{{ tls }}`                               |
+| `secure`         | Boolean indicator for TLS/SSL                  | `{{ secure }}`                             |
+| `reconnectCount` | Current reconnection attempt number            | `{{ reconnectCount }}`                     |
 | `lastMsgAgo`     | Time since last received message               | `{{ lastMsgAgo }} ago`                     |
 | `lastSendAgo`    | Time since last sent message                   | `{{ lastSendAgo }} ago`                    |
 | `rtt`            | Last measured Round Trip Time (via ping/pong)  | `{{ rtt }}`                                |

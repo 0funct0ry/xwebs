@@ -20,6 +20,15 @@ func (e *Engine) registerConnFuncs() {
 	e.funcs["connectedSince"] = func() time.Time { return time.Time{} }
 	e.funcs["uptime"] = func() time.Duration { return 0 }
 	e.funcs["messageCount"] = func() uint64 { return 0 }
+
+	// New mode & state indicators
+	e.funcs["mode"] = func() string { return "client" }
+	e.funcs["port"] = func() int { return 0 }
+	e.funcs["path"] = func() string { return "" }
+	e.funcs["tls"] = func() string { return "🔓" }
+	e.funcs["secure"] = func() bool { return false }
+	e.funcs["reconnectCount"] = func() int { return 0 }
+	e.funcs["status"] = func() string { return "closed" }
 }
 
 // FormatUptime returns a concise uptime string.

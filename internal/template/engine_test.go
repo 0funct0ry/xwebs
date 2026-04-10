@@ -422,14 +422,41 @@ func TestEngine_Context(t *testing.T) {
 		},
 		{
 			name: "env access",
-			tmpl: "{{.Env.USER}}",
-			want: os.Getenv("USER"),
+			tmpl: "{{index .Env \"TEST_VAR\"}}",
+			want: "test_value",
+		},
+		{
+			name: "mode and state indicators",
+			tmpl: "{{mode}} | {{status}} | {{reconnectCount}} | {{port}} | {{tls}} | {{secure}}",
+			want: "client | reconnecting | 5 | 8080 | 🔒 | true",
+		},
+		{
+			name: "mode and state indicators default",
+			tmpl: "{{mode}} | {{status}} | {{tls}} | {{secure}}",
+			want: "server | closed |  | false",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := e.Execute(tt.name, tt.tmpl, ctx)
+			var data interface{} = ctx
+			if tt.name == "env access" {
+				ctx.Env = map[string]string{"TEST_VAR": "test_value"}
+			} else if tt.name == "mode and state indicators" {
+				data = &TemplateContext{
+					Mode:           "client",
+					Status:         "reconnecting",
+					ReconnectCount: 5,
+					Port:           8080,
+					IsSecure:       true,
+				}
+			} else if tt.name == "mode and state indicators default" {
+				data = &TemplateContext{
+					Mode: "server",
+				}
+			}
+
+			got, err := e.Execute(tt.name, tt.tmpl, data)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}

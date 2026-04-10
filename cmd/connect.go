@@ -33,6 +33,9 @@ type connectClientContext struct {
 	originalToken     string            // Token template
 	automationPending bool              // Flag to avoid premature --once exit
 	receivedOnce      chan struct{}     // Pulse when --once condition is met
+	reconnectCount    int
+	status            string
+	statusURL         string
 }
 
 func (c *connectClientContext) GetHandlerStats() (hits uint64, active int32) {
@@ -40,6 +43,30 @@ func (c *connectClientContext) GetHandlerStats() (hits uint64, active int32) {
 		return c.dispatcher.HandlerHits(), c.dispatcher.ActiveHandlers()
 	}
 	return 0, 0
+}
+
+func (c *connectClientContext) GetStatus() string {
+	if c.conn != nil && c.conn.IsClosed() {
+		return "closed"
+	}
+	if c.status != "" {
+		return c.status
+	}
+	if c.conn == nil {
+		return "closed"
+	}
+	return "connected"
+}
+
+func (c *connectClientContext) GetURL() string {
+	if c.conn != nil {
+		return c.conn.URL
+	}
+	return c.statusURL
+}
+
+func (c *connectClientContext) GetReconnectCount() int {
+	return c.reconnectCount
 }
 
 func (c *connectClientContext) GetConnection() *ws.Connection {
@@ -576,6 +603,8 @@ Example:
 		for {
 			var conn *ws.Connection
 			var err error
+			cc.status = "connecting"
+			cc.statusURL = details.URL
 
 			// Re-evaluate URL if it's a template
 			if cc.originalURL != "" && strings.Contains(cc.originalURL, "{{") {
@@ -631,6 +660,7 @@ Example:
 
 				conn, err = ws.Dial(sessionCtx, details.URL, opts...)
 				if err != nil {
+					cc.status = "disconnected"
 					warn(r, isInteractive, "Connection failed: %v\n", err)
 
 					// Trigger on_error handlers even if initial connection fails
@@ -658,6 +688,9 @@ Example:
 					} else {
 						backoff := ws.ExponentialBackoff(details.ReconnectBackoff, details.ReconnectMax, reconnectCount)
 						info(r, isInteractive, "Retrying in %v... (attempt %d)\n", backoff, reconnectCount+1)
+						cc.status = "reconnecting"
+						cc.statusURL = details.URL
+						cc.reconnectCount = reconnectCount + 1
 						select {
 						case <-time.After(backoff):
 							reconnectCount++
@@ -667,6 +700,7 @@ Example:
 								details.URL = newURL
 							}
 							reconnectCount = 0
+							cc.reconnectCount = 0
 							continue
 						case <-sessionCtx.Done():
 							return nil
@@ -677,7 +711,9 @@ Example:
 
 			if conn != nil {
 				cc.SetConnection(conn)
+				cc.status = "connected"
 				reconnectCount = 0 // Reset on successful connection
+				cc.reconnectCount = 0
 
 				// Log connection event
 				if isInteractive && r != nil && r.Logger.IsActive() {

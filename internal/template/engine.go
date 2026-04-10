@@ -341,6 +341,28 @@ func (e *Engine) Execute(name, text string, data interface{}) (string, error) {
 		funcs["activeHandlers"] = func() int {
 			return ctx.ActiveHandlers
 		}
+
+		// Mode and State Indicators
+		funcs["mode"] = func() string { return ctx.Mode }
+		funcs["port"] = func() int { return ctx.Port }
+		funcs["path"] = func() string { return ctx.Path }
+		funcs["reconnectCount"] = func() int { return ctx.ReconnectCount }
+		funcs["status"] = func() string {
+			if ctx.Status != "" {
+				return ctx.Status
+			}
+			if ctx.Conn != nil && !ctx.ConnectedSince.IsZero() {
+				return "connected"
+			}
+			return "closed"
+		}
+		funcs["tls"] = func() string {
+			if ctx.IsSecure {
+				return "🔒"
+			}
+			return ""
+		}
+		funcs["secure"] = func() bool { return ctx.IsSecure }
 	}
 
 	tmpl, err := template.New(name).Funcs(funcs).Parse(text)
