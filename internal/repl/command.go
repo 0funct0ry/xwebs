@@ -1224,6 +1224,42 @@ func (r *REPL) RegisterCommonCommands() {
 		help:    "Save content to a file: :write [flags] <filename> [content]",
 		handler: r.executeWrite,
 	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "shortcuts",
+		help: "List all active keyboard shortcuts: :shortcuts",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if len(r.shortcuts) == 0 {
+				r.Printf("No shortcuts defined.\n")
+				return nil
+			}
+
+			// Reverse map for display (rune -> name)
+			runeToName := map[rune]string{
+				1: "Ctrl+A", 2: "Ctrl+B", 3: "Ctrl+C", 4: "Ctrl+D", 5: "Ctrl+E", 6: "Ctrl+F", 7: "Ctrl+G",
+				8: "Ctrl+H", 9: "Ctrl+I", 10: "Ctrl+J", 11: "Ctrl+K", 12: "Ctrl+L", 13: "Ctrl+M", 14: "Ctrl+N",
+				15: "Ctrl+O", 16: "Ctrl+P", 17: "Ctrl+Q", 18: "Ctrl+R", 19: "Ctrl+S", 20: "Ctrl+T", 21: "Ctrl+U",
+				22: "Ctrl+V", 23: "Ctrl+W", 24: "Ctrl+X", 25: "Ctrl+Y", 26: "Ctrl+Z",
+			}
+
+			var keys []rune
+			for k := range r.shortcuts {
+				keys = append(keys, k)
+			}
+			sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+
+			r.Printf("\nActive Keyboard Shortcuts:\n")
+			for _, k := range keys {
+				name, ok := runeToName[k]
+				if !ok {
+					name = fmt.Sprintf("Key(%d)", k)
+				}
+				r.Printf("  %-10s -> %s\n", name, r.shortcuts[k])
+			}
+			return nil
+		},
+	})
+	r.RegisterAlias("keys", "shortcuts")
 }
 
 func (r *REPL) executeWrite(ctx context.Context, _ *REPL, args []string) error {

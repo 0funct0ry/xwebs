@@ -470,6 +470,7 @@ Example:
 				cfg.HistoryFile = appCfg.REPL.HistoryFile
 				cfg.HistoryLimit = appCfg.REPL.HistoryLimit
 				cfg.PromptTemplate = appCfg.REPL.Prompt
+				cfg.Shortcuts = appCfg.REPL.Shortcuts
 			}
 
 			if outputFile != "" {

@@ -144,6 +144,7 @@ When running in a terminal (TTY), `xwebs connect` enters a rich interactive REPL
 | `:verbose`       | Toggle frame-level metadata display                  |
 | `:timestamps`    | Toggle ISO 8601 message timestamps                   |
 | `:color <mode>`  | Set coloring mode: `on`, `off`, `auto`               |
+| `:shortcuts`, `:keys` | List active keyboard bindings                   |
 | `:source <f>`    | Execute a `.xwebs` script file                       |
 | `:alias <n> <c>` | Create a command alias with positional args          |
 | `:wait <dur>`    | Pause execution (e.g., `1s`, `500ms`)                |
@@ -155,6 +156,28 @@ When running in a terminal (TTY), `xwebs connect` enters a rich interactive REPL
 | `:handlers`      | List all loaded handlers in priority order           |
 | `:handler`       | Manage handlers: `add <flags>` or `delete <name>`    |
 | `:prompt set <t>`| Customize the REPL prompt with Go templates          |
+
+**Keyboard Shortcuts:**
+
+The REPL supports customizable keyboard shortcuts for frequent operations. These are defined in your `.xwebs.yaml` configuration file.
+
+| Shortcut | Default Command |
+|----------|-----------------|
+| `Ctrl+O` | `:shell --yes`  |
+
+You can add your own shortcuts to perform commands or insert common prefixes:
+
+```yaml
+# ~/.xwebs.yaml
+repl:
+  shortcuts:
+    "Ctrl+A": ":status"
+    "Ctrl+K": ":clear"
+    "Ctrl+Q": ":quit"
+    "Ctrl+S": ":send "   # Note the trailing space; cursor is positioned at the end
+```
+
+Run `:shortcuts` inside the REPL to see all active bindings.
 
 **Multi-line Input:**
 

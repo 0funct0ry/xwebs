@@ -30,9 +30,10 @@ type Bookmark struct {
 
 // REPLConfig defines configuration for the interactive shell.
 type REPLConfig struct {
-	HistoryFile  string `mapstructure:"history-file"`
-	HistoryLimit int    `mapstructure:"history-limit"`
-	Prompt       string `mapstructure:"prompt"`
+	HistoryFile  string            `mapstructure:"history-file"`
+	HistoryLimit int               `mapstructure:"history-limit"`
+	Prompt       string            `mapstructure:"prompt"`
+	Shortcuts    map[string]string `mapstructure:"shortcuts"`
 }
 
 // AppConfig represents the root configuration structure for aliases and bookmarks.

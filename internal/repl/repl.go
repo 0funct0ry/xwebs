@@ -111,6 +111,9 @@ type REPL struct {
 	// Heredoc support
 	heredocDelimiter string
 	heredocBuffer    []string
+
+	// Shortcuts maps key runes to command strings
+	shortcuts map[rune]string
 }
 
 // Config defines the configuration for the REPL.
@@ -125,6 +128,7 @@ type Config struct {
 	Stdin              io.ReadCloser
 	Stdout             io.WriteCloser
 	Terminal           bool // Whether to initialize the terminal (readline)
+	Shortcuts          map[string]string
 }
 
 // New creates a new REPL instance.
@@ -225,7 +229,54 @@ func New(mode Mode, cfg *Config) (*REPL, error) {
 	r.Recorder = NewRecorder()
 	r.Mocker = mock.NewMocker()
 
+	// Initialize shortcuts
+	r.shortcuts = make(map[rune]string)
+	// Default: Ctrl+O -> :shell --yes
+	r.shortcuts[15] = ":shell --yes"
+
+	if cfg.Shortcuts != nil {
+		for k, v := range cfg.Shortcuts {
+			runeKey, err := parseShortcut(k)
+			if err != nil {
+				r.Errorf("Warning: invalid shortcut key %q: %v\n", k, err)
+				continue
+			}
+			r.shortcuts[runeKey] = v
+		}
+	}
+
 	return r, nil
+}
+
+// parseShortcut converts a shortcut string like "Ctrl+Q" or "Alt+K" or a raw number to a rune.
+func parseShortcut(name string) (rune, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return 0, fmt.Errorf("empty shortcut name")
+	}
+
+	// Try parsing as raw integer first
+	if val, err := strconv.Atoi(name); err == nil {
+		return rune(val), nil
+	}
+
+	upper := strings.ToUpper(name)
+	if strings.HasPrefix(upper, "CTRL+") || strings.HasPrefix(upper, "CTRL-") {
+		parts := strings.Split(upper, upper[4:5])
+		if len(parts) != 2 || len(parts[1]) != 1 {
+			return 0, fmt.Errorf("invalid Ctrl shortcut format: %s (expected Ctrl+X)", name)
+		}
+		char := parts[1][0]
+		if char < 'A' || char > 'Z' {
+			return 0, fmt.Errorf("invalid Ctrl character: %c (must be A-Z)", char)
+		}
+		return rune(char - 'A' + 1), nil
+	}
+
+	// For now we only support Ctrl+A-Z. 
+	// Alt sequences often involve ESC prefix which OnChange doesn't handle as a single unit easily.
+	
+	return 0, fmt.Errorf("unsupported shortcut format: %s", name)
 }
 
 // GetConfig returns the REPL configuration.
@@ -737,12 +788,13 @@ func (r *REPL) Do(line []rune, pos int) (newLine [][]rune, length int) {
 }
 
 // OnChange implements the readline.Listener interface.
-// It intercepts Ctrl+O (rune 15) to trigger shell mode.
+// It intercepts defined shortcuts.
 func (r *REPL) OnChange(line []rune, pos int, key rune) (newLine []rune, newPos int, ok bool) {
-	// Ctrl+O is rune 15. We intercept it to inject ":shell" command.
-	if key == 15 {
-		// We return the command with --yes to allow immediate entry upon pressing Enter.
-		return []rune(":shell --yes"), 12, true
+	if cmd, exists := r.shortcuts[key]; exists {
+		// Use the mapped command. Intelligent positioning: 
+		// If it's a command that expects more input (e.g. ends in space), 
+		// the cursor is at the end.
+		return []rune(cmd), len(cmd), true
 	}
 	return nil, 0, false
 }
