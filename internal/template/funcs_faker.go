@@ -92,4 +92,39 @@ func (e *Engine) registerFakerFuncs() {
 	e.funcs["fakeULID"] = func() string {
 		return ulid.Make().String()
 	}
+
+	// Address & Location functions
+	e.funcs["fakeAddress"] = func() string {
+		return gofakeit.Address().Address
+	}
+	e.funcs["fakeCity"] = func() string {
+		return gofakeit.City()
+	}
+	e.funcs["fakeCountry"] = func() string {
+		return gofakeit.Country()
+	}
+	e.funcs["fakeCountryCode"] = func() string {
+		return gofakeit.CountryAbr()
+	}
+	e.funcs["fakeZipCode"] = func() string {
+		return gofakeit.Zip()
+	}
+	e.funcs["fakeLatitude"] = func(r ...float64) (float64, error) {
+		if len(r) >= 2 {
+			return gofakeit.LatitudeInRange(r[0], r[1])
+		}
+		return gofakeit.Latitude(), nil
+	}
+	e.funcs["fakeLongitude"] = func(r ...float64) (float64, error) {
+		if len(r) >= 2 {
+			return gofakeit.LongitudeInRange(r[0], r[1])
+		}
+		return gofakeit.Longitude(), nil
+	}
+	e.funcs["fakeStreet"] = func() string {
+		return gofakeit.Street()
+	}
+	e.funcs["fakeState"] = func() string {
+		return gofakeit.State()
+	}
 }

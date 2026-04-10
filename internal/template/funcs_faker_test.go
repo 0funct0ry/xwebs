@@ -35,6 +35,17 @@ func TestFakerFuncs(t *testing.T) {
 		{"fakePort_range", "{{fakePort 8000 9000}}"},
 		{"fakeUUID", "{{fakeUUID}}"},
 		{"fakeULID", "{{fakeULID}}"},
+		{"fakeAddress", "{{fakeAddress}}"},
+		{"fakeCity", "{{fakeCity}}"},
+		{"fakeCountry", "{{fakeCountry}}"},
+		{"fakeCountryCode", "{{fakeCountryCode}}"},
+		{"fakeZipCode", "{{fakeZipCode}}"},
+		{"fakeLatitude", "{{fakeLatitude}}"},
+		{"fakeLatitude_range", "{{fakeLatitude 10.0 20.0}}"},
+		{"fakeLongitude", "{{fakeLongitude}}"},
+		{"fakeLongitude_range", "{{fakeLongitude 10.0 20.0}}"},
+		{"fakeStreet", "{{fakeStreet}}"},
+		{"fakeState", "{{fakeState}}"},
 	}
 
 	for _, tt := range tests {

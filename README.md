@@ -1037,6 +1037,15 @@ The template engine includes basic fake data generation helpers, useful for crea
 | `fakeHTTPMethod`| Generates a fake HTTP method            | `{{ fakeHTTPMethod }}`                |
 | `fakeMacAddress`| Generates a fake MAC address            | `{{ fakeMacAddress }}`                |
 | `fakePort`      | Generates a fake port (optional range)  | `{{ fakePort 1024 65535 }}`           |
+| `fakeAddress`   | Generates a full street address         | `{{ fakeAddress }}`                   |
+| `fakeCity`      | Generates a random city name            | `{{ fakeCity }}`                      |
+| `fakeCountry`   | Generates a random country name         | `{{ fakeCountry }}`                   |
+| `fakeCountryCode`| Generates a random country code        | `{{ fakeCountryCode }}`               |
+| `fakeZipCode`   | Generates a random zip/postal code      | `{{ fakeZipCode }}`                   |
+| `fakeLatitude`  | Generates a random latitude             | `{{ fakeLatitude 10.0 20.0 }}`        |
+| `fakeLongitude` | Generates a random longitude            | `{{ fakeLongitude 10.0 20.0 }}`       |
+| `fakeStreet`    | Generates a random street address       | `{{ fakeStreet }}`                    |
+| `fakeState`     | Generates a random state name           | `{{ fakeState }}`                     |
 | `fakeUUID`      | Generates a UUID v4                     | `{{ fakeUUID }}`                      |
 | `fakeULID`      | Generates a ULID                        | `{{ fakeULID }}`                      |
 
