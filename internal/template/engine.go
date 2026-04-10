@@ -20,6 +20,7 @@ import (
 type Engine struct {
 	funcs            template.FuncMap
 	sandboxed        bool
+	ColorsEnabled    bool
 	session          map[string]interface{}
 	sessionID        string
 	sessionStartTime time.Time
@@ -32,6 +33,7 @@ func New(sandboxed bool) *Engine {
 	e := &Engine{
 		funcs:            make(template.FuncMap),
 		sandboxed:        sandboxed,
+		ColorsEnabled:    true, // Enabled by default
 		session:          make(map[string]interface{}),
 		sessionID:        "sess-" + cast.ToString(time.Now().UnixNano()),
 		sessionStartTime: time.Now(),
@@ -50,6 +52,12 @@ func New(sandboxed bool) *Engine {
 	e.registerConnFuncs()
 	e.registerColorFuncs()
 	e.registerVisualFuncs()
+	return e
+}
+
+// SetColorsEnabled toggles ANSI color output.
+func (e *Engine) SetColorsEnabled(enabled bool) *Engine {
+	e.ColorsEnabled = enabled
 	return e
 }
 
@@ -115,7 +123,14 @@ func (e *Engine) registerStringFuncs() {
 		return url.QueryEscape(cast.ToString(s))
 	}
 	e.funcs["quote"] = func(s interface{}) string {
-		return strconv.Quote(cast.ToString(s))
+		return strconv.Quote(cast.ToString(s) )
+	}
+	e.funcs["short"] = func(s interface{}) string {
+		str := cast.ToString(s)
+		if len(str) > 8 {
+			return str[:8]
+		}
+		return str
 	}
 	e.funcs["truncate"] = func(length, s interface{}) string {
 		str := cast.ToString(s)

@@ -11,8 +11,11 @@ import (
 func (e *Engine) registerColorFuncs() {
 	// Base color function
 	e.funcs["color"] = func(color, s interface{}) string {
-		c := cast.ToString(color)
 		val := cast.ToString(s)
+		if !e.ColorsEnabled {
+			return val
+		}
+		c := cast.ToString(color)
 		code := getColorCode(c)
 		if code == "" {
 			return val
@@ -38,7 +41,11 @@ func (e *Engine) registerColorFuncs() {
 		n := name // capture for closure
 		c := code
 		e.funcs[n] = func(s interface{}) string {
-			return fmt.Sprintf("\033[%sm%s\033[0m", c, cast.ToString(s))
+			val := cast.ToString(s)
+			if !e.ColorsEnabled {
+				return val
+			}
+			return fmt.Sprintf("\033[%sm%s\033[0m", c, val)
 		}
 	}
 
@@ -55,11 +62,18 @@ func (e *Engine) registerColorFuncs() {
 		n := name
 		c := code
 		e.funcs[n] = func(s interface{}) string {
-			return fmt.Sprintf("\033[%sm%s\033[0m", c, cast.ToString(s))
+			val := cast.ToString(s)
+			if !e.ColorsEnabled {
+				return val
+			}
+			return fmt.Sprintf("\033[%sm%s\033[0m", c, val)
 		}
 	}
 
 	e.funcs["reset"] = func() string {
+		if !e.ColorsEnabled {
+			return ""
+		}
 		return "\033[0m"
 	}
 }

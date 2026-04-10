@@ -19,6 +19,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"golang.org/x/term"
 )
 
 type connectClientContext struct {
@@ -152,6 +153,18 @@ Example:
 		var isInteractive bool
 		target := args[0]
 		tmplEngine := template.New(noShellFunc)
+
+		// Set colors based on global settings
+		colorsEnabled := true
+		switch color {
+		case "on":
+			colorsEnabled = true
+		case "off":
+			colorsEnabled = false
+		case "auto":
+			colorsEnabled = term.IsTerminal(int(os.Stdout.Fd()))
+		}
+		tmplEngine.SetColorsEnabled(colorsEnabled)
 
 		// Load handlers if specified
 		var reg *handler.Registry

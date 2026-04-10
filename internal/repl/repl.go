@@ -18,6 +18,7 @@ import (
 	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/0funct0ry/xwebs/internal/ws"
 	"github.com/chzyer/readline"
+	"golang.org/x/term"
 	"os/exec"
 	"os/signal"
 	"runtime"
@@ -199,20 +200,10 @@ func New(mode Mode, cfg *Config) (*REPL, error) {
 	}
 
 	// Detect if Stdout is a TTY
-	r.isStdoutTTY = true
+	r.isStdoutTTY = term.IsTerminal(int(os.Stdout.Fd()))
 	if cfg.Stdout != nil {
 		if f, ok := cfg.Stdout.(*os.File); ok {
-			if stat, err := f.Stat(); err == nil {
-				if (stat.Mode() & os.ModeCharDevice) == 0 {
-					r.isStdoutTTY = false
-				}
-			}
-		}
-	} else {
-		if stat, err := os.Stdout.Stat(); err == nil {
-			if (stat.Mode() & os.ModeCharDevice) == 0 {
-				r.isStdoutTTY = false
-			}
+			r.isStdoutTTY = term.IsTerminal(int(f.Fd()))
 		}
 	}
 
@@ -676,9 +667,22 @@ func (r *REPL) renderPrompt() {
 	r.PopulateContext(tmplCtx)
 
 	engine := template.New(false)
+	
+	// Set colors based on display settings
+	colorsEnabled := true
+	switch r.Display.Color {
+	case "on":
+		colorsEnabled = true
+	case "off":
+		colorsEnabled = false
+	case "auto":
+		colorsEnabled = r.isStdoutTTY
+	}
+	engine.SetColorsEnabled(colorsEnabled)
+
 	if r.clientCtx != nil {
 		if e := r.clientCtx.GetTemplateEngine(); e != nil {
-			engine = e
+			engine = e.SetColorsEnabled(colorsEnabled)
 		}
 	}
 

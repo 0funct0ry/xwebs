@@ -154,7 +154,7 @@ When running in a terminal (TTY), `xwebs connect` enters a rich interactive REPL
 | `:mock <f>`      | Load YAML-based mock scenario                        |
 | `:handlers`      | List all loaded handlers in priority order           |
 | `:handler`       | Manage handlers: `add <flags>` or `delete <name>`    |
-| `:prompt <tmpl>` | Customize the REPL prompt with Go templates          |
+| `:prompt set <t>`| Customize the REPL prompt with Go templates          |
 
 **Multi-line Input:**
 
@@ -775,6 +775,17 @@ The following string manipulation functions are available in templates:
 | `urlEncode`    | URL encodes a string                    | `{{ .msg  \| urlEncode }}`                        |
 | `quote`        | Wraps a string in double quotes         | `{{ .msg  \| quote }}`                            |
 | `truncate`     | Truncates a string with ellipsis        | `{{ .msg  \| truncate 10 }}`                      |
+| `short`        | Truncates a string to 8 chars (no ...)  | `{{ .msg  \| short }}`                             |
+| `red`          | Wraps string in ANSI red                | `{{ .msg \| red }}`                               |
+| `green`        | Wraps string in ANSI green              | `{{ .msg \| green }}`                             |
+| `yellow`       | Wraps string in ANSI yellow             | `{{ .msg \| yellow }}`                            |
+| `blue`         | Wraps string in ANSI blue               | `{{ .msg \| blue }}`                              |
+| `magenta`      | Wraps string in ANSI magenta            | `{{ .msg \| magenta }}`                           |
+| `cyan`         | Wraps string in ANSI cyan               | `{{ .msg \| cyan }}`                              |
+| `bold`         | Wraps string in ANSI bold               | `{{ .msg \| bold }}`                              |
+| `dim`          | Wraps string in ANSI dim/faint          | `{{ .msg \| dim }}`                               |
+| `underline`    | Wraps string in ANSI underline          | `{{ .msg \| underline }}`                         |
+| `reset`        | Returns ANSI reset code                 | `{{ reset }}`                                     |
 | `padLeft`      | Pads a string on the left               | `{{ .msg \| padLeft 10 }}`                        |
 | `padRight`     | Pads a string on the right              | `{{ .msg \| padRight 10 }}`                       |
 | `indent`       | Indents every line with spaces          | `{{ .msg \| indent 2 }}`                          |

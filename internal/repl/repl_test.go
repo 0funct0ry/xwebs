@@ -342,6 +342,7 @@ func TestREPLPrompt(t *testing.T) {
 	})
 
 	t.Run("Color template prompt", func(t *testing.T) {
+		r.Display.Color = "on"
 		err := r.ExecuteCommand(context.Background(), ":prompt set \"{{red \\\"!\\\"}} > \"")
 		if err != nil {
 			t.Fatalf("Failed to set prompt: %v", err)
