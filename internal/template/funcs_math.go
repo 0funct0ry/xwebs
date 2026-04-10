@@ -55,19 +55,25 @@ func (e *Engine) registerMathFuncs() {
 		return math.Round(cast.ToFloat64(a))
 	}
 
-	e.funcs["seq"] = func(start, end interface{}) []int {
-		s, e := cast.ToInt(start), cast.ToInt(end)
-		var res []int
-		if s <= e {
-			for i := s; i <= e; i++ {
-				res = append(res, i)
-			}
-		} else {
-			for i := s; i >= e; i-- {
-				res = append(res, i)
-			}
+	e.funcs["seq"] = func(args ...interface{}) interface{} {
+		if len(args) == 0 {
+			return e.incrementCounter("seq")
 		}
-		return res
+		if len(args) == 2 {
+			s, end := cast.ToInt(args[0]), cast.ToInt(args[1])
+			var res []int
+			if s <= end {
+				for i := s; i <= end; i++ {
+					res = append(res, i)
+				}
+			} else {
+				for i := s; i >= end; i-- {
+					res = append(res, i)
+				}
+			}
+			return res
+		}
+		return nil
 	}
 
 	e.funcs["toInt"] = func(v interface{}) int {

@@ -977,6 +977,18 @@ Safe functions (string manipulation, JSON processing, math, time, encoding, cryp
 | `nanoid`  | Generates a NanoID                      | `{{ nanoid }}`                        |
 | `shortid` | Generates a ShortID                     | `{{ shortid }}`                       |
 | `counter` | Returns/increments a named counter      | `{{ counter "msg_id" }}`              |
+| `reqCounter`| Increments/returns request counter     | `{{ reqCounter }}`                    |
+| `msgCounter`| Increments/returns message counter     | `{{ msgCounter }}`                    |
+| `errorCount`| Increments/returns error counter       | `{{ errorCount }}`                    |
+| `seq`       | Increments/returns generic sequence    | `{{ seq }}`                           |
+
+#### Visual & Flair Functions
+
+| Function      | Description                             | Example                               |
+|---------------|-----------------------------------------|---------------------------------------|
+| `randomEmoji` | Returns a random emoji from curated list| `{{ randomEmoji }}`                   |
+| `randomColor` | Returns a random color name             | `{{ color randomColor "text" }}`      |
+| `sessionAge`  | Returns duration since session started  | `{{ sessionAge \| shortTime }}`       |
 
 #### Collection Functions
 

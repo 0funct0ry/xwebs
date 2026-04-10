@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"sync"
 	"time"
 
 	"github.com/spf13/cast"
@@ -17,19 +18,24 @@ import (
 
 // Engine is a wrapper around text/template that provides standard functions.
 type Engine struct {
-	funcs     template.FuncMap
-	sandboxed bool
-	session   map[string]interface{}
-	sessionID string
+	funcs            template.FuncMap
+	sandboxed        bool
+	session          map[string]interface{}
+	sessionID        string
+	sessionStartTime time.Time
+	counters         map[string]*uint64
+	countersMu       sync.Mutex
 }
 
 // New creates a new template engine with the standard functions registered.
 func New(sandboxed bool) *Engine {
 	e := &Engine{
-		funcs:     make(template.FuncMap),
-		sandboxed: sandboxed,
-		session:   make(map[string]interface{}),
-		sessionID: "sess-" + cast.ToString(time.Now().UnixNano()),
+		funcs:            make(template.FuncMap),
+		sandboxed:        sandboxed,
+		session:          make(map[string]interface{}),
+		sessionID:        "sess-" + cast.ToString(time.Now().UnixNano()),
+		sessionStartTime: time.Now(),
+		counters:         make(map[string]*uint64),
 	}
 	e.registerStringFuncs()
 	e.registerJSONFuncs()
@@ -43,6 +49,7 @@ func New(sandboxed bool) *Engine {
 	e.registerContextFuncs()
 	e.registerConnFuncs()
 	e.registerColorFuncs()
+	e.registerVisualFuncs()
 	return e
 }
 
