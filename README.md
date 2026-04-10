@@ -129,8 +129,9 @@ When running in a terminal (TTY), `xwebs connect` enters a rich interactive REPL
 | `:mkdir [-p] <d>`| Create a new directory (with optional parent creation)|
 | `:cat <file>`    | Display file contents with syntax highlighting       |
 | `:edit <file>`   | Open a file in your $EDITOR and offer reload         |
+| `:hedit [-n <n>]`| Edit a previous command in your $EDITOR              |
 | `:write <f> <c>` | Save templated content or session data to a file     |
-| `:history [n]`   | Display last N command history                       |
+| `:history [n]`   | Display last N command history (with block grouping) |
 | `:bench <n> <m>` | Benchmark latency for N iterations                   |
 | `:flood <msg>`   | Stress test server with high-rate messages           |
 | `:watch`         | Monitor connection statistics in real-time           |

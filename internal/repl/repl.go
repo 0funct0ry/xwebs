@@ -114,6 +114,9 @@ type REPL struct {
 
 	// Shortcuts maps key runes to command strings
 	shortcuts map[rune]string
+
+	// pendingLines stores lines to be fed through the main loop after :hedit
+	pendingLines []string
 }
 
 // Config defines the configuration for the REPL.
@@ -439,22 +442,49 @@ func (r *REPL) Run(ctx context.Context) error {
 		case <-r.done:
 			return nil
 		default:
-			r.renderPrompt()
-			line, err := r.rl.Readline()
-			if err != nil {
-				if err == readline.ErrInterrupt {
-					if len(r.multiLineBuffer) > 0 {
-						r.multiLineBuffer = nil
-						r.rl.SetPrompt(r.config.Prompt)
+			var line string
+			if len(r.pendingLines) > 0 {
+				// Feed the next pending line (from :hedit) through readline
+				// so it appears in the prompt, can be reviewed, and is recorded in history.
+				pending := r.pendingLines[0]
+				r.pendingLines = r.pendingLines[1:]
+				r.renderPrompt()
+				var err error
+				line, err = r.rl.ReadlineWithDefault(pending)
+				if err != nil {
+					if err == readline.ErrInterrupt {
+						// Cancel all remaining pending lines
+						r.pendingLines = nil
+						if len(r.multiLineBuffer) > 0 {
+							r.multiLineBuffer = nil
+							r.rl.SetPrompt(r.config.Prompt)
+						}
 						continue
 					}
-					// Clear the current line and continue the loop
-					continue
+					if err == io.EOF {
+						return nil
+					}
+					return err
 				}
-				if err == io.EOF {
-					return nil
+			} else {
+				r.renderPrompt()
+				var err error
+				line, err = r.rl.Readline()
+				if err != nil {
+					if err == readline.ErrInterrupt {
+						if len(r.multiLineBuffer) > 0 {
+							r.multiLineBuffer = nil
+							r.rl.SetPrompt(r.config.Prompt)
+							continue
+						}
+						// Clear the current line and continue the loop
+						continue
+					}
+					if err == io.EOF {
+						return nil
+					}
+					return err
 				}
-				return err
 			}
 
 			// Handle multi-line continuation with \

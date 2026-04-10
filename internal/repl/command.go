@@ -560,10 +560,147 @@ func (r *REPL) RegisterCommonCommands() {
 			}
 
 			start := len(history) - n
-			r.Printf("\nCommand History (last %d):\n", n)
-			for i := start; i < len(history); i++ {
-				r.Printf("  %4d  %s\n", i+1, history[i])
+			if start < 0 {
+				start = 0
 			}
+
+			r.Printf("\nCommand History (last %d):\n", n)
+			
+			// Map to track which lines are continuations based on robust scanning
+			isContinuation := make(map[int]bool)
+			
+			// Scan the window to identify blocks
+			var heredocDelim string
+			for i := start; i < len(history); i++ {
+				line := history[i]
+				
+				if heredocDelim != "" {
+					// Inside a heredoc
+					isContinuation[i] = true
+					if strings.TrimSpace(line) == heredocDelim {
+						heredocDelim = ""
+					}
+					continue
+				}
+				
+				// Not inside a heredoc, check for one starting
+				if idx := strings.LastIndex(line, "<<"); idx != -1 {
+					delim := strings.TrimSpace(line[idx+2:])
+					if delim != "" && !strings.ContainsAny(delim, " \t\"'") {
+						heredocDelim = delim
+						continue
+					}
+				}
+				
+				// Not a heredoc start, check for slash continuation
+				// But slash continuation only marks the *next* line as continuation.
+				if i+1 < len(history) {
+					trimmed := strings.TrimRight(line, " \t")
+					if strings.HasSuffix(trimmed, "\\") {
+						isContinuation[i+1] = true
+					}
+				}
+			}
+
+			for i := start; i < len(history); i++ {
+				if isContinuation[i] {
+					r.Printf("        %s\n", history[i])
+				} else {
+					r.Printf("  %4d  %s\n", i+1, history[i])
+				}
+			}
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "hedit",
+		help: "Edit a previous command in $EDITOR: :hedit [-n <number>]",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if r.config.HistoryFile == "" {
+				return fmt.Errorf("history is not enabled (no history file configured)")
+			}
+
+			var historyNum int
+			fs := pflag.NewFlagSet("hedit", pflag.ContinueOnError)
+			fs.SetOutput(nil)
+			fs.IntVarP(&historyNum, "number", "n", 0, "History item number to edit")
+
+			if err := fs.Parse(args); err != nil {
+				return fmt.Errorf("parsing flags: %w", err)
+			}
+
+			data, err := os.ReadFile(r.config.HistoryFile)
+			if err != nil {
+				if os.IsNotExist(err) {
+					return fmt.Errorf("no history found")
+				}
+				return fmt.Errorf("reading history file: %w", err)
+			}
+
+			lines := strings.Split(string(data), "\n")
+			var history []string
+			for _, line := range lines {
+				if strings.TrimSpace(line) != "" {
+					history = append(history, line)
+				}
+			}
+
+			if len(history) == 0 {
+				return fmt.Errorf("no history found")
+			}
+
+			// Find target index
+			var targetIdx int = -1
+			if historyNum > 0 {
+				targetIdx = historyNum - 1
+				if targetIdx >= len(history) {
+					return fmt.Errorf("history item %d not found (max %d)", historyNum, len(history))
+				}
+			} else {
+				// Search backwards for the first item that is NOT :hedit
+				for i := len(history) - 1; i >= 0; i-- {
+					if !strings.HasPrefix(strings.TrimSpace(history[i]), ":hedit") {
+						targetIdx = i
+						break
+					}
+				}
+			}
+
+			var content string
+			if targetIdx >= 0 {
+				// Use robust block detection
+				startBlock, endBlock := findHistoryBlock(history, targetIdx)
+				targetLines := history[startBlock : endBlock+1]
+				content = strings.Join(targetLines, "\n")
+			}
+
+			// Check for editor
+			editor := os.Getenv("EDITOR")
+			if editor == "" {
+				editor = os.Getenv("VISUAL")
+			}
+			if editor == "" {
+				r.Printf("Note: $EDITOR not set, checking defaults...\n")
+			}
+
+			// Open in editor
+			newContent, err := r.openInEditor(ctx, content)
+			if err != nil {
+				return err
+			}
+
+			// Remove trailing newline if editor added one and original didn't have it
+			// or just normalize.
+			newContent = strings.TrimRight(newContent, "\n\r")
+
+			if newContent == content || newContent == "" {
+				return nil
+			}
+
+			// Feed the edited content line-by-line through the main loop.
+			// This ensures heredocs and slash continuations are processed correctly.
+			r.pendingLines = strings.Split(newContent, "\n")
 			return nil
 		},
 	})
@@ -1541,4 +1678,80 @@ func (r *REPL) executeWrite(ctx context.Context, _ *REPL, args []string) error {
 	}
 
 	return nil
+}
+
+// findHistoryBlock identifies the start and end indices of the multiline block containing targetIdx.
+func findHistoryBlock(history []string, targetIdx int) (start, end int) {
+	if targetIdx < 0 || targetIdx >= len(history) {
+		return targetIdx, targetIdx
+	}
+
+	type block struct {
+		start int
+		end   int
+	}
+	var blocks []block
+
+	var currentStart int = -1
+	var heredocDelim string
+
+	for i := 0; i < len(history); i++ {
+		line := history[i]
+
+		if currentStart == -1 {
+			// Not currently in a block
+			trimmed := strings.TrimRight(line, " \t")
+
+			// Check for heredoc start
+			if idx := strings.LastIndex(line, "<<"); idx != -1 {
+				delim := strings.TrimSpace(line[idx+2:])
+				if delim != "" && !strings.ContainsAny(delim, " \t\"'") {
+					currentStart = i
+					heredocDelim = delim
+					continue
+				}
+			}
+
+			// Check for slash continuation
+			if strings.HasSuffix(trimmed, "\\") {
+				currentStart = i
+				continue
+			}
+
+			// Single line block
+			blocks = append(blocks, block{i, i})
+		} else {
+			// Currently in a block
+			if heredocDelim != "" {
+				// Heredoc mode
+				if strings.TrimSpace(line) == heredocDelim {
+					blocks = append(blocks, block{currentStart, i})
+					currentStart = -1
+					heredocDelim = ""
+				}
+				continue
+			}
+
+			// Slash continuation mode
+			trimmed := strings.TrimRight(line, " \t")
+			if !strings.HasSuffix(trimmed, "\\") {
+				blocks = append(blocks, block{currentStart, i})
+				currentStart = -1
+			}
+		}
+	}
+
+	// Handle trailing open block
+	if currentStart != -1 {
+		blocks = append(blocks, block{currentStart, len(history) - 1})
+	}
+
+	// Find which block contains targetIdx
+	for _, b := range blocks {
+		if targetIdx >= b.start && targetIdx <= b.end {
+			return b.start, b.end
+		}
+	}
+
+	return targetIdx, targetIdx
 }
