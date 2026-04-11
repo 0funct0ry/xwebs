@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -524,12 +525,58 @@ func (r *REPL) RegisterCommonCommands() {
 
 	r.RegisterCommand(&BuiltinCommand{
 		name: "history",
-		help: "Display command history: :history [n]",
+		help: "Display/manage command history: :history [-n N] [-s term] [-f pattern] [-e file] [--unique] [-r] [--json] [-c]",
 		handler: func(ctx context.Context, r *REPL, args []string) error {
 			if r.config.HistoryFile == "" {
 				return fmt.Errorf("history is not enabled (no history file configured)")
 			}
 
+			// Parse flags
+			var (
+				number    int
+				clear     bool
+				search    string
+				filter    string
+				exportFile string
+				unique    bool
+				reverse   bool
+				jsonOut   bool
+			)
+
+			fs := pflag.NewFlagSet("history", pflag.ContinueOnError)
+			fs.SetOutput(nil)
+			fs.IntVarP(&number, "number", "n", 0, "Show last N commands")
+			fs.BoolVarP(&clear, "clear", "c", false, "Clear the entire history")
+			fs.StringVarP(&search, "search", "s", "", "Search history for term")
+			fs.StringVarP(&filter, "filter", "f", "", "Filter with glob or /regex/ pattern")
+			fs.StringVarP(&exportFile, "export", "e", "", "Export history to file")
+			fs.BoolVar(&unique, "unique", false, "Show only unique commands")
+			fs.BoolVarP(&reverse, "reverse", "r", false, "Display in reverse chronological order")
+			fs.BoolVar(&jsonOut, "json", false, "Output in structured JSON format")
+
+			if err := fs.Parse(args); err != nil {
+				return fmt.Errorf("parsing flags: %w", err)
+			}
+
+			// Backward compatibility: :history <N> (positional arg)
+			if number == 0 {
+				remaining := fs.Args()
+				if len(remaining) > 0 {
+					if val, err := strconv.Atoi(remaining[0]); err == nil {
+						number = val
+					}
+				}
+			}
+			if number <= 0 {
+				number = 20
+			}
+
+			// Handle --clear first (doesn't need to load full history)
+			if clear {
+				return r.historyClear()
+			}
+
+			// Load history
 			data, err := os.ReadFile(r.config.HistoryFile)
 			if err != nil {
 				if os.IsNotExist(err) {
@@ -540,74 +587,139 @@ func (r *REPL) RegisterCommonCommands() {
 			}
 
 			lines := strings.Split(string(data), "\n")
-			// Filter empty lines
-			var history []string
+			var entries []historyEntry
 			for _, line := range lines {
 				if strings.TrimSpace(line) != "" {
-					history = append(history, line)
+					entries = append(entries, historyEntry{Index: len(entries) + 1, Cmd: line})
 				}
 			}
 
-			n := 20 // Default to last 20
-			if len(args) > 0 {
-				if val, err := strconv.Atoi(args[0]); err == nil {
-					n = val
-				}
+			if len(entries) == 0 {
+				r.Printf("No history found.\n")
+				return nil
 			}
 
-			if n > len(history) {
-				n = len(history)
-			}
+			// Pipeline: search -> filter -> unique -> slice -> reverse
 
-			start := len(history) - n
-			if start < 0 {
-				start = 0
-			}
-
-			r.Printf("\nCommand History (last %d):\n", n)
-			
-			// Map to track which lines are continuations based on robust scanning
-			isContinuation := make(map[int]bool)
-			
-			// Scan the window to identify blocks
-			var heredocDelim string
-			for i := start; i < len(history); i++ {
-				line := history[i]
-				
-				if heredocDelim != "" {
-					// Inside a heredoc
-					isContinuation[i] = true
-					if strings.TrimSpace(line) == heredocDelim {
-						heredocDelim = ""
-					}
-					continue
-				}
-				
-				// Not inside a heredoc, check for one starting
-				if idx := strings.LastIndex(line, "<<"); idx != -1 {
-					delim := strings.TrimSpace(line[idx+2:])
-					if delim != "" && !strings.ContainsAny(delim, " \t\"'") {
-						heredocDelim = delim
-						continue
+			// Stage: Search
+			if search != "" {
+				var filtered []historyEntry
+				lowerSearch := strings.ToLower(search)
+				for _, e := range entries {
+					if strings.Contains(strings.ToLower(e.Cmd), lowerSearch) {
+						filtered = append(filtered, e)
 					}
 				}
-				
-				// Not a heredoc start, check for slash continuation
-				// But slash continuation only marks the *next* line as continuation.
-				if i+1 < len(history) {
-					trimmed := strings.TrimRight(line, " \t")
-					if strings.HasSuffix(trimmed, "\\") {
-						isContinuation[i+1] = true
-					}
-				}
+				entries = filtered
 			}
 
-			for i := start; i < len(history); i++ {
-				if isContinuation[i] {
-					r.Printf("        %s\n", history[i])
+			// Stage: Filter (glob or regex)
+			if filter != "" {
+				var filtered []historyEntry
+				if strings.HasPrefix(filter, "/") && strings.HasSuffix(filter, "/") && len(filter) > 2 {
+					// Regex mode
+					re, err := regexp.Compile(filter[1 : len(filter)-1])
+					if err != nil {
+						return fmt.Errorf("invalid regex pattern: %w", err)
+					}
+					for _, e := range entries {
+						if re.MatchString(e.Cmd) {
+							filtered = append(filtered, e)
+						}
+					}
 				} else {
-					r.Printf("  %4d  %s\n", i+1, history[i])
+					// Glob mode
+					for _, e := range entries {
+						matched, err := filepath.Match(filter, e.Cmd)
+						if err != nil {
+							return fmt.Errorf("invalid glob pattern: %w", err)
+						}
+						if matched {
+							filtered = append(filtered, e)
+						}
+					}
 				}
+				entries = filtered
+			}
+
+			// Stage: Unique (keep last occurrence)
+			if unique {
+				seen := make(map[string]int) // cmd -> index in result
+				var deduped []historyEntry
+				for _, e := range entries {
+					if idx, ok := seen[e.Cmd]; ok {
+						// Replace earlier occurrence
+						deduped[idx] = e
+					} else {
+						seen[e.Cmd] = len(deduped)
+						deduped = append(deduped, e)
+					}
+				}
+				// Compact: remove entries that were replaced
+				// Rebuild to keep only the latest of each command in order
+				seen2 := make(map[string]bool)
+				var compacted []historyEntry
+				for i := len(entries) - 1; i >= 0; i-- {
+					if !seen2[entries[i].Cmd] {
+						seen2[entries[i].Cmd] = true
+						compacted = append(compacted, entries[i])
+					}
+				}
+				// Reverse to restore chronological order
+				for i, j := 0, len(compacted)-1; i < j; i, j = i+1, j-1 {
+					compacted[i], compacted[j] = compacted[j], compacted[i]
+				}
+				entries = compacted
+			}
+
+			// Stage: Slice (last N)
+			if number > 0 && number < len(entries) {
+				entries = entries[len(entries)-number:]
+			}
+
+			// Stage: Reverse
+			if reverse {
+				for i, j := 0, len(entries)-1; i < j; i, j = i+1, j-1 {
+					entries[i], entries[j] = entries[j], entries[i]
+				}
+			}
+
+			// Handle export
+			if exportFile != "" {
+				return r.historyExport(exportFile, entries, jsonOut)
+			}
+
+			// Handle JSON output
+			if jsonOut {
+				jsonData, err := json.MarshalIndent(entries, "", "  ")
+				if err != nil {
+					return fmt.Errorf("marshalling JSON: %w", err)
+				}
+				r.Printf("%s\n", string(jsonData))
+				return nil
+			}
+
+			// Plain text output
+			if len(entries) == 0 {
+				r.Printf("No matching history entries.\n")
+				return nil
+			}
+
+			label := fmt.Sprintf("last %d", len(entries))
+			if search != "" {
+				label = fmt.Sprintf("%d matching", len(entries))
+			} else if filter != "" {
+				label = fmt.Sprintf("%d filtered", len(entries))
+			}
+			r.Printf("\nCommand History (%s):\n", label)
+
+			for _, e := range entries {
+				displayCmd := e.Cmd
+				// Highlight search term if present
+				if search != "" {
+					displayCmd = r.highlightSearchTerm(displayCmd, search)
+				}
+				r.Printf("  %4d  %s\n", e.Index, displayCmd)
 			}
 			return nil
 		},
@@ -1754,4 +1866,124 @@ func findHistoryBlock(history []string, targetIdx int) (start, end int) {
 	}
 
 	return targetIdx, targetIdx
+}
+
+// historyEntry is used by the :history command for JSON serialization.
+type historyEntry struct {
+	Index int    `json:"index"`
+	Cmd   string `json:"command"`
+}
+
+// historyClear clears the history file after user confirmation.
+func (r *REPL) historyClear() error {
+	data, err := os.ReadFile(r.config.HistoryFile)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("reading history file: %w", err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	count := 0
+	for _, line := range lines {
+		if strings.TrimSpace(line) != "" {
+			count++
+		}
+	}
+
+	if count == 0 {
+		r.Printf("History is already empty.\n")
+		return nil
+	}
+
+	warning := r.Display.colorizedText(
+		fmt.Sprintf("⚠  This will permanently clear %d entries from %s.", count, r.config.HistoryFile),
+		"yellow",
+	)
+	r.Printf("%s\n", warning)
+	r.Printf("   Are you sure? (y/N): ")
+
+	var answer string
+	_, _ = fmt.Scanln(&answer)
+	answer = strings.TrimSpace(strings.ToLower(answer))
+
+	if answer != "y" && answer != "yes" {
+		r.Printf("Cancelled.\n")
+		return nil
+	}
+
+	if err := os.Truncate(r.config.HistoryFile, 0); err != nil {
+		return fmt.Errorf("clearing history file: %w", err)
+	}
+
+	r.Printf("%s\n", r.Display.colorizedText("✓ History cleared.", "green"))
+	return nil
+}
+
+// historyExport writes history entries to a file in JSONL or plain text format.
+func (r *REPL) historyExport(filename string, entries []historyEntry, jsonFormat bool) error {
+	var content strings.Builder
+
+	isJSONL := strings.HasSuffix(strings.ToLower(filename), ".jsonl")
+
+	if isJSONL || jsonFormat {
+		// JSONL format: one JSON object per line
+		for _, e := range entries {
+			line, err := json.Marshal(e)
+			if err != nil {
+				return fmt.Errorf("marshalling entry: %w", err)
+			}
+			content.Write(line)
+			content.WriteByte('\n')
+		}
+	} else {
+		// Plain text: one command per line
+		for _, e := range entries {
+			content.WriteString(e.Cmd)
+			content.WriteByte('\n')
+		}
+	}
+
+	if err := os.WriteFile(filename, []byte(content.String()), 0644); err != nil {
+		return fmt.Errorf("writing export file: %w", err)
+	}
+
+	formatLabel := "plain text"
+	if isJSONL || jsonFormat {
+		formatLabel = "JSONL"
+	}
+
+	r.Printf("%s\n", r.Display.colorizedText(
+		fmt.Sprintf("✓ Exported %d entries to %s (%s)", len(entries), filename, formatLabel),
+		"green",
+	))
+	return nil
+}
+
+// highlightSearchTerm highlights all case-insensitive occurrences of term in text.
+func (r *REPL) highlightSearchTerm(text, term string) string {
+	lowerText := strings.ToLower(text)
+	lowerTerm := strings.ToLower(term)
+	termLen := len(term)
+
+	var result strings.Builder
+	lastEnd := 0
+
+	for {
+		idx := strings.Index(lowerText[lastEnd:], lowerTerm)
+		if idx == -1 {
+			break
+		}
+		matchStart := lastEnd + idx
+		matchEnd := matchStart + termLen
+
+		// Write text before match
+		result.WriteString(text[lastEnd:matchStart])
+		// Write highlighted match (bold + yellow)
+		result.WriteString(r.Display.colorizedText(text[matchStart:matchEnd], "yellow"))
+
+		lastEnd = matchEnd
+	}
+
+	// Write remaining text
+	result.WriteString(text[lastEnd:])
+	return result.String()
 }

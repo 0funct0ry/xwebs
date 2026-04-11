@@ -108,6 +108,7 @@ When running in a terminal (TTY), `xwebs connect` enters a rich interactive REPL
 | Command          | Description                                          |
 |------------------|------------------------------------------------------|
 | `:help`          | List all available commands                          |
+| `:hedit [-n <n>]`| Edit a previous command in your $EDITOR              |
 | `:status`        | Show detailed connection metadata                    |
 | `:send <text>`   | Send a text message (default for bare text)          |
 | `:sendb <hex>`   | Send binary data (hex or `base64:`)                  |
@@ -129,9 +130,8 @@ When running in a terminal (TTY), `xwebs connect` enters a rich interactive REPL
 | `:mkdir [-p] <d>`| Create a new directory (with optional parent creation)|
 | `:cat <file>`    | Display file contents with syntax highlighting       |
 | `:edit <file>`   | Open a file in your $EDITOR and offer reload         |
-| `:hedit [-n <n>]`| Edit a previous command in your $EDITOR              |
 | `:write <f> <c>` | Save templated content or session data to a file     |
-| `:history [n]`   | Display last N command history (with block grouping) |
+| `:history [flags]`| Display/manage command history (search, filter, export) |
 | `:bench <n> <m>` | Benchmark latency for N iterations                   |
 | `:flood <msg>`   | Stress test server with high-rate messages           |
 | `:watch`         | Monitor connection statistics in real-time           |
@@ -1226,7 +1226,89 @@ profiles:
 - **Persistence**: Commands are saved across sessions to the configured `history-file`.
 - **Search**: Use `Ctrl+R` in the REPL to search through previous commands.
 - **Navigation**: Use Up/Down arrows to navigate command history.
-- **Manual Inspection**: Use the `:history [n]` command to view the last `n` entries.
+- **Manual Inspection**: Use the `:history` command with powerful flags:
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--number <N>` | `-n` | Show last N commands (default: 20) |
+| `--search <term>` | `-s` | Search history for commands containing the term (case-insensitive, highlighted) |
+| `--filter <pattern>` | `-f` | Filter history using glob or `/regex/` pattern |
+| `--unique` | | Show only unique commands (remove duplicates, keep last occurrence) |
+| `--reverse` | `-r` | Display history in reverse chronological order |
+| `--json` | | Output history in structured JSON format |
+| `--export <file>` | `-e` | Export history to a file (`.jsonl` → JSONL, otherwise plain text) |
+| `--clear` | `-c` | Clear the entire history after confirmation |
+
+**History Examples:**
+```text
+# Show last 50 commands
+> :history -n 50
+
+# Search for commands containing "deploy" (highlighted)
+> :history -s deploy
+
+# Filter with a regex pattern
+> :history -f /^:send/
+
+# Filter with a glob pattern
+> :history -f ":send*"
+
+# Show only unique commands
+> :history --unique
+
+# Combine flags: search + unique + JSON output
+> :history -s deploy --unique --json
+
+# Export filtered history to a file
+> :history -s deploy -e deploy_commands.txt
+
+# Export as JSONL (one JSON object per line)
+> :history -e session_history.jsonl
+
+# Clear all history (with confirmation)
+> :history -c
+⚠  This will permanently clear 42 entries from ~/.xwebs_history.
+   Are you sure? (y/N): y
+✓ History cleared.
+```
+
+Flags can be combined logically. For example, `:history -s deploy --unique -r --json` will search for "deploy", deduplicate, reverse the order, and output as JSON.
+
+#### History Editing (`:hedit`)
+
+The `:hedit` command lets you recall a previous command, edit it in your `$EDITOR`, and then re-execute the modified version. This is especially useful for tweaking complex multi-line commands, heredocs, or long JSON payloads.
+
+**Usage:**
+```text
+:hedit           # Edit the most recent non-:hedit command
+:hedit -n <N>    # Edit history item number N (as shown by :history)
+```
+
+**How it works:**
+1. The command loads the target history entry (including multiline blocks like heredocs and `\` continuations).
+2. Opens the content in your `$EDITOR` (falls back to `$VISUAL`, then `vim`).
+3. After saving and closing the editor, the edited content is loaded into the REPL prompt for review.
+4. You can accept (press Enter), modify further, or cancel (Ctrl+C).
+
+**Examples:**
+```text
+# Edit the most recent command
+> :hedit
+
+# Edit history item #42 (find the number with :history)
+> :hedit -n 42
+
+# Workflow: find a command, then edit it
+> :history -s deploy
+Command History (2 matching):
+    15  :sendj {"action":"deploy","env":"staging"}
+    28  :sendj {"action":"deploy","env":"production"}
+> :hedit -n 15
+# Editor opens with the command; modify and save to re-execute
+```
+
+> [!TIP]
+> `:hedit` is multiline-aware — if the target command was a heredoc or `\`-continued block, the entire block is loaded into the editor, not just a single line.
 
 ### Tab Completion
 

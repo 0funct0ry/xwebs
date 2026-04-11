@@ -193,6 +193,17 @@ func (r *REPL) completeArguments(line string) ([][]rune, int) {
 				}
 			}
 		}
+	case "history":
+		// Suggest flags if current word starts with -
+		if strings.HasPrefix(currentWord, "-") {
+			flags := []string{"-n", "--number", "-c", "--clear", "-s", "--search",
+				"-f", "--filter", "-e", "--export", "--unique", "-r", "--reverse", "--json"}
+			for _, f := range flags {
+				if strings.HasPrefix(f, currentWord) {
+					suggestions = append(suggestions, []rune(f[len(currentWord):]))
+				}
+			}
+		}
 	}
 
 	if len(suggestions) == 0 || cmdName == "connect" {
