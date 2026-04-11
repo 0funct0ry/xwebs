@@ -303,6 +303,8 @@ The `serve` command transforms `xwebs` into a WebSocket server. You can host mul
 - **Handler Integration**: Load declarative YAML handlers to build reactive services.
 - **Dynamic Variable Injection**: Pass variables to handlers via configuration.
 - **Graceful Shutdown**: Close all active connections cleanly on termination.
+- **HTTP Status Page**: Clean landing page for standard browser requests showing uptime and active WebSocket paths.
+- **Developer Observability**: Detailed logging of connection handshakes and upgrades when `--verbose` is enabled.
 
 **Flags:**
 
@@ -324,6 +326,24 @@ xwebs serve --port 9000 --path /ws --path /chat
 # Start a server with custom handlers
 xwebs serve --handlers examples/echo.yaml --verbose
 ```
+
+**HTTP Status & Diagnostics:**
+When the server is running, any standard HTTP (non-WebSocket) request to a registered path or the root `/` will return a status page. This page provides:
+- Server status (RUNNING)
+- Uptime duration
+- Count of active WebSocket connections
+- List of registered WebSocket paths
+
+For machine-to-machine monitoring, you can request JSON by setting the `Accept: application/json` header:
+```bash
+curl -H "Accept: application/json" http://localhost:8080/
+```
+
+**Verbose Logging:**
+When running with `--verbose`, the server logs detailed information about every connection attempt:
+- `[http] connection received: GET /ws from [::1]:61234 (non-websocket)`
+- `[http] attempting websocket upgrade for /ws from [::1]:61235`
+- `[ws] upgrade successful for /ws from [::1]:61235`
 
 **Graceful Shutdown:**
 When the server receives a termination signal (e.g., `Ctrl+C`), it:
