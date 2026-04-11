@@ -299,29 +299,34 @@ xwebs connect wss://stream.example.com | grep "ERROR" | tee errors.log
 The `serve` command transforms `xwebs` into a WebSocket server. You can host multiple endpoints, load handlers to automate responses, and manage the server lifecycle gracefully.
 
 **Features:**
-- **Multi-Path Routing**: Listen on one or more paths using repeatable `--path` flags.
+- **Multi-Path Routing**: Listen on one or more paths using repeatable `--path` flags (e.g., `--path /ws --path /events`).
+- **Path Normalization**: Paths are automatically normalized to ensure they start with a leading slash `/`.
+- **Strict Routing**: Attempting to connect to an unconfigured path results in a `404 Not Found` response, ensuring clean API boundaries.
 - **Handler Integration**: Load declarative YAML handlers to build reactive services.
 - **Dynamic Variable Injection**: Pass variables to handlers via configuration.
 - **Graceful Shutdown**: Close all active connections cleanly on termination.
-- **HTTP Status Page**: Clean landing page for standard browser requests showing uptime and active WebSocket paths.
+- **HTTP Status Page**: Clean landing page for standard browser requests showing uptime and active WebSocket paths. Exact matching is used for the root `/` to prevent it from acting as a catch-all.
 - **Developer Observability**: Detailed logging of connection handshakes and upgrades when `--verbose` is enabled.
 
 **Flags:**
 
 | Flag | Description | Example |
 |------|-------------|---------|
-| `--port` | Port to listen on (default: `8080`) | `--port 9000` |
-| `--path` | WebSocket path(s) to listen on (repeatable) | `--path /ws --path /api` |
+| `--port`, `-p` | Port to listen on (default: `8080`) | `--port 9000` |
+| `--path` | WebSocket path(s) to listen on (repeatable, default: `/`) | `--path /ws --path /events` |
 | `--handlers` | Path to handler configuration YAML | `--handlers echo.yaml` |
 
 **Examples:**
 
 ```bash
-# Start a basic echo server on port 8080
+# Start a basic echo server on port 8080 (listens on /)
 xwebs serve
 
 # Start a server on port 9000 with multiple paths
-xwebs serve --port 9000 --path /ws --path /chat
+xwebs serve --port 9000 --path /ws --path /events
+
+# Paths are normalized automatically (ws2 becomes /ws2)
+xwebs serve --path /ws1 --path ws2
 
 # Start a server with custom handlers
 xwebs serve --handlers examples/echo.yaml --verbose

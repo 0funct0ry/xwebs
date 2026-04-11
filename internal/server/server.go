@@ -59,15 +59,17 @@ func (s *Server) Start(ctx context.Context) error {
 	
 	hasRoot := false
 	for _, path := range s.opts.Paths {
+		pattern := path
 		if path == "/" {
 			hasRoot = true
+			pattern = "/{$}" // Exact match for root in Go 1.22+
 		}
-		mux.HandleFunc(path, s.serveWS)
+		mux.HandleFunc(pattern, s.serveWS)
 	}
 
-	// Add catch-all status page if / is not handled as WS
+	// Add exact root status page if / is not handled as WS
 	if !hasRoot {
-		mux.HandleFunc("/", s.serveStatus)
+		mux.HandleFunc("/{$}", s.serveStatus)
 	}
 
 	s.httpSrv = &http.Server{

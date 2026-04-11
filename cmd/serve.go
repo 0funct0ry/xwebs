@@ -53,6 +53,13 @@ Example:
 			}
 		}
 
+		// Normalize paths: ensure they start with /
+		for i, p := range servePaths {
+			if !strings.HasPrefix(p, "/") {
+				servePaths[i] = "/" + p
+			}
+		}
+
 		srv := server.New(
 			server.WithPort(servePort),
 			server.WithPaths(servePaths),
@@ -65,11 +72,16 @@ Example:
 		)
 
 		if !quiet {
-			fmt.Fprintf(os.Stderr, "Starting xwebs server on :%d\n", servePort)
-			fmt.Fprintf(os.Stderr, "Listening on paths: %s\n", strings.Join(servePaths, ", "))
-			if handlersFile != "" {
-				fmt.Fprintf(os.Stderr, "Handlers loaded from: %s\n", handlersFile)
+			fmt.Fprintf(os.Stderr, "✓ xwebs server starting on :%d\n", servePort)
+			if len(servePaths) == 1 {
+				fmt.Fprintf(os.Stderr, "✓ Listening on path: %s\n", servePaths[0])
+			} else {
+				fmt.Fprintf(os.Stderr, "✓ Listening on paths: %s\n", strings.Join(servePaths, ", "))
 			}
+			if handlersFile != "" {
+				fmt.Fprintf(os.Stderr, "✓ Handlers loaded from: %s\n", handlersFile)
+			}
+			fmt.Fprintln(os.Stderr, "--------------------------------------------------")
 		}
 
 		return srv.Start(cmd.Context())
