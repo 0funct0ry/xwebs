@@ -42,9 +42,10 @@ Every WebSocket tool does one thing: connect and send messages. That's the equiv
 - **RTT & Latency Tracking** — Real-time performance metrics for round-trip time, accessible via `.LastLatencyMs` in templates
 - **Real-time Syntax Highlighting** — Visual feedback for JSON and Go template expressions as typed in the REPL
 - **Shell Direct Execution** — Run arbitrary shell commands with `:! <command>` directly from the REPL, supporting both captured output and interactive modes
+- **Server Mode** — WebSocket server with multiple paths, handler support, and graceful shutdown (core implemented)
 
 ### On the Roadmap (Planned)
-- **Server Mode** — WebSocket server with handler dispatch and administration REPL
+- **Server Administration REPL** — Interactive admin console for managing server state and connections
 - **Relay & Broadcast** — MITM proxy and pub/sub fan-out modes
 - **Web UI** — React-based dashboard for visual message inspection and Compose
 
@@ -293,7 +294,42 @@ xwebs connect wss://api.example.com --once | jq .status
 xwebs connect wss://stream.example.com | grep "ERROR" | tee errors.log
 ```
 
-### Message Handlers (YAML)
+### Server Mode
+
+The `serve` command transforms `xwebs` into a WebSocket server. You can host multiple endpoints, load handlers to automate responses, and manage the server lifecycle gracefully.
+
+**Features:**
+- **Multi-Path Routing**: Listen on one or more paths using repeatable `--path` flags.
+- **Handler Integration**: Load declarative YAML handlers to build reactive services.
+- **Dynamic Variable Injection**: Pass variables to handlers via configuration.
+- **Graceful Shutdown**: Close all active connections cleanly on termination.
+
+**Flags:**
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--port` | Port to listen on (default: `8080`) | `--port 9000` |
+| `--path` | WebSocket path(s) to listen on (repeatable) | `--path /ws --path /api` |
+| `--handlers` | Path to handler configuration YAML | `--handlers echo.yaml` |
+
+**Examples:**
+
+```bash
+# Start a basic echo server on port 8080
+xwebs serve
+
+# Start a server on port 9000 with multiple paths
+xwebs serve --port 9000 --path /ws --path /chat
+
+# Start a server with custom handlers
+xwebs serve --handlers examples/echo.yaml --verbose
+```
+
+**Graceful Shutdown:**
+When the server receives a termination signal (e.g., `Ctrl+C`), it:
+1. Stops accepting new connections.
+2. Closes all active WebSocket sessions with a normal closure code (1000).
+3. Waits for handlers to complete their current step before exiting.
 
 `xwebs` allows you to define declarative message handlers in a YAML configuration file. This is useful for building reactive WebSocket clients and servers without writing custom Go code.
 
