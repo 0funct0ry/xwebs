@@ -990,6 +990,26 @@ The following functions provide access to connection-level metadata and session 
 | `sessionSet`     | Sets a session variable                        | `{{ sessionSet "key" "val" }}`             |
 | `sessionGet`     | Gets a session variable                        | `{{ sessionGet "key" }}`                   |
 | `sessionClear`   | Clears all session variables                  | `{{ sessionClear }}`                       |
+| `clientCount`    | Returns current connected client count (server) | `{{ clientCount }}`                        |
+| `serverUptime`   | Returns total server uptime duration           | `{{ serverUptime }}`                       |
+
+#### Server Context Variables
+When running in **Server Mode** (`xwebs serve`), handlers have access to global server state via several variables. These are available at the root level of all templates.
+
+| Variable           | Description                                  | Example                                           |
+|--------------------|----------------------------------------------|---------------------------------------------------|
+| `{{.ClientCount}}` | Total number of currently connected clients   | `Connected: {{.ClientCount}} users`               |
+| `{{.Clients}}`     | List of active client metadata objects       | `{{range .Clients}}{{.ID}} ({{.RemoteAddr}}){{end}}` |
+| `{{.ServerUptime}}`| Server uptime as a Go `time.Duration`        | `Up for {{.ServerUptime}}`                        |
+| `{{.ServerUptimeStr}}`| Formatted uptime string (e.g., `1h2m3s`)    | `Uptime: {{.ServerUptimeStr}}`                    |
+| `{{.RemoteAddr}}`  | The remote address of the specific client     | `Your IP: {{.RemoteAddr}}`                        |
+
+**Client Metadata Fields (`.Clients`):**
+- `.ID`: Unique connection identifier (e.g., `conn-123456`).
+- `.RemoteAddr`: The IP address and port of the client.
+- `.ConnectedAt`: The timestamp when the client connected.
+- `.Uptime`: Duration the client has been connected.
+- `.UptimeStr`: Formatted connection duration.
 
 #### Encoding Functions
 

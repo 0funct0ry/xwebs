@@ -43,6 +43,7 @@ type Connection interface {
 type ServerStatProvider interface {
 	GetClientCount() int
 	GetUptime() time.Duration
+	GetClients() []template.ClientInfo
 }
 
 // Dispatcher coordinates the execution of handlers for a connection.
@@ -496,10 +497,23 @@ func (d *Dispatcher) populateTemplateContext(tmplCtx *template.TemplateContext, 
 
 	// Populate server context if available
 	if d.serverStats != nil {
+		count := d.serverStats.GetClientCount()
+		clients := d.serverStats.GetClients()
+		uptime := d.serverStats.GetUptime()
+		uptimeStr := template.FormatUptime(uptime)
+
 		tmplCtx.Server = &template.ServerContext{
-			ClientCount: d.serverStats.GetClientCount(),
-			Uptime:      d.serverStats.GetUptime(),
+			ClientCount:     count,
+			Clients:         clients,
+			Uptime:          uptime,
+			UptimeFormatted: uptimeStr,
 		}
+
+		// Root-level convenience
+		tmplCtx.ClientCount = count
+		tmplCtx.Clients = clients
+		tmplCtx.ServerUptime = uptime
+		tmplCtx.ServerUptimeStr = uptimeStr
 	}
 }
 

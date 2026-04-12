@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/0funct0ry/xwebs/internal/handler"
+	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/0funct0ry/xwebs/internal/ws"
 	"github.com/gorilla/websocket"
 )
@@ -300,4 +301,23 @@ func (s *Server) GetClientCount() int {
 // GetUptime returns the server uptime.
 func (s *Server) GetUptime() time.Duration {
 	return time.Since(s.startTime)
+}
+
+// GetClients returns a list of active connection metadata.
+func (s *Server) GetClients() []template.ClientInfo {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	clients := make([]template.ClientInfo, 0, len(s.connections))
+	for _, conn := range s.connections {
+		uptime := time.Since(conn.ConnectedAt())
+		clients = append(clients, template.ClientInfo{
+			ID:          conn.ID,
+			RemoteAddr:  conn.RemoteAddr(),
+			ConnectedAt: conn.ConnectedAt(),
+			Uptime:      uptime,
+			UptimeStr:   template.FormatUptime(uptime),
+		})
+	}
+	return clients
 }

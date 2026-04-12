@@ -42,10 +42,21 @@ type HandlerContext struct {
 	Duration time.Duration `json:"duration"`
 }
 
+// ClientInfo provides metadata about a connected client in server mode.
+type ClientInfo struct {
+	ID          string        `json:"id"`
+	RemoteAddr  string        `json:"remote_addr"`
+	ConnectedAt time.Time     `json:"connected_at"`
+	Uptime      time.Duration `json:"uptime"`
+	UptimeStr   string        `json:"uptime_str"`
+}
+
 // ServerContext provides global metrics when running in server mode.
 type ServerContext struct {
-	ClientCount int           `json:"client_count"`
-	Uptime      time.Duration `json:"uptime"`
+	ClientCount     int           `json:"client_count"`
+	Clients         []ClientInfo  `json:"clients"`
+	Uptime          time.Duration `json:"uptime"`
+	UptimeFormatted string        `json:"uptime_formatted"`
 }
 
 // TemplateContext is the root object passed to all templates.
@@ -117,6 +128,12 @@ type TemplateContext struct {
 	IsSecure       bool   `json:"is_secure,omitempty"`
 	RTT            string `json:"rtt,omitempty"`
 	AvgRTT         string `json:"avg_rtt,omitempty"`
+
+	// Server-level (convenience at root)
+	ClientCount     int          `json:"client_count,omitempty"`
+	Clients         []ClientInfo `json:"clients,omitempty"`
+	ServerUptime    time.Duration `json:"server_uptime,omitempty"`
+	ServerUptimeStr string        `json:"server_uptime_str,omitempty"`
 }
 
 // NewContext creates a new TemplateContext with initialized maps.
