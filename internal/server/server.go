@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/0funct0ry/xwebs/internal/handler"
+	"github.com/0funct0ry/xwebs/internal/kv"
+	"github.com/0funct0ry/xwebs/internal/observability"
 	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/0funct0ry/xwebs/internal/ws"
 	"github.com/gorilla/websocket"
@@ -25,6 +27,7 @@ type Server struct {
 	
 	mu          sync.Mutex
 	connections map[string]*ws.Connection
+	kvStore     *kv.Store
 	wg          sync.WaitGroup
 	startTime   time.Time
 }
@@ -44,11 +47,12 @@ func New(opts ...Option) *Server {
 			},
 		},
 		connections: make(map[string]*ws.Connection),
+		kvStore:     kv.NewStore(),
 		startTime:   time.Now(),
 	}
 
+	s.registry = handler.NewRegistry()
 	if len(options.Handlers) > 0 {
-		s.registry = handler.NewRegistry()
 		s.registry.AddHandlers(options.Handlers)
 	}
 
@@ -72,6 +76,28 @@ func (s *Server) Start(ctx context.Context) error {
 	// Add exact root status page if / is not handled as WS
 	if !hasRoot {
 		mux.HandleFunc("/{$}", s.serveStatus)
+	}
+
+	// Register API routes
+	if s.opts.APIEnabled {
+		mux.HandleFunc("GET /api/status", s.handleAPIStatus)
+		mux.HandleFunc("GET /api/clients", s.handleAPIClients)
+		
+		mux.HandleFunc("GET /api/handlers", s.handleListHandlers)
+		mux.HandleFunc("POST /api/handlers", s.handleCreateHandler)
+		mux.HandleFunc("GET /api/handlers/{name}", s.handleGetHandler)
+		mux.HandleFunc("PUT /api/handlers/{name}", s.handleUpdateHandler)
+		mux.HandleFunc("DELETE /api/handlers/{name}", s.handleDeleteHandler)
+
+		mux.HandleFunc("GET /api/kv", s.handleListKV)
+		mux.HandleFunc("GET /api/kv/{key}", s.handleGetKV)
+		mux.HandleFunc("POST /api/kv/{key}", s.handleSetKV)
+		mux.HandleFunc("DELETE /api/kv/{key}", s.handleDeleteKV)
+	}
+
+	// Register Metrics route
+	if s.opts.MetricsEnabled {
+		mux.Handle("/api/metrics", observability.Handler())
 	}
 
 	s.httpSrv = &http.Server{
@@ -184,6 +210,8 @@ func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
 	s.connections[wsConn.ID] = wsConn
 	s.mu.Unlock()
 
+	observability.ActiveConnections.Inc()
+
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
@@ -191,24 +219,45 @@ func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
 			s.mu.Lock()
 			delete(s.connections, wsConn.ID)
 			s.mu.Unlock()
+			observability.ActiveConnections.Dec()
 		}()
+
+		// Track messages for metrics
+		msgCh := wsConn.Subscribe()
+		go func() {
+			for {
+				select {
+				case msg, ok := <-msgCh:
+					if !ok {
+						return
+					}
+					if msg.Metadata.Direction == "received" {
+						observability.MessagesReceived.Inc()
+					} else {
+						observability.MessagesSent.Inc()
+					}
+				case <-wsConn.Done():
+					return
+				}
+			}
+		}()
+		defer wsConn.Unsubscribe(msgCh)
 
 		// Start message loops
 		wsConn.Start()
 
-		// Initialize dispatcher if registry exists
-		if s.registry != nil {
-			dispatcher := handler.NewDispatcher(
-				s.registry,
-				wsConn,
-				s.opts.TemplateEngine,
-				s.opts.Verbose,
-				s.opts.Variables,
-				nil, // sessionVars
-				s.opts.Sandbox,
-				s.opts.Allowlist,
-				s, // Server implements ServerStatProvider
-			)
+		// Initialize dispatcher
+		dispatcher := handler.NewDispatcher(
+			s.registry,
+			wsConn,
+			s.opts.TemplateEngine,
+			s.opts.Verbose,
+			s.opts.Variables,
+			nil, // sessionVars
+			s.opts.Sandbox,
+			s.opts.Allowlist,
+			s, // Server implements ServerStatProvider
+		)
 			
 			// Setup logging/error handlers for dispatcher if needed
 			if s.opts.Verbose {
@@ -223,7 +272,6 @@ func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
 			dispatcher.Start(context.Background())
 			dispatcher.HandleConnect()
 			defer dispatcher.HandleDisconnect() // Handle disconnect when read loop exits
-		}
 
 		// Wait for connection to close
 		<-wsConn.Done()

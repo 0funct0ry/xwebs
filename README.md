@@ -378,6 +378,48 @@ When the server receives a termination signal (e.g., `Ctrl+C`), it:
 2. Closes all active WebSocket sessions with a normal closure code (1000).
 3. Waits for handlers to complete their current step before exiting.
 
+**REST API:**
+When the server is running, you can interact with it via a built-in REST API. This is useful for programmatic management and monitoring.
+
+- **Status**: `GET /api/status` — Returns server uptime, connections, and paths.
+- **Clients**: `GET /api/clients` — Returns a list of active connection metadata.
+- **Handlers (CRUD)**:
+  - `GET /api/handlers` — List all loaded handlers.
+  - `POST /api/handlers` — Create a new handler from JSON.
+  - `PUT /api/handlers/{name}` — Update an existing handler.
+  - `DELETE /api/handlers/{name}` — Delete a handler.
+- **Key-Value Store**:
+  - `GET /api/kv` — List all keys and values.
+  - `GET /api/kv/{key}` — Get the value for a specific key.
+  - `POST /api/kv/{key}` — Set a value for a specific key.
+  - `DELETE /api/kv/{key}` — Delete a key.
+- **Metrics**: `GET /api/metrics` — Returns Prometheus-compatible metrics (when enabled).
+
+**API Flags:**
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--api` | Enable the REST API (default: `true`) | `--api=false` |
+| `--metrics` | Enable Prometheus metrics (default: `false`) | `--metrics` |
+
+**Examples:**
+
+```bash
+# Get server status
+curl http://localhost:8080/api/status
+
+# List connected clients
+curl http://localhost:8080/api/clients
+
+# Create a dynamic handler
+curl -X POST -d '{"name": "api-pong", "match": {"pattern": "ping"}, "respond": "pong"}' http://localhost:8080/api/handlers
+
+# Set a value in the KV store
+curl -X POST -d '"my-value"' http://localhost:8080/api/kv/my-key
+```
+
+### Message Handlers
+
 `xwebs` allows you to define declarative message handlers in a YAML configuration file. This is useful for building reactive WebSocket clients and servers without writing custom Go code.
 
 **Key Features:**

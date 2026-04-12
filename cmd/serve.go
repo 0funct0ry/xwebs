@@ -18,6 +18,8 @@ var (
 	serveTLS   bool
 	serveCert  string
 	serveKey   string
+	serveAPI   bool
+	serveMetrics bool
 )
 
 var serveCmd = &cobra.Command{
@@ -110,6 +112,8 @@ Example:
 			server.WithTLS(serveTLS),
 			server.WithCertFile(serveCert),
 			server.WithKeyFile(serveKey),
+			server.WithAPI(serveAPI),
+			server.WithMetrics(serveMetrics),
 		)
 
 		if !quiet {
@@ -141,4 +145,6 @@ func init() {
 	serveCmd.Flags().BoolVar(&serveTLS, "tls", false, "enable TLS (wss://)")
 	serveCmd.Flags().StringVar(&serveCert, "cert", "", "path to certificate file")
 	serveCmd.Flags().StringVar(&serveKey, "key", "", "path to private key file")
+	serveCmd.Flags().BoolVar(&serveAPI, "api", true, "enable REST API")
+	serveCmd.Flags().BoolVar(&serveMetrics, "metrics", false, "enable Prometheus metrics")
 }

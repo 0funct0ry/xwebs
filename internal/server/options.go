@@ -18,6 +18,9 @@ type Options struct {
 	Sandbox        bool
 	Allowlist      []string
 	
+	APIEnabled     bool
+	MetricsEnabled bool
+
 	// Server timeouts
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
@@ -40,6 +43,7 @@ func DefaultOptions() *Options {
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
+		APIEnabled:   true,
 	}
 }
 
@@ -119,5 +123,19 @@ func WithCertFile(certFile string) Option {
 func WithKeyFile(keyFile string) Option {
 	return func(o *Options) {
 		o.KeyFile = keyFile
+	}
+}
+
+// WithAPI enables or disables the REST API.
+func WithAPI(enabled bool) Option {
+	return func(o *Options) {
+		o.APIEnabled = enabled
+	}
+}
+
+// WithMetrics enables or disables the metrics endpoint.
+func WithMetrics(enabled bool) Option {
+	return func(o *Options) {
+		o.MetricsEnabled = enabled
 	}
 }
