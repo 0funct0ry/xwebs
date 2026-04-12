@@ -31,7 +31,7 @@ func TestHandlerVariables(t *testing.T) {
 		"user": "alice",
 	}
 
-	d := NewDispatcher(reg, conn, engine, true, globalVars, sessionVars, false, nil)
+	d := NewDispatcher(reg, conn, engine, true, globalVars, sessionVars, false, nil, nil)
 
 	h := &Handler{
 		Name: "var-test",
@@ -93,7 +93,7 @@ func TestHandlerVariableOverride(t *testing.T) {
 		"key": "global",
 	}
 
-	d := NewDispatcher(reg, conn, engine, true, globalVars, nil, false, nil)
+	d := NewDispatcher(reg, conn, engine, true, globalVars, nil, false, nil, nil)
 
 	h := &Handler{
 		Name: "override-test",

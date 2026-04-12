@@ -187,6 +187,7 @@ func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
 				nil, // sessionVars
 				s.opts.Sandbox,
 				s.opts.Allowlist,
+				s, // Server implements ServerStatProvider
 			)
 			
 			// Setup logging/error handlers for dispatcher if needed
@@ -261,4 +262,16 @@ func (s *Server) serveStatus(w http.ResponseWriter, r *http.Request) {
 </body>
 </html>
 `, r.Host, s.opts.Paths[0])
+}
+
+// GetClientCount returns the number of active connections.
+func (s *Server) GetClientCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.connections)
+}
+
+// GetUptime returns the server uptime.
+func (s *Server) GetUptime() time.Duration {
+	return time.Since(s.startTime)
 }

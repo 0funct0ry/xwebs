@@ -138,8 +138,9 @@ var (
 )
 
 var connectCmd = &cobra.Command{
-	Use:   "connect [alias|url]",
-	Short: "Connect to a WebSocket endpoint using an alias or URL",
+	Use:     "connect [alias|url]",
+	Aliases: []string{"c", "con", "open"},
+	Short:   "Connect to a WebSocket endpoint using an alias or URL",
 	Long: `Connect to a WebSocket endpoint. You can provide a full URL (starting with ws:// or wss://) 
 or a short alias/bookmark defined in your configuration file.
 
@@ -196,23 +197,9 @@ Example:
 
 		// Add inline handlers from CLI flags
 		for i, hStr := range onHandlers {
-			parts := strings.SplitN(hStr, ":", 2)
-			if len(parts) != 2 {
-				return fmt.Errorf("invalid inline handler %d: %q (expected pattern:command)", i, hStr)
-			}
-			pattern := parts[0]
-			command := parts[1]
-
-			h := handler.Handler{
-				Name: fmt.Sprintf("cli-on-%d", i),
-				Match: handler.Matcher{
-					Type:    "glob",
-					Pattern: pattern,
-				},
-				Run: command,
-			}
-			if respondTemplate != "" && h.Respond == "" {
-				h.Respond = respondTemplate
+			h, err := handler.ParseInlineHandler(hStr, respondTemplate, i+1)
+			if err != nil {
+				return fmt.Errorf("invalid inline handler %d: %w", i+1, err)
 			}
 			handlers = append(handlers, h)
 		}
@@ -220,10 +207,10 @@ Example:
 		for i, hJSON := range onMatchHandlers {
 			var h handler.Handler
 			if err := json.Unmarshal([]byte(hJSON), &h); err != nil {
-				return fmt.Errorf("invalid inline JSON handler %d: %w", i, err)
+				return fmt.Errorf("invalid inline JSON handler %d: %w", i+1, err)
 			}
 			if h.Name == "" {
-				h.Name = fmt.Sprintf("cli-match-%d", i)
+				h.Name = fmt.Sprintf("inline-json-%d", i+1)
 			}
 			if respondTemplate != "" && h.Respond == "" {
 				h.Respond = respondTemplate
@@ -462,37 +449,35 @@ Example:
 			isInteractive = true
 		}
 
-		if isInteractive {
-			var err error
-			cfg := &repl.Config{}
-			var appCfg config.AppConfig
-			if err := viper.Unmarshal(&appCfg); err == nil {
-				cfg.HistoryFile = appCfg.REPL.HistoryFile
-				cfg.HistoryLimit = appCfg.REPL.HistoryLimit
-				cfg.PromptTemplate = appCfg.REPL.Prompt
-				cfg.Shortcuts = appCfg.REPL.Shortcuts
-			}
+		cfg := &repl.Config{}
+		var appCfg config.AppConfig
+		if err := viper.Unmarshal(&appCfg); err == nil {
+			cfg.HistoryFile = appCfg.REPL.HistoryFile
+			cfg.HistoryLimit = appCfg.REPL.HistoryLimit
+			cfg.PromptTemplate = appCfg.REPL.Prompt
+			cfg.Shortcuts = appCfg.REPL.Shortcuts
+		}
 
-			if outputFile != "" {
-				f, err := os.Create(outputFile)
-				if err != nil {
-					return fmt.Errorf("creating output file %s: %w", outputFile, err)
-				}
-				cfg.Stdout = f
-			}
-			cfg.Terminal = actuallyInteractive
-
-			r, err = repl.New(repl.ClientMode, cfg)
+		if outputFile != "" {
+			f, err := os.Create(outputFile)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to initialize REPL: %v\n", err)
-				isInteractive = false
-			} else {
-				cc.repl = r
-				r.IsInteractive = actuallyInteractive
-				r.TemplateEngine = tmplEngine
-				r.RegisterCommonCommands()
-				r.RegisterClientCommands(cc)
-				r.AddConfigPath(handlersFile)
+				return fmt.Errorf("creating output file %s: %w", outputFile, err)
+			}
+			cfg.Stdout = f
+		}
+		cfg.Terminal = actuallyInteractive
+
+		r, err = repl.New(repl.ClientMode, cfg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to initialize REPL: %v\n", err)
+			isInteractive = false
+		} else {
+			cc.repl = r
+			r.IsInteractive = isInteractive
+			r.TemplateEngine = tmplEngine
+			r.RegisterCommonCommands()
+			r.RegisterClientCommands(cc)
+			r.AddConfigPath(handlersFile)
 
 				// Populate bookmarks and aliases for completion
 				var cfg config.AppConfig
@@ -555,7 +540,6 @@ Example:
 				}
 				defer r.Close()
 			}
-		}
 
 		if isTerminal && !isInteractive {
 			infoln(r, isInteractive, "\nEnter message to send (Ctrl+C to disconnect):")
@@ -594,6 +578,14 @@ Example:
 				return nil
 			})
 			go func() {
+				// Wait for initial connection before starting REPL to avoid immediate command failures
+				for i := 0; i < 50; i++ {
+					if cc.GetConnection() != nil && !cc.GetConnection().IsClosed() {
+						break
+					}
+					time.Sleep(100 * time.Millisecond)
+				}
+
 				// Use the persistent sessionCtx for the REPL loop
 				if err := r.Run(sessionCtx); err != nil {
 					inputErrChan <- err
@@ -602,9 +594,27 @@ Example:
 			}()
 		} else {
 			go func() {
+				// Wait for initial connection before starting scanner to avoid immediate command failures
+				for i := 0; i < 50; i++ {
+					if cc.GetConnection() != nil && !cc.GetConnection().IsClosed() {
+						break
+					}
+					time.Sleep(100 * time.Millisecond)
+				}
+
 				scanner := bufio.NewScanner(os.Stdin)
 				for scanner.Scan() {
-					inputChan <- scanner.Text()
+					text := scanner.Text()
+					if strings.HasPrefix(text, ":") {
+						// Execute as command
+						if err := r.ExecuteCommand(sessionCtx, text); err != nil {
+							warn(r, false, "Command failed: %v\n", err)
+						}
+					} else {
+						// Send as raw text
+						r.SetLastSendTime(time.Now())
+						inputChan <- text
+					}
 				}
 				if err := scanner.Err(); err != nil && err != os.ErrClosed {
 					inputErrChan <- err
@@ -683,7 +693,7 @@ Example:
 						if cc.repl != nil {
 							sessionVars = cc.repl.GetVars()
 						}
-						tempDispatcher := handler.NewDispatcher(reg, nil, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist)
+						tempDispatcher := handler.NewDispatcher(reg, nil, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist, nil)
 						if isInteractive && r != nil {
 
 							tempDispatcher.Log = func(f string, a ...interface{}) { r.Printf(f, a...) }
@@ -756,7 +766,7 @@ Example:
 					if cc.repl != nil {
 						sessionVars = cc.repl.GetVars()
 					}
-					dispatcher = handler.NewDispatcher(handlerReg, conn, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist)
+					dispatcher = handler.NewDispatcher(handlerReg, conn, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist, nil)
 					cc.dispatcher = dispatcher
 					if isInteractive && r != nil {
 

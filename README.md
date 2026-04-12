@@ -315,6 +315,9 @@ The `serve` command transforms `xwebs` into a WebSocket server. You can host mul
 | `--port`, `-p` | Port to listen on (default: `8080`) | `--port 9000` |
 | `--path` | WebSocket path(s) to listen on (repeatable, default: `/`) | `--path /ws --path /events` |
 | `--handlers` | Path to handler configuration YAML | `--handlers echo.yaml` |
+| `--on` | Define a quick inline handler (`pattern :: run:cmd`) | `--on "ping :: respond:pong"` |
+| `--on-match` | Define a full inline JSON handler | `--on-match '{"match":...}'` |
+| `--respond` | Default response template for inline handlers | `--respond "OK"` |
 
 **Examples:**
 
@@ -434,33 +437,77 @@ xwebs connect wss://echo.websocket.org --handlers examples/handlers/handlers.yam
 
 ### Inline Handlers (CLI Flags)
 
-For quick prototyping or simple automation, you can define handlers directly from the command line using `--on`, `--on-match`, and `--respond`. These work alongside any handlers loaded from a configuration file.
+For quick prototyping, dynamic responders, or simple automation, you can define handlers directly from the command line using `--on`, `--on-match`, and `--respond`. These work identically in both `connect` and `serve` modes.
 
-**Flags:**
-- `--on <pattern:command>`: Shorthand for a glob-match handler. When a message matches the glob `pattern`, it executes the shell `command`.
-- `--on-match <json>`: Define a full handler using JSON syntax.
-- `--respond <template>`: Set a default response template for all inline handlers that do not specify their own response.
+#### Standardized Syntax (`--on`)
+The `--on` flag uses a standardized `::` separator to define the relationship between a message pattern and its actions.
+
+**Syntax:** `--on "<pattern> [:: <actions>]"`
+
+- **Pattern Auto-Detection**: xwebs automatically detects the matcher type based on the expression:
+    - `^` or `(` or `[` -> **Regex**
+    - `.` or `$` -> **JQ** (JSON Query)
+    - `*` or `?` -> **Glob**
+    - Literal -> **Glob** (exact match)
+- **Action Segments**: Multiple actions can be chained using the `::` separator:
+    - `run:<cmd>` -> Execute a shell command.
+    - `respond:<tmpl>` -> Send a response back.
+    - `builtin:<cmd>` -> Execute a REPL command.
+    - `timeout:<dur>` -> Set a custom timeout for the action.
+    - `exclusive` -> Short-circuit subsequent handlers on match.
 
 **Examples:**
+```bash
+# Basic glob echo (literal match)
+xwebs connect wss://echo.websocket.org --on "ping :: respond:pong"
+
+# Regex matcher with shared response template
+xwebs connect wss://echo.websocket.org \
+  --on "(?i)hello :: run:echo 'Greeter triggered'" \
+  --respond "Hello! I am xwebs."
+```
+
+#### Important: Quoting and JQ Syntax
+When using **JQ matchers** (expressions starting with `.`), you must follow JQ's string syntax rules:
+1. **Double Quotes for JQ Strings**: JQ *requires* double quotes (`"`) for string literals. Single quotes (`'`) will cause a `parsing gojq query: unexpected token "'"` error.
+2. **Shell Quoting**: To send double quotes to JQ from your terminal, you have two options:
+   - **Outer Single Quotes**: Wrap the whole handler in single quotes and use raw double quotes inside: `' .type == "alert" :: ... '`
+   - **Escaped Double Quotes**: Wrap the whole handler in double quotes and escape the inner double quotes: `" .type == \"alert\" :: ... "`
+
+**Correct JQ Examples:**
+```bash
+# Preferred: Outer single quotes (cleanest)
+xwebs connect URL --on '.type == "alert" :: run:echo Alert! :: respond:Acknowledged'
+
+# Alternative: Escaped double quotes
+xwebs connect URL --on ".type == \"alert\" :: run:echo Alert! :: respond:Acknowledged"
+```
+
+**Common Edge Cases:**
+```bash
+# JQ matching on JSON streams
+xwebs connect wss://api.example.com --on '.event == "trade" :: run:./alert.sh'
+
+# Multi-segment handlers
+xwebs connect wss://echo.websocket.org \
+  --on '.type == "ping" :: timeout:5s :: run:./process.sh :: respond:processed!'
+```
+
+#### JSON Handlers (`--on-match`)
+For full control (retry logic, concurrency, debounce), you can define a complete handler using JSON syntax.
 
 ```bash
-# Quick echo handler
-xwebs connect wss://echo.websocket.org --on "hello:echo hi"
-
-# Handler with a dynamic response using shell output
 xwebs connect wss://echo.websocket.org \
-  --on "ping:echo pong" \
-  --respond "I received: {{.Stdout}}"
-
-# Complex matching with JSON
-xwebs connect wss://echo.websocket.org \
-  --on-match '{"match": {"type": "regex", "pattern": "^user:[0-9]+$"}, "run": "echo found user"}'
-
-# Multiple inline handlers
-xwebs connect wss://echo.websocket.org \
-  --on "h1:echo r1" \
-  --on "h2:echo r2"
+  --on-match '{"name": "heavy", "match": {"pattern": "*"}, "concurrent": false, "run": "sleep 5"}'
 ```
+
+#### Default Response (`--respond`)
+Set a default response template for all matching inline handlers (those defined via `--on`) that do not have an explicit `respond:` segment.
+
+```bash
+xwebs serve --port 8080 --on "ping:echo pong" --respond "Auto-reply: {{.Stdout}}"
+```
+
 
 **Example `handlers.yaml`:**
 ```yaml
@@ -1173,7 +1220,8 @@ The root context (`.`) available in templates provides access to connection, mes
 | `.Conn`    | Connection metadata (URL, subprotocol, headers, etc.)  | `{{ .Conn.URL }}`           |
 | `.Msg`     | Incoming/Outgoing message details (Data, Type, Length) | `{{ .Msg.Length }} bytes`   |
 | `.Handler` | Execution results (Stdout, Stderr, ExitCode, Duration) | `{{ .Handler.Duration }}`   |
-| `.Server`  | Global server metrics (ClientCount, Uptime)            | `{{ .Server.Uptime }}`      |
+| `.Server`  | Global server metrics (ClientCount, Uptime)            | `{{ .Server.ClientCount }}` |
+| `.RemoteAddr`| Remote client address (Server mode only)            | `{{ .RemoteAddr }}`         |
 | `.Session` | Persistent key-value store for the current session     | `{{ index .Session "id" }}` |
 | `.Env`     | Environment variables (if not sandboxed)               | `{{ .Env.PATH }}`           |
 

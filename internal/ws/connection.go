@@ -395,7 +395,16 @@ func (c *Connection) readLoop() {
 		c._mu.Unlock()
 
 		// Forward to all subscribers
-		msg := &Message{Type: PingMessage, Data: []byte(data)}
+		msg := &Message{
+			Type: PingMessage,
+			Data: []byte(data),
+			Metadata: MessageMetadata{
+				ID:        c.ID,
+				Timestamp: time.Now(),
+				Direction: "received",
+				URL:       c.URL,
+			},
+		}
 		c._subMu.RLock()
 		for _, sub := range c._subscribers {
 			select {
@@ -440,7 +449,16 @@ func (c *Connection) readLoop() {
 			fmt.Fprintf(os.Stderr, "  [ws] received pong from %s (%d bytes)\n", c.URL, len(data))
 		}
 		// Forward to all subscribers
-		msg := &Message{Type: PongMessage, Data: []byte(data)}
+		msg := &Message{
+			Type: PongMessage,
+			Data: []byte(data),
+			Metadata: MessageMetadata{
+				ID:        c.ID,
+				Timestamp: time.Now(),
+				Direction: "received",
+				URL:       c.URL,
+			},
+		}
 		c._subMu.RLock()
 		for _, sub := range c._subscribers {
 			select {

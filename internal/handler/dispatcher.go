@@ -39,6 +39,12 @@ type Connection interface {
 	AvgRTT() time.Duration
 }
 
+// ServerStatProvider defines the required interface for providing server-level statistics.
+type ServerStatProvider interface {
+	GetClientCount() int
+	GetUptime() time.Duration
+}
+
 // Dispatcher coordinates the execution of handlers for a connection.
 type Dispatcher struct {
 	registry       *Registry
@@ -56,11 +62,12 @@ type Dispatcher struct {
 
 	_handlerHits    uint64
 	_activeHandlers int32
+	serverStats     ServerStatProvider
 }
 
 // NewDispatcher creates a new dispatcher.
 // NewDispatcher creates a new dispatcher.
-func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine, verbose bool, vars map[string]interface{}, session map[string]interface{}, sandbox bool, allowlist []string) *Dispatcher {
+func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine, verbose bool, vars map[string]interface{}, session map[string]interface{}, sandbox bool, allowlist []string, serverStats ServerStatProvider) *Dispatcher {
 
 	// Initialize system environment
 	env := make(map[string]string)
@@ -81,6 +88,7 @@ func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine,
 		systemEnv:        env,
 		sandbox:          sandbox,
 		allowlist:        allowlist,
+		serverStats:      serverStats,
 		Log: func(f string, a ...interface{}) {
 
 			fmt.Printf(f, a...)
@@ -148,7 +156,14 @@ func (d *Dispatcher) handleMessage(ctx context.Context, msg *ws.Message) {
 		return
 	}
 
-	if d.verbose && len(matches) > 0 {
+	if len(matches) == 0 {
+		if d.verbose {
+			d.errorf("  [handler] debug: no handlers matched message %q\n", msgStr)
+		}
+		return
+	}
+
+	if d.verbose {
 		d.errorf("  [handler] debug: found %d matches for %q\n", len(matches), msgStr)
 	}
 
@@ -478,6 +493,14 @@ func (d *Dispatcher) populateTemplateContext(tmplCtx *template.TemplateContext, 
 			AvgRTT:             d.conn.AvgRTT(),
 		}
 	}
+
+	// Populate server context if available
+	if d.serverStats != nil {
+		tmplCtx.Server = &template.ServerContext{
+			ClientCount: d.serverStats.GetClientCount(),
+			Uptime:      d.serverStats.GetUptime(),
+		}
+	}
 }
 
 // evaluateVariables resolves template expressions in a map of variables.
@@ -602,9 +625,9 @@ func (d *Dispatcher) executeShell(ctx context.Context, a *Action, tmplCtx *templ
 		if result.Stdout != "" {
 			d.log("%s", result.Stdout)
 		}
-		if result.Stderr != "" {
-			d.errorf("%s", result.Stderr)
-		}
+	} else if err != nil {
+		// System-level execution failure (e.g. command not found)
+		d.errorf("  [handler] error: command execution failed: %v\n", err)
 	}
 
 	if err != nil {

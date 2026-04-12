@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -17,8 +18,9 @@ var (
 )
 
 var serveCmd = &cobra.Command{
-	Use:   "serve",
-	Short: "Start a WebSocket server",
+	Use:     "serve",
+	Aliases: []string{"s", "srv"},
+	Short:   "Start a WebSocket server",
 	Long: `Start a WebSocket server with handler support.
 You can specify the listening port and one or more WebSocket paths.
 Handlers can be loaded from a configuration file using the --handlers flag.
@@ -28,7 +30,7 @@ Example:
   xwebs serve --handlers echo.yaml --port 9000 --path /api --path /chat`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		tmplEngine := template.New(noShellFunc)
-		
+
 		var handlers []handler.Handler
 		var variables map[string]interface{}
 
@@ -51,6 +53,33 @@ Example:
 			if !quiet {
 				fmt.Fprintf(os.Stderr, "✓ Loaded %d handlers from %s\n", len(handlers), handlersFile)
 			}
+		}
+
+		// Add inline handlers from CLI flags
+		for i, hStr := range onHandlers {
+			h, err := handler.ParseInlineHandler(hStr, respondTemplate, i+1)
+			if err != nil {
+				return fmt.Errorf("invalid inline handler %d: %w", i+1, err)
+			}
+			handlers = append(handlers, h)
+		}
+
+		for i, hJSON := range onMatchHandlers {
+			var h handler.Handler
+			if err := json.Unmarshal([]byte(hJSON), &h); err != nil {
+				return fmt.Errorf("invalid inline JSON handler %d: %w", i+1, err)
+			}
+			if h.Name == "" {
+				h.Name = fmt.Sprintf("inline-json-%d", i+1)
+			}
+			if respondTemplate != "" && h.Respond == "" {
+				h.Respond = respondTemplate
+			}
+			handlers = append(handlers, h)
+		}
+
+		if len(handlers) > 0 && !quiet && (len(onHandlers) > 0 || len(onMatchHandlers) > 0) {
+			fmt.Fprintf(os.Stderr, "✓ Added %d inline handlers\n", len(onHandlers)+len(onMatchHandlers))
 		}
 
 		// Normalize paths: ensure they start with /
