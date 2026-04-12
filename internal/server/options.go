@@ -22,6 +22,11 @@ type Options struct {
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
 	IdleTimeout  time.Duration
+
+	// TLS configuration
+	TLSEnabled bool
+	CertFile   string
+	KeyFile    string
 }
 
 // Option is a functional option for configuring the server.
@@ -93,5 +98,26 @@ func WithSandbox(sandbox bool) Option {
 func WithAllowlist(allowlist []string) Option {
 	return func(o *Options) {
 		o.Allowlist = allowlist
+	}
+}
+
+// WithTLS enables or disables TLS.
+func WithTLS(enabled bool) Option {
+	return func(o *Options) {
+		o.TLSEnabled = enabled
+	}
+}
+
+// WithCertFile sets the path to the certificate file.
+func WithCertFile(certFile string) Option {
+	return func(o *Options) {
+		o.CertFile = certFile
+	}
+}
+
+// WithKeyFile sets the path to the private key file.
+func WithKeyFile(keyFile string) Option {
+	return func(o *Options) {
+		o.KeyFile = keyFile
 	}
 }

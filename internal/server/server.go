@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -82,11 +83,29 @@ func (s *Server) Start(ctx context.Context) error {
 
 	errChan := make(chan error, 1)
 	go func() {
-		if s.opts.Verbose {
-			fmt.Printf("Starting server on %s\n", s.httpSrv.Addr)
-		}
-		if err := s.httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			errChan <- err
+		if s.opts.TLSEnabled {
+			if s.opts.Verbose {
+				fmt.Printf("Starting TLS server on %s\n", s.httpSrv.Addr)
+			}
+			// Verify cert and key files
+			if _, err := os.Stat(s.opts.CertFile); err != nil {
+				errChan <- fmt.Errorf("certificate file error: %w", err)
+				return
+			}
+			if _, err := os.Stat(s.opts.KeyFile); err != nil {
+				errChan <- fmt.Errorf("key file error: %w", err)
+				return
+			}
+			if err := s.httpSrv.ListenAndServeTLS(s.opts.CertFile, s.opts.KeyFile); err != nil && err != http.ErrServerClosed {
+				errChan <- err
+			}
+		} else {
+			if s.opts.Verbose {
+				fmt.Printf("Starting server on %s\n", s.httpSrv.Addr)
+			}
+			if err := s.httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				errChan <- err
+			}
 		}
 	}()
 
@@ -224,6 +243,13 @@ func (s *Server) serveStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	scheme := "ws"
+	statusColor := "#27ae60"
+	if r.TLS != nil || s.opts.TLSEnabled {
+		scheme = "wss"
+		statusColor = "#2980b9" // Blue for secure
+	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprintf(w, `
 <!DOCTYPE html>
@@ -234,7 +260,7 @@ func (s *Server) serveStatus(w http.ResponseWriter, r *http.Request) {
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 40px auto; padding: 0 20px; background: #f4f7f6; }
         .card { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         h1 { color: #2c3e50; margin-top: 0; }
-        .status { display: inline-block; padding: 4px 12px; border-radius: 20px; background: #27ae60; color: white; font-size: 0.8em; font-weight: bold; }
+        .status { display: inline-block; padding: 4px 12px; border-radius: 20px; background: %s; color: white; font-size: 0.8em; font-weight: bold; }
         ul { padding-left: 20px; }
         code { background: #eee; padding: 2px 5px; border-radius: 4px; }
         footer { margin-top: 40px; font-size: 0.8em; color: #7f8c8d; text-align: center; }
@@ -249,19 +275,19 @@ func (s *Server) serveStatus(w http.ResponseWriter, r *http.Request) {
         <p><strong>Active Connections:</strong> %d</p>
         <p><strong>WebSocket Paths:</strong></p>
         <ul>
-`, uptime, connCount)
+`, statusColor, uptime, connCount)
 
 	for _, path := range s.opts.Paths {
 		fmt.Fprintf(w, "            <li><code>%s</code></li>\n", path)
 	}
 
 	fmt.Fprintf(w, `        </ul>
-        <p>Connect using <code>ws://%s%s</code></p>
+        <p>Connect using <code>%s://%s%s</code></p>
     </div>
     <footer>Powered by xwebs</footer>
 </body>
 </html>
-`, r.Host, s.opts.Paths[0])
+`, scheme, r.Host, s.opts.Paths[0])
 }
 
 // GetClientCount returns the number of active connections.

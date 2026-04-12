@@ -15,6 +15,9 @@ import (
 var (
 	servePort  int
 	servePaths []string
+	serveTLS   bool
+	serveCert  string
+	serveKey   string
 )
 
 var serveCmd = &cobra.Command{
@@ -89,6 +92,12 @@ Example:
 			}
 		}
 
+		if serveTLS {
+			if serveCert == "" || serveKey == "" {
+				return fmt.Errorf("--cert and --key must be provided when --tls is enabled")
+			}
+		}
+
 		srv := server.New(
 			server.WithPort(servePort),
 			server.WithPaths(servePaths),
@@ -98,10 +107,17 @@ Example:
 			server.WithVerbose(verbose),
 			server.WithSandbox(sandboxEnabled),
 			server.WithAllowlist(allowlist),
+			server.WithTLS(serveTLS),
+			server.WithCertFile(serveCert),
+			server.WithKeyFile(serveKey),
 		)
 
 		if !quiet {
-			fmt.Fprintf(os.Stderr, "✓ xwebs server starting on :%d\n", servePort)
+			protocol := "ws"
+			if serveTLS {
+				protocol = "wss"
+			}
+			fmt.Fprintf(os.Stderr, "✓ xwebs server starting on :%d (%s)\n", servePort, protocol)
 			if len(servePaths) == 1 {
 				fmt.Fprintf(os.Stderr, "✓ Listening on path: %s\n", servePaths[0])
 			} else {
@@ -122,4 +138,7 @@ func init() {
 
 	serveCmd.Flags().IntVarP(&servePort, "port", "p", 8080, "port to listen on")
 	serveCmd.Flags().StringArrayVar(&servePaths, "path", []string{"/"}, "WebSocket path(s) to listen on")
+	serveCmd.Flags().BoolVar(&serveTLS, "tls", false, "enable TLS (wss://)")
+	serveCmd.Flags().StringVar(&serveCert, "cert", "", "path to certificate file")
+	serveCmd.Flags().StringVar(&serveKey, "key", "", "path to private key file")
 }

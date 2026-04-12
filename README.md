@@ -318,6 +318,25 @@ The `serve` command transforms `xwebs` into a WebSocket server. You can host mul
 | `--on` | Define a quick inline handler (`pattern :: run:cmd`) | `--on "ping :: respond:pong"` |
 | `--on-match` | Define a full inline JSON handler | `--on-match '{"match":...}'` |
 | `--respond` | Default response template for inline handlers | `--respond "OK"` |
+| `--tls` | Enable TLS (HTTPS/WSS) | `--tls` |
+| `--cert` | Path to certificate file | `--cert server.crt` |
+| `--key` | Path to private key file | `--key server.key` |
+
+**TLS Support (HTTPS/WSS):**
+xwebs can host secure servers using standard TLS certificates. This is essential for production environments or when the backend requires `wss://`.
+
+```bash
+# Start a secure server using provided certificates
+xwebs serve --tls --cert certs/server.crt --key certs/server.key --port 8443
+
+# Connect to the secure server (using --insecure for self-signed certs)
+xwebs connect wss://localhost:8443/ --insecure
+```
+
+When TLS is enabled:
+- The server listens for HTTPS and WSS connections.
+- The interactive status page indicates the secure status with a blue "RUNNING" pill.
+- Recommended connection strings automatically use the `wss://` scheme.
 
 **Examples:**
 
