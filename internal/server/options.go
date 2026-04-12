@@ -30,6 +30,12 @@ type Options struct {
 	TLSEnabled bool
 	CertFile   string
 	KeyFile    string
+
+	// Security configuration
+	AllowedOrigins []string
+	AllowIPs       []string
+	DenyIPs        []string
+	RateLimit      string
 }
 
 // Option is a functional option for configuring the server.
@@ -137,5 +143,33 @@ func WithAPI(enabled bool) Option {
 func WithMetrics(enabled bool) Option {
 	return func(o *Options) {
 		o.MetricsEnabled = enabled
+	}
+}
+
+// WithAllowedOrigins sets the allowed origins for WebSocket connections.
+func WithAllowedOrigins(origins []string) Option {
+	return func(o *Options) {
+		o.AllowedOrigins = origins
+	}
+}
+
+// WithAllowIPs sets the allowed IP addresses or CIDR ranges.
+func WithAllowIPs(ips []string) Option {
+	return func(o *Options) {
+		o.AllowIPs = ips
+	}
+}
+
+// WithDenyIPs sets the denied IP addresses or CIDR ranges.
+func WithDenyIPs(ips []string) Option {
+	return func(o *Options) {
+		o.DenyIPs = ips
+	}
+}
+
+// WithRateLimit sets the rate limit configuration.
+func WithRateLimit(rateLimit string) Option {
+	return func(o *Options) {
+		o.RateLimit = rateLimit
 	}
 }

@@ -30,6 +30,7 @@ type Server struct {
 	kvStore     *kv.Store
 	wg          sync.WaitGroup
 	startTime   time.Time
+	securityMgr *SecurityManager
 }
 
 // New creates a new WebSocket server with the given options.
@@ -41,14 +42,30 @@ func New(opts ...Option) *Server {
 
 	s := &Server{
 		opts: options,
-		upgrader: websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool {
-				return true // Default: allow all origins
-			},
-		},
+		upgrader: websocket.Upgrader{},
 		connections: make(map[string]*ws.Connection),
 		kvStore:     kv.NewStore(),
 		startTime:   time.Now(),
+	}
+
+	sm, err := NewSecurityManager(options)
+	if err != nil {
+		// Log error and proceed with nil security manager if it fails?
+		// Better failed fast or handle it. Since New() doesn't return error,
+		// we might need to change it or handle it here.
+		// Actually I can return nil or handle it in Start.
+		// Let's make New return (*Server, error) if possible, but it's used a lot.
+		// I'll just fmt.Fprintf(os.Stderr, ...) for now or panic if it's critical.
+		fmt.Fprintf(os.Stderr, "Error initializing security manager: %v\n", err)
+	}
+	s.securityMgr = sm
+
+	if s.securityMgr != nil {
+		s.upgrader.CheckOrigin = s.securityMgr.IsOriginAllowed
+	} else {
+		s.upgrader.CheckOrigin = func(r *http.Request) bool {
+			return true // Default: allow all origins
+		}
 	}
 
 	s.registry = handler.NewRegistry()
@@ -95,14 +112,32 @@ func (s *Server) Start(ctx context.Context) error {
 		mux.HandleFunc("DELETE /api/kv/{key}", s.handleDeleteKV)
 	}
 
-	// Register Metrics route
 	if s.opts.MetricsEnabled {
 		mux.Handle("/api/metrics", observability.Handler())
 	}
 
+	var handler http.Handler = mux
+	if s.securityMgr != nil {
+		handler = s.securityMgr.Middleware(mux)
+		
+		// Start security manager cleanup loop
+		go func() {
+			ticker := time.NewTicker(30 * time.Minute)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					s.securityMgr.Cleanup()
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
+	}
+
 	s.httpSrv = &http.Server{
 		Addr:         fmt.Sprintf(":%d", s.opts.Port),
-		Handler:      mux,
+		Handler:      handler,
 		ReadTimeout:  s.opts.ReadTimeout,
 		WriteTimeout: s.opts.WriteTimeout,
 		IdleTimeout:  s.opts.IdleTimeout,

@@ -20,6 +20,10 @@ var (
 	serveKey   string
 	serveAPI   bool
 	serveMetrics bool
+	allowedOrigins []string
+	allowIPs       []string
+	denyIPs        []string
+	rateLimit      string
 )
 
 var serveCmd = &cobra.Command{
@@ -114,6 +118,10 @@ Example:
 			server.WithKeyFile(serveKey),
 			server.WithAPI(serveAPI),
 			server.WithMetrics(serveMetrics),
+			server.WithAllowedOrigins(allowedOrigins),
+			server.WithAllowIPs(allowIPs),
+			server.WithDenyIPs(denyIPs),
+			server.WithRateLimit(rateLimit),
 		)
 
 		if !quiet {
@@ -147,4 +155,8 @@ func init() {
 	serveCmd.Flags().StringVar(&serveKey, "key", "", "path to private key file")
 	serveCmd.Flags().BoolVar(&serveAPI, "api", true, "enable REST API")
 	serveCmd.Flags().BoolVar(&serveMetrics, "metrics", false, "enable Prometheus metrics")
+	serveCmd.Flags().StringArrayVar(&allowedOrigins, "allowed-origins", nil, "allowed origins for WebSocket connections")
+	serveCmd.Flags().StringArrayVar(&allowIPs, "allow-ip", nil, "allowed IP addresses or CIDR ranges")
+	serveCmd.Flags().StringArrayVar(&denyIPs, "deny-ip", nil, "denied IP addresses or CIDR ranges")
+	serveCmd.Flags().StringVar(&rateLimit, "rate-limit", "", "rate limit (e.g., '10/s' per-client, or '10/s,100/s' for per-client,global)")
 }

@@ -321,6 +321,10 @@ The `serve` command transforms `xwebs` into a WebSocket server. You can host mul
 | `--tls` | Enable TLS (HTTPS/WSS) | `--tls` |
 | `--cert` | Path to certificate file | `--cert server.crt` |
 | `--key` | Path to private key file | `--key server.key` |
+| `--allowed-origins` | Allowed origins for WebSocket connections | `--allowed-origins https://example.com` |
+| `--allow-ip` | Allowed IP addresses or CIDR ranges | `--allow-ip 127.0.0.1 --allow-ip 192.168.1.0/24` |
+| `--deny-ip` | Denied IP addresses or CIDR ranges | `--deny-ip 1.2.3.4` |
+| `--rate-limit` | Rate limit (per-client[,global]) | `--rate-limit 10/s` or `--rate-limit 10/s,100/s` |
 
 **TLS Support (HTTPS/WSS):**
 xwebs can host secure servers using standard TLS certificates. This is essential for production environments or when the backend requires `wss://`.
@@ -337,6 +341,18 @@ When TLS is enabled:
 - The server listens for HTTPS and WSS connections.
 - The interactive status page indicates the secure status with a blue "RUNNING" pill.
 - Recommended connection strings automatically use the `wss://` scheme.
+
+**Security Controls:**
+xwebs provides powerful built-in security controls to protect your server from unauthorized access and abuse.
+
+- **IP Filtering**: Restriction via `--allow-ip` and `--deny-ip` supporting individual IPs and CIDR ranges.
+- **Origin Restriction**: Ensure only trusted web applications can connect via `--allowed-origins`.
+- **Rate Limiting**: Protect against DoS attacks with global and per-client rate limits using the token bucket algorithm. Use formats like `10/s`, `100/m`, or `5/h`.
+
+```bash
+# Start a server restricted to local network and specific origin, with rate limiting
+xwebs serve --allow-ip 192.168.1.0/24 --allowed-origins https://myapp.example.com --rate-limit 5/s,50/s
+```
 
 **Examples:**
 
