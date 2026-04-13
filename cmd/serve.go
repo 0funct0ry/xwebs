@@ -24,6 +24,7 @@ var (
 	allowIPs       []string
 	denyIPs        []string
 	rateLimit      string
+	serveUI        bool
 )
 
 var serveCmd = &cobra.Command{
@@ -122,6 +123,7 @@ Example:
 			server.WithAllowIPs(allowIPs),
 			server.WithDenyIPs(denyIPs),
 			server.WithRateLimit(rateLimit),
+			server.WithUI(serveUI),
 		)
 
 		if !quiet {
@@ -159,4 +161,5 @@ func init() {
 	serveCmd.Flags().StringArrayVar(&allowIPs, "allow-ip", nil, "allowed IP addresses or CIDR ranges")
 	serveCmd.Flags().StringArrayVar(&denyIPs, "deny-ip", nil, "denied IP addresses or CIDR ranges")
 	serveCmd.Flags().StringVar(&rateLimit, "rate-limit", "", "rate limit (e.g., '10/s' per-client, or '10/s,100/s' for per-client,global)")
+	serveCmd.Flags().BoolVar(&serveUI, "ui", false, "enable web UI")
 }

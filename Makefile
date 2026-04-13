@@ -28,15 +28,20 @@ all: build
 # Show help by default when running 'make'
 .DEFAULT_GOAL := help
 
+# Build the React UI
+.PHONY: build-ui
+build-ui:
+	cd $(UI_DIR) && npm install && npm run build
+
 # Build the binary for the current platform
 .PHONY: build
-build:
+build: build-ui
 	mkdir -p $(BIN_DIR)
 	$(GO) build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME) .
 
 # Build for production (with ldflags)
 .PHONY: build-prod
-build-prod:
+build-prod: build-ui
 	mkdir -p $(BIN_DIR)
 	$(GO) build $(GOFLAGS) -ldflags="-s -w $(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME) .
 
@@ -54,6 +59,8 @@ clean:
 	rm -rf $(BIN_DIR)
 	rm -f $(BINARY_NAME)
 	rm -f $(BINARY_NAME).exe
+	rm -rf $(UI_DIST)
+	rm -rf $(UI_DIR)/node_modules
 
 # Install the binary to $GOPATH/bin
 .PHONY: install
@@ -134,4 +141,5 @@ help:
 	@echo "  bench         - Run benchmarks"
 	@echo "  ci            - Full CI pipeline (fmt, vet, test, build)"
 	@echo "  run           - Run the CLI"
+	@echo "  build-ui      - Build the React UI"
 	@echo "  help          - Show this help message"

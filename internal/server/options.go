@@ -20,6 +20,7 @@ type Options struct {
 	
 	APIEnabled     bool
 	MetricsEnabled bool
+	UIEnabled      bool
 
 	// Server timeouts
 	ReadTimeout  time.Duration
@@ -171,5 +172,12 @@ func WithDenyIPs(ips []string) Option {
 func WithRateLimit(rateLimit string) Option {
 	return func(o *Options) {
 		o.RateLimit = rateLimit
+	}
+}
+
+// WithUI enables or disables the web UI.
+func WithUI(enabled bool) Option {
+	return func(o *Options) {
+		o.UIEnabled = enabled
 	}
 }

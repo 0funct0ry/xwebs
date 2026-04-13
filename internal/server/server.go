@@ -15,6 +15,7 @@ import (
 	"github.com/0funct0ry/xwebs/internal/observability"
 	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/0funct0ry/xwebs/internal/ws"
+	"github.com/0funct0ry/xwebs/ui"
 	"github.com/gorilla/websocket"
 )
 
@@ -90,8 +91,12 @@ func (s *Server) Start(ctx context.Context) error {
 		mux.HandleFunc(pattern, s.serveWS)
 	}
 
-	// Add exact root status page if / is not handled as WS
-	if !hasRoot {
+	// Register UI and Status routes
+	if s.opts.UIEnabled {
+		// Register UI handler as a catch-all.
+		// Specific routes like /api/*, /api/metrics, and exact WS paths (e.g., /{$}) will take precedence.
+		mux.Handle("/", ui.Handler())
+	} else if !hasRoot {
 		mux.HandleFunc("/{$}", s.serveStatus)
 	}
 
@@ -213,6 +218,10 @@ func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Upgrade") != "websocket" {
 		if s.opts.Verbose {
 			fmt.Printf("[http] connection received: %s %s from %s (non-websocket)\n", r.Method, r.URL.Path, r.RemoteAddr)
+		}
+		if s.opts.UIEnabled && (r.URL.Path == "/" || r.URL.Path == "" || strings.HasPrefix(r.URL.Path, "/assets/") || r.URL.Path == "/favicon.svg" || r.URL.Path == "/icons.svg") {
+			ui.Handler().ServeHTTP(w, r)
+			return
 		}
 		s.serveStatus(w, r)
 		return

@@ -45,9 +45,9 @@ Every WebSocket tool does one thing: connect and send messages. That's the equiv
 - **Server Mode** — WebSocket server with multiple paths, handler support, and graceful shutdown (core implemented)
 
 ### On the Roadmap (Planned)
+- **Web UI** — React-based dashboard for visual server monitoring and management (embedded via `go:embed`)
 - **Server Administration REPL** — Interactive admin console for managing server state and connections
 - **Relay & Broadcast** — MITM proxy and pub/sub fan-out modes
-- **Web UI** — React-based dashboard for visual message inspection and Compose
 
 ## Installation
 
@@ -305,7 +305,8 @@ The `serve` command transforms `xwebs` into a WebSocket server. You can host mul
 - **Handler Integration**: Load declarative YAML handlers to build reactive services.
 - **Dynamic Variable Injection**: Pass variables to handlers via configuration.
 - **Graceful Shutdown**: Close all active connections cleanly on termination.
-- **HTTP Status Page**: Clean landing page for standard browser requests showing uptime and active WebSocket paths. Exact matching is used for the root `/` to prevent it from acting as a catch-all.
+- **HTTP Status Page**: Clean landing page for standard browser requests showing uptime and active WebSocket paths.
+- **Embedded Web UI**: Modern React dashboard available when started with the `--ui` flag.
 - **Developer Observability**: Detailed logging of connection handshakes and upgrades when `--verbose` is enabled.
 
 **Flags:**
@@ -325,6 +326,7 @@ The `serve` command transforms `xwebs` into a WebSocket server. You can host mul
 | `--allow-ip` | Allowed IP addresses or CIDR ranges | `--allow-ip 127.0.0.1 --allow-ip 192.168.1.0/24` |
 | `--deny-ip` | Denied IP addresses or CIDR ranges | `--deny-ip 1.2.3.4` |
 | `--rate-limit` | Rate limit (per-client[,global]) | `--rate-limit 10/s` or `--rate-limit 10/s,100/s` |
+| `--ui` | Enable the embedded React web UI at `/` | `--ui` |
 
 **TLS Support (HTTPS/WSS):**
 xwebs can host secure servers using standard TLS certificates. This is essential for production environments or when the backend requires `wss://`.
