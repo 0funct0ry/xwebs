@@ -5,11 +5,17 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
+	"github.com/0funct0ry/xwebs/internal/config"
 	"github.com/0funct0ry/xwebs/internal/handler"
+	"github.com/0funct0ry/xwebs/internal/repl"
 	"github.com/0funct0ry/xwebs/internal/server"
 	"github.com/0funct0ry/xwebs/internal/template"
+	"github.com/0funct0ry/xwebs/internal/ws"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	"golang.org/x/term"
 )
 
 var (
@@ -24,8 +30,23 @@ var (
 	allowIPs       []string
 	denyIPs        []string
 	rateLimit      string
-	serveUI        bool
+	serveUI         bool
+	serveInteractive bool
+	serveNoInteract  bool
 )
+
+type serveContext struct {
+	srv *server.Server
+}
+
+func (c *serveContext) GetClientCount() int                 { return c.srv.GetClientCount() }
+func (c *serveContext) GetUptime() time.Duration            { return c.srv.GetUptime() }
+func (c *serveContext) GetClients() []template.ClientInfo   { return c.srv.GetClients() }
+func (c *serveContext) Broadcast(msg *ws.Message) error     { return c.srv.Broadcast(msg) }
+func (c *serveContext) Kick(id string) error                { return c.srv.Kick(id) }
+func (c *serveContext) GetStatus() string                 { return c.srv.GetStatus() }
+func (c *serveContext) GetTemplateEngine() *template.Engine { return c.srv.GetTemplateEngine() }
+func (c *serveContext) GetHandlers() []handler.Handler      { return c.srv.GetHandlers() }
 
 var serveCmd = &cobra.Command{
 	Use:     "serve",
@@ -137,10 +158,57 @@ Example:
 			} else {
 				fmt.Fprintf(os.Stderr, "✓ Listening on paths: %s\n", strings.Join(servePaths, ", "))
 			}
-			if handlersFile != "" {
-				fmt.Fprintf(os.Stderr, "✓ Handlers loaded from: %s\n", handlersFile)
+		}
+
+		if handlersFile != "" {
+			fmt.Fprintln(os.Stderr, "✓ Handlers loaded from:", handlersFile)
+		}
+		fmt.Fprintln(os.Stderr, "--------------------------------------------------")
+
+		// TTY detection for interactive mode
+		isTerminal := term.IsTerminal(int(os.Stdin.Fd()))
+		actuallyInteractive := isTerminal
+		if cmd.Flags().Changed("no-interact") {
+			actuallyInteractive = !serveNoInteract
+		}
+		if cmd.Flags().Changed("interactive") {
+			actuallyInteractive = serveInteractive
+		}
+
+		if actuallyInteractive {
+			replCfg := &repl.Config{}
+			var appCfg config.AppConfig
+			if err := viper.Unmarshal(&appCfg); err == nil {
+				replCfg.HistoryFile = appCfg.REPL.HistoryFile
+				replCfg.HistoryLimit = appCfg.REPL.HistoryLimit
+				replCfg.PromptTemplate = appCfg.REPL.Prompt
+				replCfg.Shortcuts = appCfg.REPL.Shortcuts
 			}
-			fmt.Fprintln(os.Stderr, "--------------------------------------------------")
+			replCfg.Terminal = true
+
+			r, err := repl.New(repl.ServerMode, replCfg)
+			if err != nil {
+				return fmt.Errorf("initializing REPL: %w", err)
+			}
+			defer r.Close()
+
+			r.IsInteractive = true
+			r.TemplateEngine = tmplEngine
+			r.RegisterCommonCommands()
+			r.RegisterServerCommands(&serveContext{srv: srv})
+
+			// Set server logger to REPL to avoid messy concurrent output
+			srv.UpdateOptions(server.WithLogger(r))
+
+			// Run server in background
+			go func() {
+				if err := srv.Start(cmd.Context()); err != nil {
+					r.Errorf("Server error: %v\n", err)
+				}
+			}()
+
+			// Run REPL in foreground
+			return r.Run(cmd.Context())
 		}
 
 		return srv.Start(cmd.Context())
@@ -162,4 +230,6 @@ func init() {
 	serveCmd.Flags().StringArrayVar(&denyIPs, "deny-ip", nil, "denied IP addresses or CIDR ranges")
 	serveCmd.Flags().StringVar(&rateLimit, "rate-limit", "", "rate limit (e.g., '10/s' per-client, or '10/s,100/s' for per-client,global)")
 	serveCmd.Flags().BoolVar(&serveUI, "ui", false, "enable web UI")
+	serveCmd.Flags().BoolVarP(&serveInteractive, "interactive", "i", false, "enable interactive admin REPL")
+	serveCmd.Flags().BoolVarP(&serveNoInteract, "no-interact", "I", false, "disable interactive admin REPL (same as --interactive=false)")
 }

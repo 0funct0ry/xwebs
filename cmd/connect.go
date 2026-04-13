@@ -135,6 +135,7 @@ var (
 	watchPattern      string
 	timeout           time.Duration
 	exitOn            []string
+	noInteract        bool
 )
 
 var connectCmd = &cobra.Command{
@@ -310,6 +311,9 @@ Example:
 		// Only start the interactive REPL loop if we are actually in a terminal and not Automating,
 		// or if explicitly requested via --interactive.
 		actuallyInteractive := isTerminal && !isAutomation
+		if cmd.Flags().Changed("no-interact") {
+			actuallyInteractive = !noInteract
+		}
 		if cmd.Flags().Changed("interactive") {
 			actuallyInteractive = interactive
 		}
@@ -435,6 +439,9 @@ Example:
 			opts = append(opts, ws.WithClientCert(details.Cert, details.Key))
 		}
 		isInteractive = isTerminal
+		if cmd.Flags().Changed("no-interact") {
+			isInteractive = !noInteract
+		}
 		if cmd.Flags().Changed("interactive") {
 			isInteractive = interactive
 		} else if isAutomation && !isTerminal {
@@ -1159,7 +1166,8 @@ func init() {
 	connectCmd.Flags().BoolVar(&jsonl, "jsonl", false, "shortcut for --format jsonl")
 	connectCmd.Flags().StringVar(&watchPattern, "watch", "", "monitor and print updates matching a pattern")
 	connectCmd.Flags().DurationVar(&timeout, "timeout", 0, "global timeout for the connection/pipeline")
-	connectCmd.Flags().StringArrayVar(&exitOn, "exit-on", []string{}, "exit conditions: match, disconnect, timeout, error")
+	connectCmd.Flags().StringArrayVar(&exitOn, "exit-on", nil, "Exit when a specific handler named name finishes (repeatable)")
+	connectCmd.Flags().BoolVarP(&noInteract, "no-interact", "I", false, "Disable interactive REPL mode (same as --interactive=false)")
 	rootCmd.AddCommand(connectCmd)
 }
 

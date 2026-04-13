@@ -45,9 +45,9 @@ Every WebSocket tool does one thing: connect and send messages. That's the equiv
 - **Server Mode** — WebSocket server with multiple paths, handler support, and graceful shutdown (core implemented)
 
 ### On the Roadmap (Planned)
-- **Web UI** — React-based dashboard for visual server monitoring and management (embedded via `go:embed`)
-- **Server Administration REPL** — Interactive admin console for managing server state and connections
-- **Relay & Broadcast** — MITM proxy and pub/sub fan-out modes
+- **Server Administration REPL** — Interactive admin console for managing server state, connections, and handlers directly from the terminal.
+- **Web UI** — React-based dashboard for visual server monitoring and management (embedded via `go:embed`) (Planned)
+- **Relay & Broadcast** — MITM proxy and pub/sub fan-out modes (Planned)
 
 ## Installation
 
@@ -262,6 +262,8 @@ Connection Status:
 | `--output <file>` | Redirect formatted output to a file | `--output results.log` |
 | `--timeout <dur>` | Set a global timeout for the entire session | `--timeout 30s` |
 | `--watch <pat>` | Keep connection open and print only matches | `--watch '.event == "trade"'` |
+| `--interactive`, `-i` | Force interactive REPL mode | `--interactive` |
+| `--no-interact`, `-I` | Disable interactive REPL mode | `--no-interact` |
 
 **Examples:**
 
@@ -327,6 +329,8 @@ The `serve` command transforms `xwebs` into a WebSocket server. You can host mul
 | `--deny-ip` | Denied IP addresses or CIDR ranges | `--deny-ip 1.2.3.4` |
 | `--rate-limit` | Rate limit (per-client[,global]) | `--rate-limit 10/s` or `--rate-limit 10/s,100/s` |
 | `--ui` | Enable the embedded React web UI at `/` | `--ui` |
+| `--interactive`, `-i` | Enable interactive admin REPL | `--interactive` |
+| `--no-interact`, `-I` | Disable interactive admin REPL | `--no-interact` |
 
 **TLS Support (HTTPS/WSS):**
 xwebs can host secure servers using standard TLS certificates. This is essential for production environments or when the backend requires `wss://`.

@@ -37,6 +37,15 @@ type Options struct {
 	AllowIPs       []string
 	DenyIPs        []string
 	RateLimit      string
+
+	// Logger for server events
+	Logger Logger
+}
+
+// Logger defines the interface for server logging.
+type Logger interface {
+	Printf(format string, v ...interface{})
+	Errorf(format string, v ...interface{})
 }
 
 // Option is a functional option for configuring the server.
@@ -179,5 +188,12 @@ func WithRateLimit(rateLimit string) Option {
 func WithUI(enabled bool) Option {
 	return func(o *Options) {
 		o.UIEnabled = enabled
+	}
+}
+
+// WithLogger sets the server logger.
+func WithLogger(logger Logger) Option {
+	return func(o *Options) {
+		o.Logger = logger
 	}
 }

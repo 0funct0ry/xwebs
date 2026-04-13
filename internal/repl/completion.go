@@ -204,6 +204,16 @@ func (r *REPL) completeArguments(line string) ([][]rune, int) {
 				}
 			}
 		}
+	case "kick":
+		// Suggest client IDs if in server mode
+		if r.serverCtx != nil {
+			clients := r.serverCtx.GetClients()
+			for _, c := range clients {
+				if strings.HasPrefix(strings.ToLower(c.ID), strings.ToLower(currentWord)) {
+					suggestions = append(suggestions, []rune(c.ID[len(currentWord):]))
+				}
+			}
+		}
 	}
 
 	if len(suggestions) == 0 || cmdName == "connect" {

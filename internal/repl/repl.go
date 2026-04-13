@@ -103,7 +103,9 @@ type REPL struct {
 	// prevDir stores the previous working directory for :cd -
 	prevDir string
 
+	// REPL context interfaces
 	clientCtx ClientContext
+	serverCtx ServerContext
 
 	// configPaths tracks loaded configuration files for :edit reloading
 	configPaths []string
@@ -648,13 +650,18 @@ func (r *REPL) ExecuteCommand(ctx context.Context, line string) error {
 func (r *REPL) PopulateContext(tmplCtx *template.TemplateContext) {
 	tmplCtx.Session = r.GetVars()
 
-	// Populate connection info
 	var conn *ws.Connection
-	if r.clientCtx != nil {
+	if r.mode == ClientMode && r.clientCtx != nil {
 		conn = r.clientCtx.GetConnection()
 		tmplCtx.Status = r.clientCtx.GetStatus()
 		tmplCtx.ReconnectCount = r.clientCtx.GetReconnectCount()
 		tmplCtx.URL = r.clientCtx.GetURL()
+	} else if r.mode == ServerMode && r.serverCtx != nil {
+		tmplCtx.Status = r.serverCtx.GetStatus()
+		tmplCtx.ClientCount = r.serverCtx.GetClientCount()
+		tmplCtx.Clients = r.serverCtx.GetClients()
+		tmplCtx.ServerUptime = r.serverCtx.GetUptime()
+		tmplCtx.ServerUptimeStr = template.FormatUptime(tmplCtx.ServerUptime)
 	}
 
 	if r.mode == ClientMode {

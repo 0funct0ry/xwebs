@@ -77,6 +77,13 @@ func New(opts ...Option) *Server {
 	return s
 }
 
+// UpdateOptions applies the given options to the server.
+func (s *Server) UpdateOptions(opts ...Option) {
+	for _, opt := range opts {
+		opt(s.opts)
+	}
+}
+
 // Start launches the server and listens for incoming connections.
 func (s *Server) Start(ctx context.Context) error {
 	mux := http.NewServeMux()
@@ -154,7 +161,7 @@ func (s *Server) Start(ctx context.Context) error {
 	go func() {
 		if s.opts.TLSEnabled {
 			if s.opts.Verbose {
-				fmt.Printf("Starting TLS server on %s\n", s.httpSrv.Addr)
+				s.logf("Starting TLS server on %s\n", s.httpSrv.Addr)
 			}
 			// Verify cert and key files
 			if _, err := os.Stat(s.opts.CertFile); err != nil {
@@ -170,7 +177,7 @@ func (s *Server) Start(ctx context.Context) error {
 			}
 		} else {
 			if s.opts.Verbose {
-				fmt.Printf("Starting server on %s\n", s.httpSrv.Addr)
+				s.logf("Starting server on %s\n", s.httpSrv.Addr)
 			}
 			if err := s.httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				errChan <- err
@@ -202,7 +209,7 @@ func (s *Server) Stop() error {
 	s.mu.Lock()
 	for id, conn := range s.connections {
 		if s.opts.Verbose {
-			fmt.Printf("Closing connection %s\n", id)
+			s.logf("Closing connection %s\n", id)
 		}
 		_ = conn.Close()
 	}
@@ -217,7 +224,7 @@ func (s *Server) Stop() error {
 func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Upgrade") != "websocket" {
 		if s.opts.Verbose {
-			fmt.Printf("[http] connection received: %s %s from %s (non-websocket)\n", r.Method, r.URL.Path, r.RemoteAddr)
+			s.logf("[http] connection received: %s %s from %s (non-websocket)\n", r.Method, r.URL.Path, r.RemoteAddr)
 		}
 		if s.opts.UIEnabled && (r.URL.Path == "/" || r.URL.Path == "" || strings.HasPrefix(r.URL.Path, "/assets/") || r.URL.Path == "/favicon.svg" || r.URL.Path == "/icons.svg") {
 			ui.Handler().ServeHTTP(w, r)
@@ -228,19 +235,19 @@ func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if s.opts.Verbose {
-		fmt.Printf("[http] attempting websocket upgrade for %s from %s\n", r.URL.Path, r.RemoteAddr)
+		s.logf("[http] attempting websocket upgrade for %s from %s\n", r.URL.Path, r.RemoteAddr)
 	}
 
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		if s.opts.Verbose {
-			fmt.Printf("[http] upgrade error: %v\n", err)
+			s.errorf("[http] upgrade error: %v\n", err)
 		}
 		return
 	}
 
 	if s.opts.Verbose {
-		fmt.Printf("[ws] upgrade successful for %s from %s\n", r.URL.Path, r.RemoteAddr)
+		s.logf("[ws] upgrade successful for %s from %s\n", r.URL.Path, r.RemoteAddr)
 	}
 
 	// Create ws.Connection wrapper
@@ -308,10 +315,10 @@ func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
 			// Setup logging/error handlers for dispatcher if needed
 			if s.opts.Verbose {
 				dispatcher.Log = func(f string, a ...interface{}) {
-					fmt.Printf("[handler] "+f+"\n", a...)
+					s.logf("[handler] "+f, a...)
 				}
 				dispatcher.Error = func(f string, a ...interface{}) {
-					fmt.Printf("[handler-error] "+f+"\n", a...)
+					s.errorf("[handler-error] "+f, a...)
 				}
 			}
 
@@ -414,4 +421,59 @@ func (s *Server) GetClients() []template.ClientInfo {
 		})
 	}
 	return clients
+}
+
+// Broadcast sends a message to all connected clients.
+func (s *Server) Broadcast(msg *ws.Message) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, conn := range s.connections {
+		_ = conn.Write(msg)
+	}
+	return nil
+}
+
+// Kick disconnects a específica client by ID.
+func (s *Server) Kick(id string) error {
+	s.mu.Lock()
+	conn, ok := s.connections[id]
+	s.mu.Unlock()
+
+	if !ok {
+		return fmt.Errorf("client %s not found", id)
+	}
+
+	return conn.CloseWithCode(1001, "Kicked by admin")
+}
+
+// GetStatus returns the current server status.
+func (s *Server) GetStatus() string {
+	return "running"
+}
+
+// GetTemplateEngine returns the server's template engine.
+func (s *Server) GetTemplateEngine() *template.Engine {
+	return s.opts.TemplateEngine
+}
+
+// GetHandlers returns the list of registered handlers.
+func (s *Server) GetHandlers() []handler.Handler {
+	return s.registry.Handlers()
+}
+
+func (s *Server) logf(format string, a ...interface{}) {
+	if s.opts.Logger != nil {
+		s.opts.Logger.Printf(format, a...)
+	} else {
+		fmt.Printf(format, a...)
+	}
+}
+
+func (s *Server) errorf(format string, a ...interface{}) {
+	if s.opts.Logger != nil {
+		s.opts.Logger.Errorf(format, a...)
+	} else {
+		fmt.Fprintf(os.Stderr, format, a...)
+	}
 }
