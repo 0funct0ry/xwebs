@@ -204,7 +204,7 @@ func (r *REPL) completeArguments(line string) ([][]rune, int) {
 				}
 			}
 		}
-	case "kick":
+	case "kick", "client", "send":
 		// Suggest client IDs if in server mode
 		if r.serverCtx != nil {
 			clients := r.serverCtx.GetClients()

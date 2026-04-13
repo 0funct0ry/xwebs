@@ -418,9 +418,33 @@ func (s *Server) GetClients() []template.ClientInfo {
 			ConnectedAt: conn.ConnectedAt(),
 			Uptime:      uptime,
 			UptimeStr:   template.FormatUptime(uptime),
+			MsgsIn:      conn.MsgsIn(),
+			MsgsOut:     conn.MsgsOut(),
 		})
 	}
 	return clients
+}
+
+// GetClient returns metadata for a specific client by ID.
+func (s *Server) GetClient(id string) (template.ClientInfo, bool) {
+	s.mu.Lock()
+	conn, ok := s.connections[id]
+	s.mu.Unlock()
+
+	if !ok {
+		return template.ClientInfo{}, false
+	}
+
+	uptime := time.Since(conn.ConnectedAt())
+	return template.ClientInfo{
+		ID:          conn.ID,
+		RemoteAddr:  conn.RemoteAddr(),
+		ConnectedAt: conn.ConnectedAt(),
+		Uptime:      uptime,
+		UptimeStr:   template.FormatUptime(uptime),
+		MsgsIn:      conn.MsgsIn(),
+		MsgsOut:     conn.MsgsOut(),
+	}, true
 }
 
 // Broadcast sends a message to all connected clients.
@@ -434,8 +458,8 @@ func (s *Server) Broadcast(msg *ws.Message) error {
 	return nil
 }
 
-// Kick disconnects a específica client by ID.
-func (s *Server) Kick(id string) error {
+// Kick disconnects a specific client by ID with an optional close code and reason.
+func (s *Server) Kick(id string, code int, reason string) error {
 	s.mu.Lock()
 	conn, ok := s.connections[id]
 	s.mu.Unlock()
@@ -444,7 +468,27 @@ func (s *Server) Kick(id string) error {
 		return fmt.Errorf("client %s not found", id)
 	}
 
-	return conn.CloseWithCode(1001, "Kicked by admin")
+	if code == 0 {
+		code = websocket.CloseGoingAway
+	}
+	if reason == "" {
+		reason = "Kicked by admin"
+	}
+
+	return conn.CloseWithCode(code, reason)
+}
+
+// Send sends a message to a specific client by ID.
+func (s *Server) Send(id string, msg *ws.Message) error {
+	s.mu.Lock()
+	conn, ok := s.connections[id]
+	s.mu.Unlock()
+
+	if !ok {
+		return fmt.Errorf("client %s not found", id)
+	}
+
+	return conn.Write(msg)
 }
 
 // GetStatus returns the current server status.

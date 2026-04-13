@@ -42,10 +42,10 @@ Every WebSocket tool does one thing: connect and send messages. That's the equiv
 - **RTT & Latency Tracking** — Real-time performance metrics for round-trip time, accessible via `.LastLatencyMs` in templates
 - **Real-time Syntax Highlighting** — Visual feedback for JSON and Go template expressions as typed in the REPL
 - **Shell Direct Execution** — Run arbitrary shell commands with `:! <command>` directly from the REPL, supporting both captured output and interactive modes
-- **Server Mode** — WebSocket server with multiple paths, handler support, and graceful shutdown (core implemented)
+- **Server Mode** — WebSocket server with multiple paths, handler support, graceful shutdown, and an interactive admin console for managing server state, connections, and handlers directly from the terminal.
+- **Server Administration REPL** — Interactive admin console for managing server state, connections, and handlers directly from the terminal.
 
 ### On the Roadmap (Planned)
-- **Server Administration REPL** — Interactive admin console for managing server state, connections, and handlers directly from the terminal.
 - **Web UI** — React-based dashboard for visual server monitoring and management (embedded via `go:embed`) (Planned)
 - **Relay & Broadcast** — MITM proxy and pub/sub fan-out modes (Planned)
 
@@ -309,6 +309,7 @@ The `serve` command transforms `xwebs` into a WebSocket server. You can host mul
 - **Graceful Shutdown**: Close all active connections cleanly on termination.
 - **HTTP Status Page**: Clean landing page for standard browser requests showing uptime and active WebSocket paths.
 - **Embedded Web UI**: Modern React dashboard available when started with the `--ui` flag.
+- **Interactive Admin REPL**: Manage clients and server state in real-time using the `--interactive` flag.
 - **Developer Observability**: Detailed logging of connection handshakes and upgrades when `--verbose` is enabled.
 
 **Flags:**
@@ -439,6 +440,46 @@ curl -X POST -d '{"name": "api-pong", "match": {"pattern": "ping"}, "respond": "
 
 # Set a value in the KV store
 curl -X POST -d '"my-value"' http://localhost:8080/api/kv/my-key
+
+# Delete a key
+curl -X DELETE http://localhost:8080/api/kv/my-key
+```
+
+**Server REPL Commands:**
+
+When started with `--interactive` (or `-i`), the server provides a dedicated set of administrative commands:
+
+| Command | Description |
+|---------|-------------|
+| `:status` | Show server status, uptime, and client count |
+| `:clients` | List all connected clients with ID, address, uptime, and message counts |
+| `:client <id>` | Show detailed metadata for a specific client |
+| `:send [flags] <id> <msg>` | Send message to specific client (`-j` JSON, `-t` Template, `-b` Binary) |
+| `:broadcast [flags] <msg>` | Send message to all connected clients (`-j`, `-t`, `-b`) |
+| `:kick <id> [c] [r]`| Disconnect a client with optional close code and reason |
+| `:handlers` | List all registered server-side handlers |
+
+Example administrative session:
+```text
+⚡XWEBS> :clients
+
+Active Clients (1):
+ID              Remote Address       Uptime       IN     OUT    Connected At
+--------------------------------------------------------------------------------
+conn-12345678   [::1]:64438          1m 12s       10     5      11:43:04
+
+⚡XWEBS> :client conn-12345678
+Client Information: conn-12345678
+  Remote Address: [::1]:64438
+  Connected At:   2026-04-13 11:43:04 (1m 12s ago)
+  Messages IN:    10
+  Messages OUT:   5
+
+⚡XWEBS> :send conn-12345678 System update starting soon.
+✓ Message sent to client conn-12345678
+
+⚡XWEBS> :kick conn-12345678 1000 Maintenance
+✓ Client conn-12345678 kicked
 ```
 
 ### Message Handlers

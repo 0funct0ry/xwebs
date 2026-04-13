@@ -39,14 +39,16 @@ type serveContext struct {
 	srv *server.Server
 }
 
-func (c *serveContext) GetClientCount() int                 { return c.srv.GetClientCount() }
-func (c *serveContext) GetUptime() time.Duration            { return c.srv.GetUptime() }
-func (c *serveContext) GetClients() []template.ClientInfo   { return c.srv.GetClients() }
-func (c *serveContext) Broadcast(msg *ws.Message) error     { return c.srv.Broadcast(msg) }
-func (c *serveContext) Kick(id string) error                { return c.srv.Kick(id) }
-func (c *serveContext) GetStatus() string                 { return c.srv.GetStatus() }
-func (c *serveContext) GetTemplateEngine() *template.Engine { return c.srv.GetTemplateEngine() }
-func (c *serveContext) GetHandlers() []handler.Handler      { return c.srv.GetHandlers() }
+func (c *serveContext) GetClientCount() int                            { return c.srv.GetClientCount() }
+func (c *serveContext) GetUptime() time.Duration                       { return c.srv.GetUptime() }
+func (c *serveContext) GetClients() []template.ClientInfo              { return c.srv.GetClients() }
+func (c *serveContext) GetClient(id string) (template.ClientInfo, bool) { return c.srv.GetClient(id) }
+func (c *serveContext) Broadcast(msg *ws.Message) error                { return c.srv.Broadcast(msg) }
+func (c *serveContext) Send(id string, msg *ws.Message) error          { return c.srv.Send(id, msg) }
+func (c *serveContext) Kick(id string, code int, reason string) error  { return c.srv.Kick(id, code, reason) }
+func (c *serveContext) GetStatus() string                              { return c.srv.GetStatus() }
+func (c *serveContext) GetTemplateEngine() *template.Engine            { return c.srv.GetTemplateEngine() }
+func (c *serveContext) GetHandlers() []handler.Handler                 { return c.srv.GetHandlers() }
 
 var serveCmd = &cobra.Command{
 	Use:     "serve",

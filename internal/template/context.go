@@ -49,6 +49,8 @@ type ClientInfo struct {
 	ConnectedAt time.Time     `json:"connected_at"`
 	Uptime      time.Duration `json:"uptime"`
 	UptimeStr   string        `json:"uptime_str"`
+	MsgsIn      uint64        `json:"msgs_in"`
+	MsgsOut     uint64        `json:"msgs_out"`
 }
 
 // ServerContext provides global metrics when running in server mode.
