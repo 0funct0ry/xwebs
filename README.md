@@ -398,6 +398,7 @@ When the server receives a termination signal (e.g., `Ctrl+C`), it:
 When the server is running, you can interact with it via a built-in REST API. This is useful for programmatic management and monitoring.
 
 - **Status**: `GET /api/status` — Returns server uptime, connections, and paths.
+- **Health**: `GET /api/health` — Returns basic health status, uptime, and component status (always available).
 - **Clients**: `GET /api/clients` — Returns a list of active connection metadata.
 - **Handlers (CRUD)**:
   - `GET /api/handlers` — List all loaded handlers.

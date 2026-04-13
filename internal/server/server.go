@@ -96,6 +96,8 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	// Register API routes
+	mux.HandleFunc("GET /api/health", s.handleAPIHealth)
+
 	if s.opts.APIEnabled {
 		mux.HandleFunc("GET /api/status", s.handleAPIStatus)
 		mux.HandleFunc("GET /api/clients", s.handleAPIClients)

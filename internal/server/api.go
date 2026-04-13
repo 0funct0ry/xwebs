@@ -178,6 +178,30 @@ func (s *Server) handleDeleteKV(w http.ResponseWriter, r *http.Request) {
 	s.jsonResponse(w, http.StatusNoContent, nil)
 }
 
+// handleAPIHealth returns the server health status.
+func (s *Server) handleAPIHealth(w http.ResponseWriter, r *http.Request) {
+	uptime := time.Since(s.startTime).Round(time.Second)
+	
+	health := map[string]interface{}{
+		"status":     "ok",
+		"uptime":     uptime.String(),
+		"uptime_sec": int64(uptime.Seconds()),
+		"components": map[string]string{
+			"handler_registry": "ok",
+		},
+	}
+
+	code := http.StatusOK
+
+	if s.registry == nil {
+		health["status"] = "error"
+		health["components"].(map[string]string)["handler_registry"] = "error"
+		code = http.StatusServiceUnavailable
+	}
+
+	s.jsonResponse(w, code, health)
+}
+
 // GetClients returns a list of active connection metadata.
 // Note: This is redefined here or moved from server.go if I want to keep server.go clean.
 // Actually it's already in server.go, but I'll make sure it's accessible.
