@@ -499,7 +499,12 @@ func (s *Server) GetTemplateEngine() *template.Engine {
 	return s.opts.TemplateEngine
 }
 
-// GetHandlers returns the list of registered handlers.
+// AddHandler adds a new message handler to the server at runtime.
+func (s *Server) AddHandler(h handler.Handler) error {
+	return s.registry.Add(h)
+}
+
+// GetHandlers returns all currently registered handlers.
 func (s *Server) GetHandlers() []handler.Handler {
 	return s.registry.Handlers()
 }

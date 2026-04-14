@@ -15,6 +15,7 @@ import (
 	"github.com/0funct0ry/xwebs/internal/ws"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
+	"github.com/docker/docker/pkg/namesgenerator"
 	"github.com/spf13/pflag"
 )
 
@@ -35,6 +36,7 @@ type ServerContext interface {
 	ReloadHandlers() error
 	GetHandlerStats(name string) (uint64, time.Duration, uint64, bool)
 	IsHandlerDisabled(name string) bool
+	AddHandler(h handler.Handler) error
 }
 
 // RegisterServerCommands adds WebSocket server-specific commands to the REPL.
@@ -331,11 +333,85 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 
 	r.RegisterCommand(&BuiltinCommand{
 		name: "handler",
-		help: "Show detailed information about a handler: :handler <name>",
+		help: "Manage and show handlers: :handler (add <flags> | <name>)",
 		handler: func(ctx context.Context, r *REPL, args []string) error {
 			if len(args) == 0 {
-				return fmt.Errorf("usage: :handler <name>")
+				r.Printf("Usage:\n")
+				r.Printf("  :handler add <flags>  Add a new handler\n")
+				r.Printf("  :handler <name>       Show detailed information about a handler\n")
+				r.Printf("\nFlags for 'add':\n")
+				r.Printf("  -n, --name <name>         Unique handler name (auto-generated if missing)\n")
+				r.Printf("  -m, --match <pattern>     (required) Match pattern\n")
+				r.Printf("  -t, --match-type <type>   Match type (text, glob, regex, jq, etc.)\n")
+				r.Printf("  -p, --priority <n>        Numeric priority (higher runs first)\n")
+				r.Printf("  -r, --run <cmd>           Shell command to run on match\n")
+				r.Printf("  -R, --respond <tmpl>      Response template to send back\n")
+				r.Printf("  -e, --exclusive           Stop further matching if this handler matches\n")
+				r.Printf("  -s, --sequential          Run handler actions sequentially\n")
+				r.Printf("  -l, --rate-limit <limit>  Rate limit (e.g. '10/s')\n")
+				r.Printf("  -d, --debounce <duration> Debounce time (e.g. '500ms')\n")
+				return nil
 			}
+
+			if args[0] == "add" {
+				// Parse flags using pflag
+				fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
+				fs.SetOutput(nil)
+
+				var name, match, matchType, run, respond, rateLimit, debounce string
+				var priority int
+				var exclusive, sequential bool
+
+				fs.StringVarP(&name, "name", "n", "", "Name of the handler")
+				fs.StringVarP(&match, "match", "m", "", "Match pattern")
+				fs.StringVarP(&matchType, "match-type", "t", "", "Match type")
+				fs.IntVarP(&priority, "priority", "p", 0, "Priority")
+				fs.StringVarP(&run, "run", "r", "", "Shell command")
+				fs.StringVarP(&respond, "respond", "R", "", "Response template")
+				fs.BoolVarP(&exclusive, "exclusive", "e", false, "Short-circuit match")
+				fs.BoolVarP(&sequential, "sequential", "s", false, "Run actions sequentially")
+				fs.StringVarP(&rateLimit, "rate-limit", "l", "", "Rate limit")
+				fs.StringVarP(&debounce, "debounce", "d", "", "Debounce duration")
+
+				if err := fs.Parse(args[1:]); err != nil {
+					return fmt.Errorf("parsing flags: %w", err)
+				}
+
+				if match == "" {
+					return fmt.Errorf("-m/--match is required")
+				}
+
+				if name == "" {
+					name = namesgenerator.GetRandomName(0)
+				}
+
+				h := handler.Handler{
+					Name:      name,
+					Priority:  priority,
+					Exclusive: exclusive,
+					Run:       run,
+					Respond:   respond,
+					Match: handler.Matcher{
+						Pattern: match,
+						Type:    matchType,
+					},
+					RateLimit: rateLimit,
+					Debounce:  debounce,
+				}
+
+				if sequential {
+					f := false
+					h.Concurrent = &f
+				}
+
+				if err := sc.AddHandler(h); err != nil {
+					return err
+				}
+
+				r.Printf("Handler %q added successfully.\n", name)
+				return nil
+			}
+
 			name := args[0]
 			handlers := sc.GetHandlers()
 			var target *handler.Handler

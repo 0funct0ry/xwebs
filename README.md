@@ -156,7 +156,7 @@ When running in a terminal (TTY), `xwebs connect` enters a rich interactive REPL
 | `:replay <f>`    | Play back a session recording with timing            |
 | `:mock <f>`      | Load YAML-based mock scenario                        |
 | `:handlers`      | List all loaded handlers in priority order           |
-| `:handler`       | Manage handlers: `add <flags>` or `delete <name>`    |
+| `:handler (add\|delete\|edit\|save)` | Manage handlers directly from the REPL (see details below) |
 | `:prompt set <t>`| Customize the REPL prompt with Go templates          |
 
 **Keyboard Shortcuts:**
@@ -458,7 +458,7 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `:broadcast [flags] <msg>` | Send message to all connected clients (`-j`, `-t`, `-b`) |
 | `:kick <id> [c] [r]`| Disconnect a client with optional close code and reason |
 | `:handlers` | List all registered server-side handlers with execution statistics (Matches, Latency, Errors) |
-| `:handler <name>` | Show detailed configuration, matcher details, and statistics for a specific handler |
+| `:handler (add\|<name>)` | Manage handlers: `add <flags>` or show details for `<name>` |
 | `:reload` | Hot-reload the handler configuration file and variables from disk without restarting the server |
 | `:enable <name>` | Enable a previously disabled handler at runtime |
 | `:disable <name>`| Disable a handler at runtime to stop it from matching incoming messages |
@@ -545,15 +545,18 @@ Client Information: conn-12345678
   - `--allowlist`: Configures a comma-separated list of approved executables (e.g., `echo,ls,grep`).
   - **REPL Observability**: Use the `:handlers` command in the REPL to see the loaded handlers in their execution order.
 - **Dynamic Handlers**: Manage handlers directly from the REPL without restarting or editing files using the `:handler` command.
-  - **Add**: `:handler add --name <name> --match <pattern> [flags]`
+  - **Add**: `:handler add --match <pattern> [flags]`
+    - Supports short flags: `-m` (match), `-n` (name), `-t` (match-type), `-p` (priority), `-r` (run), `-R` (respond), `-e` (exclusive), `-s` (sequential), `-l` (rate-limit), `-d` (debounce).
+    - If `--name` is omitted, a unique Docker-style name is generated (e.g., `distracted_lovelace`).
   - **Delete**: `:handler delete <name>`
   - **Edit**: `:handler edit [name]` — Opens the handler (or entire config if no name provided) in your `$EDITOR`.
   - **Save**: `:handler save <filename> [--force|-f]` — Persists all in-memory handlers and session variables to a YAML file.
   ```text
-  > :handler add --name ping --match ping --respond pong
-  > :handler edit ping
+  > :handler add -m ping -R pong
+  Handler "boring_wozniak" added successfully.
+  > :handler edit boring_wozniak
   > :handler save handlers.yaml
-  > :handler delete ping
+  > :handler delete boring_wozniak
   ```
 
 

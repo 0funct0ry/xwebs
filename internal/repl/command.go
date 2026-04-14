@@ -16,7 +16,7 @@ import (
 
 	"github.com/0funct0ry/xwebs/internal/handler"
 	"github.com/0funct0ry/xwebs/internal/template"
-	"github.com/matoous/go-nanoid/v2"
+	"github.com/docker/docker/pkg/namesgenerator"
 	"github.com/pmezard/go-difflib/difflib"
 	"github.com/spf13/pflag"
 	"golang.design/x/clipboard"
@@ -1407,16 +1407,16 @@ func (r *REPL) RegisterCommonCommands() {
 			var priority int
 			var exclusive, sequential bool
 
-			fs.StringVar(&name, "name", "", "Name of the handler")
-			fs.StringVar(&match, "match", "", "Match pattern")
-			fs.StringVar(&matchType, "match-type", "", "Match type")
-			fs.IntVar(&priority, "priority", 0, "Priority")
-			fs.StringVar(&run, "run", "", "Shell command")
-			fs.StringVar(&respond, "respond", "", "Response template")
-			fs.BoolVar(&exclusive, "exclusive", false, "Short-circuit match")
-			fs.BoolVar(&sequential, "sequential", false, "Run actions sequentially")
-			fs.StringVar(&rateLimit, "rate-limit", "", "Rate limit")
-			fs.StringVar(&debounce, "debounce", "", "Debounce duration")
+			fs.StringVarP(&name, "name", "n", "", "Name of the handler")
+			fs.StringVarP(&match, "match", "m", "", "Match pattern")
+			fs.StringVarP(&matchType, "match-type", "t", "", "Match type")
+			fs.IntVarP(&priority, "priority", "p", 0, "Priority")
+			fs.StringVarP(&run, "run", "r", "", "Shell command")
+			fs.StringVarP(&respond, "respond", "R", "", "Response template")
+			fs.BoolVarP(&exclusive, "exclusive", "e", false, "Short-circuit match")
+			fs.BoolVarP(&sequential, "sequential", "s", false, "Run actions sequentially")
+			fs.StringVarP(&rateLimit, "rate-limit", "l", "", "Rate limit")
+			fs.StringVarP(&debounce, "debounce", "d", "", "Debounce duration")
 
 			if err := fs.Parse(args[1:]); err != nil {
 				return fmt.Errorf("parsing flags: %w", err)
@@ -1429,13 +1429,7 @@ func (r *REPL) RegisterCommonCommands() {
 
 			// Auto-generate name if missing
 			if name == "" {
-				id, err := gonanoid.Generate("abcdefghijklmnopqrstuvwxyz0123456789", 6)
-				if err != nil {
-					// Fallback to timestamp if nanoid fails
-					name = fmt.Sprintf("h-%d", time.Now().Unix()%10000)
-				} else {
-					name = "h-" + id
-				}
+				name = namesgenerator.GetRandomName(0)
 			}
 
 			// Construct handler
