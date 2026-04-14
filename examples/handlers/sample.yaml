@@ -1,0 +1,63 @@
+# xwebs Handlers Example
+# This file demonstrates 5 different types of handlers using various matchers and actions.
+
+variables:
+  welcome_msg: "Welcome to the xwebs test server!"
+  log_path: "server_events.log"
+
+handlers:
+  # 1. Text Handler (Exact Match)
+  # Simple literal matching of the payload.
+  - name: ping-pong
+    match:
+      type: "text"
+      pattern: "ping"
+    respond: "pong"
+
+  # 2. Regex Handler (Pattern Matching)
+  # Matches any message starting with "hello" or "hi" (case-insensitive).
+  - name: greeter
+    match:
+      type: "regex"
+      pattern: "(?i)^(hello|hi)"
+    run: "echo 'Greeting received from {{.RemoteAddr}}'"
+    respond: "{{.Vars.welcome_msg}}"
+
+  # 3. JQ Handler (JSON Query)
+  # Matches if the JSON payload has a "type" field equal to "alert".
+  - name: alert-monitor
+    match:
+      type: "jq"
+      pattern: '.type == "alert" and .severity == "high"'
+    actions:
+      - action: "log"
+        target: "stderr"
+        message: "CRITICAL ALERT: {{.Message}}"
+      - action: "send"
+        message: '{"status": "acknowledged", "id": "{{.Msg.Data.id}}"}'
+
+  # 4. Template Handler (Dynamic Logic)
+  # Matches based on a Go template expression returning true.
+  - name: volume-detector
+    match:
+      type: "template"
+      pattern: '{{ gt (len .Message) 100 }}'
+    respond: "Your message is quite long ({{len .Message}} bytes). Thanks for the details!"
+
+  # 5. Lifecycle Handler (on_connect)
+  # Triggers when a client first connects.
+  - name: connection-logger
+    on_connect:
+      - action: "log"
+        target: "{{.Vars.log_path}}"
+        message: "[{{now}}] System: Client {{.ConnectionID}} connected from {{.RemoteAddr}}"
+    # No 'match' means it won't trigger on messages, only on the hook.
+
+  # 6. Another Text Handler (Exact Match)
+  # Simple literal matching of the payload.
+  - name: host-query
+    match:
+      type: "text"
+      pattern: "host"
+    run: "hostname"
+    respond: "Host name: {{.Stdout}}"

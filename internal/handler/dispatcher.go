@@ -218,6 +218,13 @@ func (d *Dispatcher) Execute(ctx context.Context, h *Handler, msg *ws.Message) e
 	atomic.AddInt32(&d._activeHandlers, 1)
 	defer atomic.AddInt32(&d._activeHandlers, -1)
 
+	// Measure execution time
+	start := time.Now()
+	var lastErr error
+	defer func() {
+		d.registry.RecordExecution(h.Name, time.Since(start), lastErr)
+	}()
+
 	// Handle concurrency control
 	if h.Concurrent != nil && !*h.Concurrent {
 		mu := d.registry.GetHandlerMu(h.Name)
@@ -245,7 +252,6 @@ func (d *Dispatcher) Execute(ctx context.Context, h *Handler, msg *ws.Message) e
 		maxAttempts = 1 + h.Retry.Count
 	}
 
-	var lastErr error
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		lastErr = d.executeMainActions(ctx, h, tmplCtx, msg)
 
@@ -293,6 +299,8 @@ func (d *Dispatcher) Execute(ctx context.Context, h *Handler, msg *ws.Message) e
 	if h.Respond != "" && (lastErr == nil || isConcise) {
 		action := Action{Type: "send", Message: h.Respond}
 		if err := d.ExecuteAction(ctx, &action, tmplCtx, msg); err != nil {
+			// We track respondent error as well
+			lastErr = err
 			return err
 		}
 	}

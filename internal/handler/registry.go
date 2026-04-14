@@ -18,6 +18,14 @@ import (
 	"golang.org/x/time/rate"
 )
 
+// HandlerStats tracks execution statistics for a handler.
+type HandlerStats struct {
+	MatchCount   uint64
+	TotalLatency time.Duration
+	ErrorCount   uint64
+	mu           sync.RWMutex
+}
+
 // Registry manages a collection of message handlers.
 type Registry struct {
 	handlers   []Handler
@@ -25,6 +33,8 @@ type Registry struct {
 	handlerMu  map[string]*sync.Mutex
 	limiters   map[string]*rate.Limiter
 	debouncers map[string]*debouncer
+	stats      map[string]*HandlerStats
+	disabled   map[string]bool
 	mu         sync.RWMutex
 }
 
@@ -42,6 +52,8 @@ func NewRegistry() *Registry {
 		handlerMu:  make(map[string]*sync.Mutex),
 		limiters:   make(map[string]*rate.Limiter),
 		debouncers: make(map[string]*debouncer),
+		stats:      make(map[string]*HandlerStats),
+		disabled:   make(map[string]bool),
 	}
 }
 
@@ -133,6 +145,8 @@ func (r *Registry) ReplaceHandlers(handlers []Handler) {
 	}
 	r.debouncers = make(map[string]*debouncer)
 	r.schemas = make(map[string]*gojsonschema.Schema)
+	r.stats = make(map[string]*HandlerStats)
+	r.disabled = make(map[string]bool)
 
 	r.handlers = handlers
 	r.sort()
@@ -183,14 +197,32 @@ func (r *Registry) sort() {
 func (r *Registry) Match(msg *ws.Message, engine *template.Engine, ctx *template.TemplateContext) ([]*Handler, error) {
 	var matches []*Handler
 
-	for i := range r.handlers {
-		h := &r.handlers[i]
+	r.mu.RLock()
+	handlers := r.handlers
+	disabled := make(map[string]bool)
+	for k, v := range r.disabled {
+		disabled[k] = v
+	}
+	r.mu.RUnlock()
+
+	for i := range handlers {
+		h := &handlers[i]
+
+		// Skip disabled handlers
+		if disabled[h.Name] {
+			continue
+		}
+
 		matched, err := r.matchHandler(h, msg, engine, ctx)
 		if err != nil {
 			return nil, fmt.Errorf("matching handler %q: %w", h.Name, err)
 		}
 		if matched {
 			matches = append(matches, h)
+
+			// Record match hit
+			r.RecordMatch(h.Name)
+
 			// Short-circuit: if the handler is exclusive, stop matching further handlers.
 			if h.Exclusive {
 				break
@@ -628,4 +660,121 @@ func (r *Registry) Debounce(name string, duration time.Duration, msg *ws.Message
 			execute(m)
 		}
 	})
+}
+
+// RecordMatch increments the match count for a handler.
+func (r *Registry) RecordMatch(name string) {
+	s := r.getOrCreateStats(name)
+	s.mu.Lock()
+	s.MatchCount++
+	s.mu.Unlock()
+}
+
+// RecordExecution records the duration and error status of a handler execution.
+func (r *Registry) RecordExecution(name string, duration time.Duration, err error) {
+	s := r.getOrCreateStats(name)
+	s.mu.Lock()
+	s.TotalLatency += duration
+	if err != nil {
+		s.ErrorCount++
+	}
+	s.mu.Unlock()
+}
+
+// getOrCreateStats returns the statistics for a handler, creating them if they don't exist.
+func (r *Registry) getOrCreateStats(name string) *HandlerStats {
+	r.mu.RLock()
+	s, ok := r.stats[name]
+	r.mu.RUnlock()
+
+	if ok {
+		return s
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Double check after acquiring write lock
+	if s, ok = r.stats[name]; ok {
+		return s
+	}
+
+	s = &HandlerStats{}
+	r.stats[name] = s
+	return s
+}
+
+// GetStats returns execution statistics for a handler.
+func (r *Registry) GetStats(name string) (uint64, time.Duration, uint64, bool) {
+	r.mu.RLock()
+	s, ok := r.stats[name]
+	if !ok {
+		// Check if handler exists at all
+		exists := false
+		for _, h := range r.handlers {
+			if h.Name == name {
+				exists = true
+				break
+			}
+		}
+		r.mu.RUnlock()
+		if exists {
+			return 0, 0, 0, true
+		}
+		return 0, 0, 0, false
+	}
+	r.mu.RUnlock()
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.MatchCount, s.TotalLatency, s.ErrorCount, true
+}
+
+// EnableHandler enables a handler at runtime.
+func (r *Registry) EnableHandler(name string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Check if handler exists
+	found := false
+	for _, h := range r.handlers {
+		if h.Name == name {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("handler %q not found", name)
+	}
+
+	delete(r.disabled, name)
+	return nil
+}
+
+// DisableHandler disables a handler at runtime.
+func (r *Registry) DisableHandler(name string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Check if handler exists
+	found := false
+	for _, h := range r.handlers {
+		if h.Name == name {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("handler %q not found", name)
+	}
+
+	r.disabled[name] = true
+	return nil
+}
+
+// IsDisabled returns true if the handler is currently disabled.
+func (r *Registry) IsDisabled(name string) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.disabled[name]
 }

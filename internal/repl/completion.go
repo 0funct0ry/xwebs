@@ -214,6 +214,16 @@ func (r *REPL) completeArguments(line string) ([][]rune, int) {
 				}
 			}
 		}
+	case "handler", "enable", "disable":
+		// Suggest handler names if in server mode
+		if r.serverCtx != nil {
+			handlers := r.serverCtx.GetHandlers()
+			for _, h := range handlers {
+				if strings.HasPrefix(strings.ToLower(h.Name), strings.ToLower(currentWord)) {
+					suggestions = append(suggestions, []rune(h.Name[len(currentWord):]))
+				}
+			}
+		}
 	}
 
 	if len(suggestions) == 0 || cmdName == "connect" {

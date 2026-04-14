@@ -324,6 +324,7 @@ func (r *REPL) IsStdoutTTY() bool {
 func (r *REPL) Printf(format string, args ...interface{}) {
 	if r.rl != nil && r.IsInteractive {
 		_, _ = r.rl.Write([]byte(fmt.Sprintf(format, args...)))
+		r.rl.Refresh()
 	} else if r.config != nil && r.config.Stdout != nil {
 		_, _ = fmt.Fprintf(r.config.Stdout, format, args...)
 	} else {
@@ -335,6 +336,7 @@ func (r *REPL) Printf(format string, args ...interface{}) {
 func (r *REPL) Errorf(format string, args ...interface{}) {
 	if r.rl != nil && r.IsInteractive {
 		_, _ = r.rl.Write([]byte(fmt.Sprintf(format, args...)))
+		r.rl.Refresh()
 	} else if r.config != nil && r.config.Stdout != nil {
 		_, _ = fmt.Fprintf(r.config.Stdout, format, args...)
 	} else {

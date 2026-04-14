@@ -457,7 +457,11 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `:send [flags] <id> <msg>` | Send message to specific client (`-j` JSON, `-t` Template, `-b` Binary) |
 | `:broadcast [flags] <msg>` | Send message to all connected clients (`-j`, `-t`, `-b`) |
 | `:kick <id> [c] [r]`| Disconnect a client with optional close code and reason |
-| `:handlers` | List all registered server-side handlers |
+| `:handlers` | List all registered server-side handlers with execution statistics (Matches, Latency, Errors) |
+| `:handler <name>` | Show detailed configuration, matcher details, and statistics for a specific handler |
+| `:reload` | Hot-reload the handler configuration file and variables from disk without restarting the server |
+| `:enable <name>` | Enable a previously disabled handler at runtime |
+| `:disable <name>`| Disable a handler at runtime to stop it from matching incoming messages |
 
 Example administrative session:
 ```text

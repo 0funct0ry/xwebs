@@ -13,6 +13,8 @@ import (
 	"github.com/0funct0ry/xwebs/internal/handler"
 	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/0funct0ry/xwebs/internal/ws"
+	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/spf13/pflag"
 )
 
@@ -28,6 +30,11 @@ type ServerContext interface {
 	GetStatus() string
 	GetTemplateEngine() *template.Engine
 	GetHandlers() []handler.Handler
+	EnableHandler(name string) error
+	DisableHandler(name string) error
+	ReloadHandlers() error
+	GetHandlerStats(name string) (uint64, time.Duration, uint64, bool)
+	IsHandlerDisabled(name string) bool
 }
 
 // RegisterServerCommands adds WebSocket server-specific commands to the REPL.
@@ -270,7 +277,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 
 	r.RegisterCommand(&BuiltinCommand{
 		name: "handlers",
-		help: "List server-side handlers",
+		help: "List server-side handlers and statistics",
 		handler: func(ctx context.Context, r *REPL, args []string) error {
 			handlers := sc.GetHandlers()
 			if len(handlers) == 0 {
@@ -278,21 +285,158 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				return nil
 			}
 
-			r.Printf("\nServer Handlers (%d):\n", len(handlers))
-			r.Printf("%-20s %-10s %-15s %s\n", "Name", "Type", "Pattern", "Respond")
-			r.Printf("%s\n", strings.Repeat("-", 60))
+			tw := table.NewWriter()
+			tw.SetOutputMirror(nil)
+			tw.AppendHeader(table.Row{"Name", "Matches", "Avg Latency", "Errors", "Status", "Pattern"})
+
 			for _, h := range handlers {
-				hType := "match"
-				if h.Match.Pattern == "*" {
-					hType = "all"
+				matches, totalLatency, errors, ok := sc.GetHandlerStats(h.Name)
+				avgLatencyStr := "-"
+				if ok && matches > 0 {
+					avgLatencyStr = (totalLatency / time.Duration(matches)).Round(time.Microsecond).String()
 				}
-				r.Printf("%-20s %-10s %-15s %s\n",
+				matchesStr := "-"
+				if ok {
+					matchesStr = fmt.Sprintf("%d", matches)
+				}
+				errorsStr := "-"
+				if ok {
+					errorsStr = fmt.Sprintf("%d", errors)
+				}
+
+				status := text.FgGreen.Sprint("enabled")
+				if sc.IsHandlerDisabled(h.Name) {
+					status = text.FgRed.Sprint("disabled")
+				}
+
+				tw.AppendRow(table.Row{
 					h.Name,
-					hType,
+					matchesStr,
+					avgLatencyStr,
+					errorsStr,
+					status,
 					h.Match.Pattern,
-					h.Respond,
-				)
+				})
 			}
+
+			tw.SetStyle(table.StyleColoredDark)
+			tw.Style().Options.SeparateRows = false
+			tw.Style().Options.SeparateColumns = true
+			tw.Style().Options.DrawBorder = true
+
+			r.Printf("\nServer Handlers (%d):\n%s\n", len(handlers), tw.Render())
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "handler",
+		help: "Show detailed information about a handler: :handler <name>",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if len(args) == 0 {
+				return fmt.Errorf("usage: :handler <name>")
+			}
+			name := args[0]
+			handlers := sc.GetHandlers()
+			var target *handler.Handler
+			for _, h := range handlers {
+				if h.Name == name {
+					target = &h
+					break
+				}
+			}
+			if target == nil {
+				return fmt.Errorf("handler %q not found", name)
+			}
+
+			r.Printf("\nHandler Details: %s\n", name)
+			r.Printf("  Priority:    %d\n", target.Priority)
+			r.Printf("  Exclusive:   %v\n", target.Exclusive)
+			r.Printf("  Status:      %s\n", map[bool]string{false: "enabled", true: "disabled"}[sc.IsHandlerDisabled(name)])
+			r.Printf("  Match:\n")
+			if target.Match.Pattern != "" {
+				r.Printf("    Pattern:   %s (%s)\n", target.Match.Pattern, target.Match.Type)
+			}
+			if target.Match.Regex != "" {
+				r.Printf("    Regex:     %s\n", target.Match.Regex)
+			}
+			if target.Match.JQ != "" {
+				r.Printf("    JQ:        %s\n", target.Match.JQ)
+			}
+
+			matches, totalLatency, errors, ok := sc.GetHandlerStats(name)
+			if ok {
+				avgLatency := time.Duration(0)
+				if matches > 0 {
+					avgLatency = totalLatency / time.Duration(matches)
+				}
+				r.Printf("  Statistics:\n")
+				r.Printf("    Matches:     %d\n", matches)
+				r.Printf("    Avg Latency: %v\n", avgLatency.Round(time.Microsecond))
+				r.Printf("    Errors:      %d\n", errors)
+			}
+
+			if target.Run != "" {
+				r.Printf("  Actions:\n")
+				r.Printf("    Run:       %s\n", target.Run)
+			}
+			if target.Respond != "" {
+				r.Printf("    Respond:   %s\n", target.Respond)
+			}
+			if len(target.Pipeline) > 0 {
+				r.Printf("  Pipeline:\n")
+				for i, step := range target.Pipeline {
+					if step.Run != "" {
+						r.Printf("    %d. Run:    %s\n", i+1, step.Run)
+					} else {
+						r.Printf("    %d. Builtin: %s\n", i+1, step.Builtin)
+					}
+				}
+			}
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "reload",
+		help: "Hot-reload handler configuration from disk",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if err := sc.ReloadHandlers(); err != nil {
+				return err
+			}
+			r.Printf("✓ Handlers reloaded successfully\n")
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "enable",
+		help: "Enable a disabled handler: :enable <name>",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if len(args) == 0 {
+				return fmt.Errorf("usage: :enable <name>")
+			}
+			name := args[0]
+			if err := sc.EnableHandler(name); err != nil {
+				return err
+			}
+			r.Printf("✓ Handler %q enabled\n", name)
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "disable",
+		help: "Disable a handler at runtime: :disable <name>",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if len(args) == 0 {
+				return fmt.Errorf("usage: :disable <name>")
+			}
+			name := args[0]
+			if err := sc.DisableHandler(name); err != nil {
+				return err
+			}
+			r.Printf("✓ Handler %q disabled\n", name)
 			return nil
 		},
 	})

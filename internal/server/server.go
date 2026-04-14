@@ -312,14 +312,12 @@ func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
 			s, // Server implements ServerStatProvider
 		)
 			
-			// Setup logging/error handlers for dispatcher if needed
-			if s.opts.Verbose {
-				dispatcher.Log = func(f string, a ...interface{}) {
-					s.logf("[handler] "+f, a...)
-				}
-				dispatcher.Error = func(f string, a ...interface{}) {
-					s.errorf("[handler-error] "+f, a...)
-				}
+			// Setup logging/error handlers for dispatcher
+			dispatcher.Log = func(f string, a ...interface{}) {
+				s.logf(f, a...)
+			}
+			dispatcher.Error = func(f string, a ...interface{}) {
+				s.errorf(f, a...)
 			}
 
 			dispatcher.Start(context.Background())
@@ -504,6 +502,33 @@ func (s *Server) GetTemplateEngine() *template.Engine {
 // GetHandlers returns the list of registered handlers.
 func (s *Server) GetHandlers() []handler.Handler {
 	return s.registry.Handlers()
+}
+
+// ReloadHandlers replaces all handlers in the registry.
+func (s *Server) ReloadHandlers(handlers []handler.Handler, variables map[string]interface{}) {
+	s.registry.ReplaceHandlers(handlers)
+	s.opts.Handlers = handlers
+	s.opts.Variables = variables
+}
+
+// EnableHandler enables a handler by name.
+func (s *Server) EnableHandler(name string) error {
+	return s.registry.EnableHandler(name)
+}
+
+// DisableHandler disables a handler by name.
+func (s *Server) DisableHandler(name string) error {
+	return s.registry.DisableHandler(name)
+}
+
+// GetHandlerStats returns statistics for a handler.
+func (s *Server) GetHandlerStats(name string) (uint64, time.Duration, uint64, bool) {
+	return s.registry.GetStats(name)
+}
+
+// IsHandlerDisabled returns true if the handler is disabled.
+func (s *Server) IsHandlerDisabled(name string) bool {
+	return s.registry.IsDisabled(name)
 }
 
 func (s *Server) logf(format string, a ...interface{}) {

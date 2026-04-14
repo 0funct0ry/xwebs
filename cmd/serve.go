@@ -50,6 +50,62 @@ func (c *serveContext) GetStatus() string                              { return 
 func (c *serveContext) GetTemplateEngine() *template.Engine            { return c.srv.GetTemplateEngine() }
 func (c *serveContext) GetHandlers() []handler.Handler                 { return c.srv.GetHandlers() }
 
+func (c *serveContext) EnableHandler(name string) error {
+	return c.srv.EnableHandler(name)
+}
+
+func (c *serveContext) DisableHandler(name string) error {
+	return c.srv.DisableHandler(name)
+}
+
+func (c *serveContext) GetHandlerStats(name string) (uint64, time.Duration, uint64, bool) {
+	return c.srv.GetHandlerStats(name)
+}
+
+func (c *serveContext) IsHandlerDisabled(name string) bool {
+	return c.srv.IsHandlerDisabled(name)
+}
+
+func (c *serveContext) ReloadHandlers() error {
+	var handlers []handler.Handler
+	var variables map[string]interface{}
+
+	if handlersFile != "" {
+		cfg, err := handler.LoadConfig(handlersFile)
+		if err != nil {
+			return fmt.Errorf("loading handlers: %w", err)
+		}
+		handlers = cfg.Handlers
+		variables = cfg.Variables
+	}
+
+	// Re-apply inline handlers from CLI flags (preserved from startup)
+	for i, hStr := range onHandlers {
+		h, err := handler.ParseInlineHandler(hStr, respondTemplate, i+1)
+		if err != nil {
+			return fmt.Errorf("invalid inline handler %d: %w", i+1, err)
+		}
+		handlers = append(handlers, h)
+	}
+
+	for i, hJSON := range onMatchHandlers {
+		var h handler.Handler
+		if err := json.Unmarshal([]byte(hJSON), &h); err != nil {
+			return fmt.Errorf("invalid inline JSON handler %d: %w", i+1, err)
+		}
+		if h.Name == "" {
+			h.Name = fmt.Sprintf("inline-json-%d", i+1)
+		}
+		if respondTemplate != "" && h.Respond == "" {
+			h.Respond = respondTemplate
+		}
+		handlers = append(handlers, h)
+	}
+
+	c.srv.ReloadHandlers(handlers, variables)
+	return nil
+}
+
 var serveCmd = &cobra.Command{
 	Use:     "serve",
 	Aliases: []string{"s", "srv"},
