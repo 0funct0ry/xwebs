@@ -214,7 +214,38 @@ func (r *REPL) completeArguments(line string) ([][]rune, int) {
 				}
 			}
 		}
-	case "handler", "enable", "disable":
+	case "handler":
+		if r.serverCtx != nil {
+			handlers := r.serverCtx.GetHandlers()
+			subCommands := []string{"add", "delete"}
+
+			// If we are on the first argument
+			if len(parts) == 1 || (len(parts) == 2 && !strings.HasSuffix(line, " ")) {
+				// Suggest sub-commands
+				for _, sc := range subCommands {
+					if strings.HasPrefix(strings.ToLower(sc), strings.ToLower(currentWord)) {
+						suggestions = append(suggestions, []rune(sc[len(currentWord):]))
+					}
+				}
+				// Also suggest handler names (for :handler <name>)
+				for _, h := range handlers {
+					if strings.HasPrefix(strings.ToLower(h.Name), strings.ToLower(currentWord)) {
+						suggestions = append(suggestions, []rune(h.Name[len(currentWord):]))
+					}
+				}
+			} else if len(parts) >= 2 && parts[1] == "delete" {
+				// We are on the second argument of :handler delete <name>
+				// but only if we are typing or just after a space
+				if len(parts) == 2 || (len(parts) == 3 && !strings.HasSuffix(line, " ")) {
+					for _, h := range handlers {
+						if strings.HasPrefix(strings.ToLower(h.Name), strings.ToLower(currentWord)) {
+							suggestions = append(suggestions, []rune(h.Name[len(currentWord):]))
+						}
+					}
+				}
+			}
+		}
+	case "enable", "disable":
 		// Suggest handler names if in server mode
 		if r.serverCtx != nil {
 			handlers := r.serverCtx.GetHandlers()

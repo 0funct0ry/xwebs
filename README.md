@@ -458,7 +458,7 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `:broadcast [flags] <msg>` | Send message to all connected clients (`-j`, `-t`, `-b`) |
 | `:kick <id> [c] [r]`| Disconnect a client with optional close code and reason |
 | `:handlers` | List all registered server-side handlers with execution statistics (Matches, Latency, Errors) |
-| `:handler (add\|<name>)` | Manage handlers: `add <flags>` or show details for `<name>` |
+| `:handler (add\|delete\|<name>)` | Manage handlers: `add <flags>`, `delete <name>`, or show details for `<name>` |
 | `:reload` | Hot-reload the handler configuration file and variables from disk without restarting the server |
 | `:enable <name>` | Enable a previously disabled handler at runtime |
 | `:disable <name>`| Disable a handler at runtime to stop it from matching incoming messages |

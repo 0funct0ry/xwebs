@@ -37,6 +37,7 @@ type ServerContext interface {
 	GetHandlerStats(name string) (uint64, time.Duration, uint64, bool)
 	IsHandlerDisabled(name string) bool
 	AddHandler(h handler.Handler) error
+	DeleteHandler(name string) error
 }
 
 // RegisterServerCommands adds WebSocket server-specific commands to the REPL.
@@ -333,11 +334,12 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 
 	r.RegisterCommand(&BuiltinCommand{
 		name: "handler",
-		help: "Manage and show handlers: :handler (add <flags> | <name>)",
+		help: "Manage and show handlers: :handler (add <flags> | delete <name> | <name>)",
 		handler: func(ctx context.Context, r *REPL, args []string) error {
 			if len(args) == 0 {
 				r.Printf("Usage:\n")
 				r.Printf("  :handler add <flags>  Add a new handler\n")
+				r.Printf("  :handler delete <name> Remove an existing handler\n")
 				r.Printf("  :handler <name>       Show detailed information about a handler\n")
 				r.Printf("\nFlags for 'add':\n")
 				r.Printf("  -n, --name <name>         Unique handler name (auto-generated if missing)\n")
@@ -409,6 +411,18 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				}
 
 				r.Printf("Handler %q added successfully.\n", name)
+				return nil
+			}
+
+			if args[0] == "delete" {
+				if len(args) < 2 {
+					return fmt.Errorf("usage: :handler delete <name>")
+				}
+				name := args[1]
+				if err := sc.DeleteHandler(name); err != nil {
+					return err
+				}
+				r.Printf("✓ Handler %q deleted successfully\n", name)
 				return nil
 			}
 

@@ -504,6 +504,11 @@ func (s *Server) AddHandler(h handler.Handler) error {
 	return s.registry.Add(h)
 }
 
+// DeleteHandler removes a message handler from the server at runtime.
+func (s *Server) DeleteHandler(name string) error {
+	return s.registry.Delete(name)
+}
+
 // GetHandlers returns all currently registered handlers.
 func (s *Server) GetHandlers() []handler.Handler {
 	return s.registry.Handlers()
