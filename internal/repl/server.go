@@ -17,6 +17,7 @@ import (
 	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/docker/docker/pkg/namesgenerator"
 	"github.com/spf13/pflag"
+	"gopkg.in/yaml.v3"
 )
 
 // ServerContext provides access to the server state and administration for server-mode commands.
@@ -37,7 +38,10 @@ type ServerContext interface {
 	GetHandlerStats(name string) (uint64, time.Duration, uint64, bool)
 	IsHandlerDisabled(name string) bool
 	AddHandler(h handler.Handler) error
+	UpdateHandler(h handler.Handler) error
 	DeleteHandler(name string) error
+	RenameHandler(oldName, newName string) error
+	ApplyHandlers(handlers []handler.Handler, variables map[string]interface{}) error
 }
 
 // RegisterServerCommands adds WebSocket server-specific commands to the REPL.
@@ -340,6 +344,8 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("Usage:\n")
 				r.Printf("  :handler add <flags>  Add a new handler\n")
 				r.Printf("  :handler delete <name> Remove an existing handler\n")
+				r.Printf("  :handler rename <old> <new> Rename a handler\n")
+				r.Printf("  :handler edit [name]  Edit a handler or full configuration\n")
 				r.Printf("  :handler <name>       Show detailed information about a handler\n")
 				r.Printf("\nFlags for 'add':\n")
 				r.Printf("  -n, --name <name>         Unique handler name (auto-generated if missing)\n")
@@ -424,6 +430,114 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				}
 				r.Printf("✓ Handler %q deleted successfully\n", name)
 				return nil
+			}
+
+			if args[0] == "rename" {
+				if len(args) < 3 {
+					return fmt.Errorf("usage: :handler rename <old-name> <new-name>")
+				}
+				oldName := args[1]
+				newName := args[2]
+
+				if err := sc.RenameHandler(oldName, newName); err != nil {
+					return err
+				}
+				r.Printf("✓ Handler %q renamed to %q\n", oldName, newName)
+				return nil
+			}
+
+			if args[0] == "edit" {
+				if len(args) > 1 {
+					// Edit specific handler
+					name := args[1]
+					handlers := sc.GetHandlers()
+					var target *handler.Handler
+					for _, h := range handlers {
+						if h.Name == name {
+							target = &h
+							break
+						}
+					}
+					if target == nil {
+						return fmt.Errorf("handler %q not found", name)
+					}
+
+					data, err := yaml.Marshal(target)
+					if err != nil {
+						return fmt.Errorf("marshaling handler: %w", err)
+					}
+
+					edited, err := r.openInEditor(ctx, string(data))
+					if err != nil {
+						return err
+					}
+
+					// Check if any changes were made
+					if strings.TrimSpace(edited) == "" || strings.TrimSpace(edited) == strings.TrimSpace(string(data)) {
+						r.Printf("No changes made.\n")
+						return nil
+					}
+
+					var updatedh handler.Handler
+					if err := yaml.Unmarshal([]byte(edited), &updatedh); err != nil {
+						return fmt.Errorf("unmarshaling edited handler: %w", err)
+					}
+
+					// Validate
+					cfg := handler.Config{Handlers: []handler.Handler{updatedh}}
+					if err := cfg.Validate(); err != nil {
+						return fmt.Errorf("validation failed: %w", err)
+					}
+
+					if err := sc.UpdateHandler(updatedh); err != nil {
+						return err
+					}
+					r.Printf("✓ Handler %q updated successfully\n", updatedh.Name)
+					return nil
+				} else {
+					// Edit full current configuration
+					handlers := sc.GetHandlers()
+					// We don't have a direct way to get top-level 'Variables' from sc yet if they were loaded from file,
+					// but ReloadHandlers re-applies them. For now, we'll edit handlers.
+					// If we want parity with client REPL, we should probably add GetVariables to sc.
+					cfg := handler.Config{
+						Handlers: handlers,
+						// Variables: sc.GetVariables(), // TODO: add if needed
+					}
+
+					data, err := yaml.Marshal(cfg)
+					if err != nil {
+						return fmt.Errorf("marshaling configuration: %w", err)
+					}
+
+					edited, err := r.openInEditor(ctx, string(data))
+					if err != nil {
+						return err
+					}
+
+					// Check if any changes were made
+					if strings.TrimSpace(edited) == "" || strings.TrimSpace(edited) == strings.TrimSpace(string(data)) {
+						r.Printf("No changes made.\n")
+						return nil
+					}
+
+					var newCfg handler.Config
+					if err := yaml.Unmarshal([]byte(edited), &newCfg); err != nil {
+						return fmt.Errorf("unmarshaling edited configuration: %w", err)
+					}
+
+					if err := newCfg.Validate(); err != nil {
+						return fmt.Errorf("validation failed: %w", err)
+					}
+
+					// Apply changes
+					if err := sc.ApplyHandlers(newCfg.Handlers, newCfg.Variables); err != nil {
+						return err
+					}
+
+					r.Printf("✓ Handler configuration applied successfully\n")
+					return nil
+				}
 			}
 
 			name := args[0]

@@ -217,7 +217,7 @@ func (r *REPL) completeArguments(line string) ([][]rune, int) {
 	case "handler":
 		if r.serverCtx != nil {
 			handlers := r.serverCtx.GetHandlers()
-			subCommands := []string{"add", "delete"}
+			subCommands := []string{"add", "delete", "edit", "rename"}
 
 			// If we are on the first argument
 			if len(parts) == 1 || (len(parts) == 2 && !strings.HasSuffix(line, " ")) {
@@ -233,13 +233,40 @@ func (r *REPL) completeArguments(line string) ([][]rune, int) {
 						suggestions = append(suggestions, []rune(h.Name[len(currentWord):]))
 					}
 				}
-			} else if len(parts) >= 2 && parts[1] == "delete" {
-				// We are on the second argument of :handler delete <name>
+			} else if len(parts) >= 2 && (parts[1] == "delete" || parts[1] == "edit" || parts[1] == "rename") {
+				// We are on the second argument of :handler delete <name>, :handler edit <name>, or :handler rename <old-name>
 				// but only if we are typing or just after a space
 				if len(parts) == 2 || (len(parts) == 3 && !strings.HasSuffix(line, " ")) {
 					for _, h := range handlers {
 						if strings.HasPrefix(strings.ToLower(h.Name), strings.ToLower(currentWord)) {
 							suggestions = append(suggestions, []rune(h.Name[len(currentWord):]))
+						}
+					}
+				}
+			}
+		} else {
+			// Client mode completion for :handler
+			subCommands := []string{"add", "delete", "edit", "save"}
+			if len(parts) == 1 || (len(parts) == 2 && !strings.HasSuffix(line, " ")) {
+				for _, sc := range subCommands {
+					if strings.HasPrefix(strings.ToLower(sc), strings.ToLower(currentWord)) {
+						suggestions = append(suggestions, []rune(sc[len(currentWord):]))
+					}
+				}
+				if r.Handlers != nil {
+					for _, h := range r.Handlers.Handlers() {
+						if strings.HasPrefix(strings.ToLower(h.Name), strings.ToLower(currentWord)) {
+							suggestions = append(suggestions, []rune(h.Name[len(currentWord):]))
+						}
+					}
+				}
+			} else if len(parts) >= 2 && (parts[1] == "delete" || parts[1] == "edit") {
+				if r.Handlers != nil {
+					if len(parts) == 2 || (len(parts) == 3 && !strings.HasSuffix(line, " ")) {
+						for _, h := range r.Handlers.Handlers() {
+							if strings.HasPrefix(strings.ToLower(h.Name), strings.ToLower(currentWord)) {
+								suggestions = append(suggestions, []rune(h.Name[len(currentWord):]))
+							}
 						}
 					}
 				}

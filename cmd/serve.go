@@ -50,7 +50,13 @@ func (c *serveContext) GetStatus() string                              { return 
 func (c *serveContext) GetTemplateEngine() *template.Engine            { return c.srv.GetTemplateEngine() }
 func (c *serveContext) GetHandlers() []handler.Handler                 { return c.srv.GetHandlers() }
 func (c *serveContext) AddHandler(h handler.Handler) error            { return c.srv.AddHandler(h) }
-func (c *serveContext) DeleteHandler(name string) error          { return c.srv.DeleteHandler(name) }
+func (c *serveContext) UpdateHandler(h handler.Handler) error         { return c.srv.UpdateHandler(h) }
+func (c *serveContext) DeleteHandler(name string) error               { return c.srv.DeleteHandler(name) }
+func (c *serveContext) RenameHandler(oldName, newName string) error   { return c.srv.RenameHandler(oldName, newName) }
+func (c *serveContext) ApplyHandlers(handlers []handler.Handler, variables map[string]interface{}) error {
+	c.srv.ReloadHandlers(handlers, variables)
+	return nil
+}
 
 func (c *serveContext) EnableHandler(name string) error {
 	return c.srv.EnableHandler(name)

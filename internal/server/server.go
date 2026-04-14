@@ -504,9 +504,19 @@ func (s *Server) AddHandler(h handler.Handler) error {
 	return s.registry.Add(h)
 }
 
+// UpdateHandler replaces an existing message handler at runtime.
+func (s *Server) UpdateHandler(h handler.Handler) error {
+	return s.registry.UpdateHandler(h)
+}
+
 // DeleteHandler removes a message handler from the server at runtime.
 func (s *Server) DeleteHandler(name string) error {
 	return s.registry.Delete(name)
+}
+
+// RenameHandler renames a message handler at runtime.
+func (s *Server) RenameHandler(oldName, newName string) error {
+	return s.registry.RenameHandler(oldName, newName)
 }
 
 // GetHandlers returns all currently registered handlers.

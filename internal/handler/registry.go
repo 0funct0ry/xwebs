@@ -186,6 +186,57 @@ func (r *Registry) Delete(name string) error {
 	return nil
 }
 
+// RenameHandler renames an existing handler and migrates its associated resources.
+func (r *Registry) RenameHandler(oldName, newName string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if oldName == newName {
+		return nil
+	}
+
+	index := -1
+	for i, h := range r.handlers {
+		if h.Name == oldName {
+			index = i
+		}
+		if h.Name == newName {
+			return fmt.Errorf("handler %q already exists", newName)
+		}
+	}
+
+	if index == -1 {
+		return fmt.Errorf("handler %q not found", oldName)
+	}
+
+	// Update name in slices
+	r.handlers[index].Name = newName
+
+	// Migrate resources
+	if mu, ok := r.handlerMu[oldName]; ok {
+		r.handlerMu[newName] = mu
+		delete(r.handlerMu, oldName)
+	}
+	if lim, ok := r.limiters[oldName]; ok {
+		r.limiters[newName] = lim
+		delete(r.limiters, oldName)
+	}
+	if deb, ok := r.debouncers[oldName]; ok {
+		r.debouncers[newName] = deb
+		delete(r.debouncers, oldName)
+	}
+	if stats, ok := r.stats[oldName]; ok {
+		r.stats[newName] = stats
+		delete(r.stats, oldName)
+	}
+	if dis, ok := r.disabled[oldName]; ok {
+		r.disabled[newName] = dis
+		delete(r.disabled, oldName)
+	}
+
+	return nil
+}
+
 // Sort orders handlers by priority (descending) and then original order.
 func (r *Registry) sort() {
 	sort.SliceStable(r.handlers, func(i, j int) bool {
