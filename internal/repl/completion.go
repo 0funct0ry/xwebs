@@ -217,7 +217,7 @@ func (r *REPL) completeArguments(line string) ([][]rune, int) {
 	case "handler":
 		if r.serverCtx != nil {
 			handlers := r.serverCtx.GetHandlers()
-			subCommands := []string{"add", "delete", "edit", "rename"}
+			subCommands := []string{"add", "delete", "edit", "rename", "save"}
 
 			// If we are on the first argument
 			if len(parts) == 1 || (len(parts) == 2 && !strings.HasSuffix(line, " ")) {

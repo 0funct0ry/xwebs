@@ -524,6 +524,11 @@ func (s *Server) GetHandlers() []handler.Handler {
 	return s.registry.Handlers()
 }
 
+// GetVariables returns the current global variables used by handlers.
+func (s *Server) GetVariables() map[string]interface{} {
+	return s.opts.Variables
+}
+
 // ReloadHandlers replaces all handlers in the registry.
 func (s *Server) ReloadHandlers(handlers []handler.Handler, variables map[string]interface{}) {
 	s.registry.ReplaceHandlers(handlers)

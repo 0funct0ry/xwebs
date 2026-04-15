@@ -49,6 +49,8 @@ func (c *serveContext) Kick(id string, code int, reason string) error  { return 
 func (c *serveContext) GetStatus() string                              { return c.srv.GetStatus() }
 func (c *serveContext) GetTemplateEngine() *template.Engine            { return c.srv.GetTemplateEngine() }
 func (c *serveContext) GetHandlers() []handler.Handler                 { return c.srv.GetHandlers() }
+func (c *serveContext) GetVariables() map[string]interface{}           { return c.srv.GetVariables() }
+func (c *serveContext) GetHandlersFile() string                        { return handlersFile }
 func (c *serveContext) AddHandler(h handler.Handler) error            { return c.srv.AddHandler(h) }
 func (c *serveContext) UpdateHandler(h handler.Handler) error         { return c.srv.UpdateHandler(h) }
 func (c *serveContext) DeleteHandler(name string) error               { return c.srv.DeleteHandler(name) }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -14,10 +15,11 @@ import (
 )
 
 type mockServerContext struct {
-	handlers []handler.Handler
-	updated  handler.Handler
-	applied  []handler.Handler
-	vars     map[string]interface{}
+	handlers     []handler.Handler
+	updated      handler.Handler
+	applied      []handler.Handler
+	vars         map[string]interface{}
+	handlersFile string
 }
 
 func (m *mockServerContext) GetClientCount() int                            { return 0 }
@@ -30,6 +32,8 @@ func (m *mockServerContext) Kick(id string, code int, reason string) error  { re
 func (m *mockServerContext) GetStatus() string                              { return "running" }
 func (m *mockServerContext) GetTemplateEngine() *template.Engine            { return nil }
 func (m *mockServerContext) GetHandlers() []handler.Handler                 { return m.handlers }
+func (m *mockServerContext) GetVariables() map[string]interface{}           { return m.vars }
+func (m *mockServerContext) GetHandlersFile() string                        { return m.handlersFile }
 func (m *mockServerContext) EnableHandler(name string) error                { return nil }
 func (m *mockServerContext) DisableHandler(name string) error               { return nil }
 func (m *mockServerContext) ReloadHandlers() error                          { return nil }
@@ -121,6 +125,117 @@ func TestHandlerEdit(t *testing.T) {
 		}
 		if !found {
 			t.Errorf("Handler was not renamed to 'new-echo'")
+		}
+	})
+
+	t.Run("save handlers to file", func(t *testing.T) {
+		outFile := filepath.Join(t.TempDir(), "handlers.yaml")
+		err := r.ExecuteCommand(context.Background(), ":handler save "+outFile)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+
+		raw, readErr := os.ReadFile(outFile)
+		if readErr != nil {
+			t.Fatalf("failed reading saved file: %v", readErr)
+		}
+		content := string(raw)
+		if !strings.Contains(content, "handlers:") {
+			t.Fatalf("expected handlers yaml content, got: %s", content)
+		}
+		if !strings.Contains(content, "name: new-echo") {
+			t.Fatalf("expected renamed handler in saved file, got: %s", content)
+		}
+	})
+
+	t.Run("save refuses overwrite without force", func(t *testing.T) {
+		outFile := filepath.Join(t.TempDir(), "handlers.yaml")
+		if err := os.WriteFile(outFile, []byte("existing: true\n"), 0644); err != nil {
+			t.Fatalf("failed to seed existing file: %v", err)
+		}
+
+		err := r.ExecuteCommand(context.Background(), ":handler save "+outFile)
+		if err == nil {
+			t.Fatalf("Expected overwrite error")
+		}
+		if !strings.Contains(err.Error(), "already exists") {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+	})
+
+	t.Run("save overwrites with force", func(t *testing.T) {
+		outFile := filepath.Join(t.TempDir(), "handlers.yaml")
+		if err := os.WriteFile(outFile, []byte("existing: true\n"), 0644); err != nil {
+			t.Fatalf("failed to seed existing file: %v", err)
+		}
+
+		err := r.ExecuteCommand(context.Background(), ":handler save "+outFile+" --force")
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+
+		raw, readErr := os.ReadFile(outFile)
+		if readErr != nil {
+			t.Fatalf("failed reading saved file: %v", readErr)
+		}
+		content := string(raw)
+		if strings.Contains(content, "existing: true") {
+			t.Fatalf("expected file overwrite with handler yaml, got: %s", content)
+		}
+		if !strings.Contains(content, "handlers:") {
+			t.Fatalf("expected handlers yaml content, got: %s", content)
+		}
+	})
+
+	t.Run("save without filename uses --handlers path", func(t *testing.T) {
+		outFile := filepath.Join(t.TempDir(), "handlers.yaml")
+		msc.handlersFile = outFile
+
+		err := r.ExecuteCommand(context.Background(), ":handler save")
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+
+		raw, readErr := os.ReadFile(outFile)
+		if readErr != nil {
+			t.Fatalf("failed reading saved file: %v", readErr)
+		}
+		content := string(raw)
+		if !strings.Contains(content, "handlers:") {
+			t.Fatalf("expected handlers yaml content, got: %s", content)
+		}
+	})
+
+	t.Run("save without filename fails when --handlers is missing", func(t *testing.T) {
+		msc.handlersFile = ""
+		err := r.ExecuteCommand(context.Background(), ":handler save")
+		if err == nil {
+			t.Fatalf("Expected usage error when --handlers is unavailable")
+		}
+		if !strings.Contains(err.Error(), "start with --handlers") {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+	})
+
+	t.Run("save without filename supports force overwrite", func(t *testing.T) {
+		outFile := filepath.Join(t.TempDir(), "handlers.yaml")
+		msc.handlersFile = outFile
+		if err := os.WriteFile(outFile, []byte("existing: true\n"), 0644); err != nil {
+			t.Fatalf("failed to seed existing file: %v", err)
+		}
+
+		err := r.ExecuteCommand(context.Background(), ":handler save --force")
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+
+		raw, readErr := os.ReadFile(outFile)
+		if readErr != nil {
+			t.Fatalf("failed reading saved file: %v", readErr)
+		}
+		content := string(raw)
+		if strings.Contains(content, "existing: true") {
+			t.Fatalf("expected file overwrite with handler yaml, got: %s", content)
 		}
 	})
 }

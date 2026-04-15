@@ -458,7 +458,7 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `:broadcast [flags] <msg>` | Send message to all connected clients (`-j`, `-t`, `-b`) |
 | `:kick <id> [c] [r]`| Disconnect a client with optional close code and reason |
 | `:handlers` | List all registered server-side handlers with execution statistics (Matches, Latency, Errors) |
-| :handler (add\|delete\|edit\|rename\|<name>) | Manage handlers: `add <flags>`, `delete <name>`, `edit [name]`, `rename <old> <new>`, or show details for `<name>` |
+| :handler (add\|delete\|edit\|rename\|save\|<name>) | Manage handlers: `add <flags>`, `delete <name>`, `edit [name]`, `rename <old> <new>`, `save [file] [--force\|-f]` (uses `--handlers` file if omitted), or show details for `<name>` |
 | `:reload` | Hot-reload the handler configuration file and variables from disk without restarting the server |
 | `:enable <name>` | Enable a previously disabled handler at runtime |
 | `:disable <name>`| Disable a handler at runtime to stop it from matching incoming messages |
@@ -551,7 +551,7 @@ Client Information: conn-12345678
   - **Delete**: `:handler delete <name>`
   - **Rename**: `:handler rename <old-name> <new-name>`
   - **Edit**: `:handler edit [name]` — Opens the handler (or entire config if no name provided) in your `$EDITOR`.
-  - **Save**: `:handler save <filename> [--force|-f]` — Persists all in-memory handlers and session variables to a YAML file.
+  - **Save**: `:handler save [filename] [--force|-f]` — Persists all in-memory handlers and session variables to a YAML file. If `filename` is omitted, xwebs uses the path from `--handlers`; when that target already exists, REPL asks for overwrite confirmation unless forced.
   ```text
   > :handler add -m ping -R pong
   Handler "boring_wozniak" added successfully.

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -32,6 +33,8 @@ type ServerContext interface {
 	GetStatus() string
 	GetTemplateEngine() *template.Engine
 	GetHandlers() []handler.Handler
+	GetVariables() map[string]interface{}
+	GetHandlersFile() string
 	EnableHandler(name string) error
 	DisableHandler(name string) error
 	ReloadHandlers() error
@@ -346,6 +349,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("  :handler delete <name> Remove an existing handler\n")
 				r.Printf("  :handler rename <old> <new> Rename a handler\n")
 				r.Printf("  :handler edit [name]  Edit a handler or full configuration\n")
+				r.Printf("  :handler save [file] [--force|-f] Save handlers to YAML file\n")
 				r.Printf("  :handler <name>       Show detailed information about a handler\n")
 				r.Printf("\nFlags for 'add':\n")
 				r.Printf("  -n, --name <name>         Unique handler name (auto-generated if missing)\n")
@@ -538,6 +542,60 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					r.Printf("✓ Handler configuration applied successfully\n")
 					return nil
 				}
+			}
+
+			if args[0] == "save" {
+				var filename string
+				saveArgs := args[1:]
+				if len(saveArgs) > 0 && !strings.HasPrefix(saveArgs[0], "-") {
+					filename = saveArgs[0]
+					saveArgs = saveArgs[1:]
+				}
+				usedDefaultHandlersFile := false
+				if filename == "" {
+					filename = sc.GetHandlersFile()
+					if filename == "" {
+						return fmt.Errorf("usage: :handler save [filename] [--force|-f] (or start with --handlers)")
+					}
+					usedDefaultHandlersFile = true
+				}
+
+				var force bool
+				fs := pflag.NewFlagSet("handler save", pflag.ContinueOnError)
+				fs.SetOutput(nil)
+				fs.BoolVarP(&force, "force", "f", false, "Overwrite existing file")
+				if err := fs.Parse(saveArgs); err != nil {
+					return fmt.Errorf("parsing flags: %w", err)
+				}
+
+				if _, err := os.Stat(filename); err == nil && !force {
+					if !usedDefaultHandlersFile {
+						return fmt.Errorf("file %q already exists (use --force or -f to overwrite)", filename)
+					}
+					r.Printf("File %q already exists. Overwrite? (y/N): ", filename)
+					var answer string
+					_, _ = fmt.Scanln(&answer)
+					answer = strings.TrimSpace(strings.ToLower(answer))
+					if answer != "y" && answer != "yes" {
+						r.Printf("Save cancelled.\n")
+						return nil
+					}
+				}
+
+				cfg := handler.Config{
+					Variables: sc.GetVariables(),
+					Handlers:  sc.GetHandlers(),
+				}
+				data, err := yaml.Marshal(cfg)
+				if err != nil {
+					return fmt.Errorf("marshaling handlers: %w", err)
+				}
+				if err := os.WriteFile(filename, data, 0644); err != nil {
+					return fmt.Errorf("writing to file: %w", err)
+				}
+
+				r.Printf("Saved %d handlers to %q.\n", len(cfg.Handlers), filename)
+				return nil
 			}
 
 			name := args[0]
