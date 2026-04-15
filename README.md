@@ -43,11 +43,12 @@ Every WebSocket tool does one thing: connect and send messages. That's the equiv
 - **Real-time Syntax Highlighting** — Visual feedback for JSON and Go template expressions as typed in the REPL
 - **Shell Direct Execution** — Run arbitrary shell commands with `:! <command>` directly from the REPL, supporting both captured output and interactive modes
 - **Server Mode** — WebSocket server with multiple paths, handler support, graceful shutdown, and an interactive admin console for managing server state, connections, and handlers directly from the terminal.
-- **Server Administration REPL** — Interactive admin console for managing server state, connections, and handlers directly from the terminal.
+- **Server Administration REPL** — Interactive admin console for managing server state, connections, handlers, and pub-sub topics directly from the terminal.
+- **Pub-Sub Topics** — Internal pub-sub bus: clients subscribe to named topics via handler-dispatched builtins; operators publish and inspect subscriptions from the REPL with `:topics`, `:topic`, `:publish`, `:subscribe`, and `:unsubscribe`.
 
 ### On the Roadmap (Planned)
 - **Web UI** — React-based dashboard for visual server monitoring and management (embedded via `go:embed`) (Planned)
-- **Relay & Broadcast** — MITM proxy and pub/sub fan-out modes (Planned)
+- **Relay & Broadcast** — MITM proxy and fan-out relay modes (Planned)
 
 ## Installation
 
@@ -458,10 +459,109 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `:broadcast [flags] <msg>` | Send message to all connected clients (`-j`, `-t`, `-b`) |
 | `:kick <id> [c] [r]`| Disconnect a client with optional close code and reason |
 | `:handlers` | List all registered server-side handlers with execution statistics (Matches, Latency, Errors) |
-| :handler (add\|delete\|edit\|rename\|save\|<name>) | Manage handlers: `add <flags>`, `delete <name>`, `edit [name]`, `rename <old> <new>`, `save [file] [--force\|-f]` (uses `--handlers` file if omitted), or show details for `<name>` |
+| `:handler (add\|delete\|edit\|rename\|save\|<name>)` | Manage handlers: `add <flags>` (see flags below), `delete <name>`, `edit [name]`, `rename <old> <new>`, `save [file] [--force\|-f]`, or show details for `<name>` |
 | `:reload` | Hot-reload the handler configuration file and variables from disk without restarting the server |
 | `:enable <name>` | Enable a previously disabled handler at runtime |
 | `:disable <name>`| Disable a handler at runtime to stop it from matching incoming messages |
+
+**`:handler add` flags:**
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--name <name>` | `-n` | Unique handler name (auto-generated if omitted) |
+| `--match <pattern>` | `-m` | **(required)** Match pattern |
+| `--match-type <type>` | `-t` | Match type: `glob`, `regex`, `jq`, `text`, etc. |
+| `--priority <n>` | `-p` | Execution priority (higher runs first) |
+| `--run <cmd>` | `-r` | Shell command to execute on match |
+| `--respond <tmpl>` | `-R` | Response template sent back to the client |
+| `--builtin <name>` | `-B` | Builtin action: `subscribe`, `unsubscribe`, or `publish` |
+| `--topic <template>` | | Topic name template for builtin actions (required when `--builtin` is set) |
+| `--exclusive` | `-e` | Stop further handler matching after this one fires |
+| `--sequential` | `-s` | Run handler actions sequentially (default: concurrent) |
+| `--rate-limit <limit>` | `-l` | Per-handler rate limit (e.g. `10/s`) |
+| `--debounce <duration>` | `-d` | Debounce window (e.g. `500ms`) |
+
+Example — add pub-sub handlers directly from the REPL:
+
+```text
+xwebs> :handler add -n handle-subscribe -m 'sub:*' -B subscribe --topic '{{.Message | trimPrefix "sub:"}}' -R 'subscribed:{{.Message | trimPrefix "sub:"}}'
+xwebs> :handler add -n handle-unsubscribe -m 'unsub:*' -B unsubscribe --topic '{{.Message | trimPrefix "unsub:"}}' -R 'unsubscribed:{{.Message | trimPrefix "unsub:"}}'
+xwebs> :handler add -n echo -m '*' -R 'echo:{{.Message}}'
+```
+
+**Topic / Pub-Sub Commands:**
+
+| Command | Description |
+|---------|-------------|
+| `:topics` | List all active topics with subscriber counts and last-activity time |
+| `:topic <name>` | Show per-subscriber detail: connection ID, remote address, time subscribed, messages sent |
+| `:publish [-t] [--allow-empty] <topic> <msg>` | Fan-out a message to all subscribers. `-t` expands the message as a Go template first. `--allow-empty` sends even when no subscribers are present |
+| `:subscribe <client-id> <topic>` | Manually subscribe a connected client to a topic from the REPL (creates topic if needed) |
+| `:unsubscribe <client-id> <topic>` | Remove a client from a specific topic without disconnecting them |
+| `:unsubscribe <client-id> --all` | Remove a client from every topic it is currently subscribed to |
+
+Topics are created automatically when the first client subscribes and removed when the last subscriber leaves.  All topic commands support tab completion for both topic names and client IDs from live server state.
+
+**Handler builtins for pub-sub:**
+
+Clients subscribe to topics by sending messages that match a handler with `builtin: subscribe`.  The `topic:` field is a Go template that resolves the topic name from the message:
+
+```yaml
+handlers:
+  # Prefix-style: client sends "sub:trades"
+  - name: handle-subscribe
+    match: 'sub:*'
+    builtin: subscribe
+    topic: '{{.Message | trimPrefix "sub:"}}'
+    respond: 'subscribed:{{.Message | trimPrefix "sub:"}}'
+
+  - name: handle-unsubscribe
+    match: 'unsub:*'
+    builtin: unsubscribe
+    topic: '{{.Message | trimPrefix "unsub:"}}'
+    respond: 'unsubscribed:{{.Message | trimPrefix "unsub:"}}'
+
+  # JSON-style: client sends {"type":"subscribe","channel":"trades"}
+  - name: handle-subscribe-json
+    match:
+      jq: '.type == "subscribe"'
+    builtin: subscribe
+    topic: '{{.Message | jq ".channel"}}'
+    respond: '{"subscribed":"{{.Message | jq ".channel"}}"}'
+```
+
+Topic pub-sub example session:
+
+```text
+xwebs> :topics
+TOPIC    SUBSCRIBERS  LAST ACTIVE
+trades   2            5s ago
+news     1            30s ago
+
+2 topics, 3 total subscriptions
+
+xwebs> :topic trades
+Topic: trades
+Subscribers: 2
+  ID        REMOTE ADDR         SUBSCRIBED  MESSAGES SENT
+  c-a1b2c3  192.168.1.10:51234  2m ago      44
+  c-d4e5f6  10.0.0.5:60812      45s ago     12
+
+xwebs> :publish trades {"symbol":"BTC","price":62000}
+✓ Published to "trades" → 2 clients
+
+xwebs> :publish -t trades {"symbol":"ETH","ts":"{{now | formatTime "RFC3339"}}"}
+✓ Published to "trades" → 2 clients
+
+xwebs> :subscribe c-d4e5f6 news
+✓ c-d4e5f6 (10.0.0.5:60812) subscribed to "news"
+
+xwebs> :unsubscribe c-a1b2c3 trades
+✓ c-a1b2c3 removed from "trades" (1 subscriber remains)
+
+xwebs> :unsubscribe c-d4e5f6 --all
+✓ c-d4e5f6 removed from 2 topics: news, trades
+```
 
 Example administrative session:
 ```text
@@ -546,7 +646,9 @@ Client Information: conn-12345678
   - **REPL Observability**: Use the `:handlers` command in the REPL to see the loaded handlers in their execution order.
 - **Dynamic Handlers**: Manage handlers directly from the REPL without restarting or editing files using the `:handler` command.
   - **Add**: `:handler add --match <pattern> [flags]`
-    - Supports short flags: `-m` (match), `-n` (name), `-t` (match-type), `-p` (priority), `-r` (run), `-R` (respond), `-e` (exclusive), `-s` (sequential), `-l` (rate-limit), `-d` (debounce).
+    - Supports short flags: `-m` (match), `-n` (name), `-t` (match-type), `-p` (priority), `-r` (run), `-R` (respond), `-B` (builtin), `--topic` (topic template), `-e` (exclusive), `-s` (sequential), `-l` (rate-limit), `-d` (debounce).
+    - `-B, --builtin <name>` — set a builtin action (`subscribe`, `unsubscribe`, `publish`). Requires `--topic`.
+    - `--topic <template>` — Go template that resolves the topic name for builtin actions (e.g. `'{{.Message | trimPrefix "sub:"}}'`).
     - If `--name` is omitted, a unique Docker-style name is generated (e.g., `distracted_lovelace`).
   - **Delete**: `:handler delete <name>`
   - **Rename**: `:handler rename <old-name> <new-name>`

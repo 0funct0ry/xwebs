@@ -214,6 +214,68 @@ func (r *REPL) completeArguments(line string) ([][]rune, int) {
 				}
 			}
 		}
+
+	case "topic", "publish":
+		// First non-flag argument — suggest topic names
+		if r.serverCtx != nil {
+			for _, t := range r.serverCtx.GetTopics() {
+				if strings.HasPrefix(strings.ToLower(t.Name), strings.ToLower(currentWord)) {
+					suggestions = append(suggestions, []rune(t.Name[len(currentWord):]))
+				}
+			}
+		}
+
+	case "subscribe":
+		// First arg — client IDs; second arg — topic names
+		if r.serverCtx != nil {
+			argIdx := len(parts)
+			if !strings.HasSuffix(line, " ") {
+				argIdx-- // still typing the current word
+			}
+			if argIdx <= 1 {
+				// Suggest client IDs
+				for _, c := range r.serverCtx.GetClients() {
+					if strings.HasPrefix(strings.ToLower(c.ID), strings.ToLower(currentWord)) {
+						suggestions = append(suggestions, []rune(c.ID[len(currentWord):]))
+					}
+				}
+			} else {
+				// Suggest topic names
+				for _, t := range r.serverCtx.GetTopics() {
+					if strings.HasPrefix(strings.ToLower(t.Name), strings.ToLower(currentWord)) {
+						suggestions = append(suggestions, []rune(t.Name[len(currentWord):]))
+					}
+				}
+			}
+		}
+
+	case "unsubscribe":
+		// First arg — client IDs; second arg — topic names or "--all"
+		if r.serverCtx != nil {
+			argIdx := len(parts)
+			if !strings.HasSuffix(line, " ") {
+				argIdx--
+			}
+			if argIdx <= 1 {
+				// Suggest client IDs
+				for _, c := range r.serverCtx.GetClients() {
+					if strings.HasPrefix(strings.ToLower(c.ID), strings.ToLower(currentWord)) {
+						suggestions = append(suggestions, []rune(c.ID[len(currentWord):]))
+					}
+				}
+			} else {
+				// Suggest "--all" flag and topic names
+				allFlag := "--all"
+				if strings.HasPrefix(allFlag, currentWord) {
+					suggestions = append(suggestions, []rune(allFlag[len(currentWord):]))
+				}
+				for _, t := range r.serverCtx.GetTopics() {
+					if strings.HasPrefix(strings.ToLower(t.Name), strings.ToLower(currentWord)) {
+						suggestions = append(suggestions, []rune(t.Name[len(currentWord):]))
+					}
+				}
+			}
+		}
 	case "handler":
 		if r.serverCtx != nil {
 			handlers := r.serverCtx.GetHandlers()

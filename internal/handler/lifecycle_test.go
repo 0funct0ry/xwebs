@@ -43,7 +43,7 @@ func (m *mockLifecycleConn) GetSubprotocol() string {
 func (m *mockLifecycleConn) IsCompressionEnabled() bool {
 	return false
 }
-
+func (m *mockLifecycleConn) GetID() string      { return "mock-lifecycle-conn" }
 func (m *mockLifecycleConn) RemoteAddr() string { return "127.0.0.1:12345" }
 func (m *mockLifecycleConn) LocalAddr() string  { return "127.0.0.1:8080" }
 func (m *mockLifecycleConn) ConnectedAt() time.Time {
@@ -76,7 +76,7 @@ func TestLifecycleHooks(t *testing.T) {
 		},
 	})
 
-	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil)
+	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil)
 	d.HandleConnect()
 
 	assert.Len(t, conn.messages, 1)
@@ -134,7 +134,7 @@ func TestHandlerErrorTrigger(t *testing.T) {
 		},
 	})
 
-	d := NewDispatcher(reg, conn, engine, true, nil, nil, false, nil, nil)
+	d := NewDispatcher(reg, conn, engine, true, nil, nil, false, nil, nil, nil)
 
 	msg := &ws.Message{
 		Type:     ws.TextMessage,

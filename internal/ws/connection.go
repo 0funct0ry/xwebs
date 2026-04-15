@@ -112,6 +112,11 @@ func (c *Connection) ConnectedAt() time.Time {
 	return c._connectedAt
 }
 
+// GetID returns the unique connection identifier.
+func (c *Connection) GetID() string {
+	return c.ID
+}
+
 // RemoteAddr returns the remote network address.
 func (c *Connection) RemoteAddr() string {
 	if c.Conn != nil {

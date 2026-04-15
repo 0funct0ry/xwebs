@@ -25,10 +25,11 @@ type Server struct {
 	httpSrv  *http.Server
 	upgrader websocket.Upgrader
 	registry *handler.Registry
-	
+
 	mu          sync.Mutex
 	connections map[string]*ws.Connection
 	kvStore     *kv.Store
+	topics      *TopicStore
 	wg          sync.WaitGroup
 	startTime   time.Time
 	securityMgr *SecurityManager
@@ -42,10 +43,11 @@ func New(opts ...Option) *Server {
 	}
 
 	s := &Server{
-		opts: options,
-		upgrader: websocket.Upgrader{},
+		opts:        options,
+		upgrader:    websocket.Upgrader{},
 		connections: make(map[string]*ws.Connection),
 		kvStore:     kv.NewStore(),
+		topics:      newTopicStore(),
 		startTime:   time.Now(),
 	}
 
@@ -269,6 +271,8 @@ func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		defer s.wg.Done()
 		defer func() {
+			// Clean up all topic subscriptions for this connection.
+			s.topics.UnsubscribeAll(wsConn.ID)
 			s.mu.Lock()
 			delete(s.connections, wsConn.ID)
 			s.mu.Unlock()
@@ -306,10 +310,11 @@ func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
 			s.opts.TemplateEngine,
 			s.opts.Verbose,
 			s.opts.Variables,
-			nil, // sessionVars
+			nil,      // sessionVars
 			s.opts.Sandbox,
 			s.opts.Allowlist,
-			s, // Server implements ServerStatProvider
+			s,        // Server implements ServerStatProvider
+			s.topics, // Server.topics implements TopicManager
 		)
 			
 			// Setup logging/error handlers for dispatcher
@@ -388,6 +393,60 @@ func (s *Server) serveStatus(w http.ResponseWriter, r *http.Request) {
 </body>
 </html>
 `, scheme, r.Host, s.opts.Paths[0])
+}
+
+// GetTopics returns metadata for all active topics.
+func (s *Server) GetTopics() []template.TopicInfo {
+	return s.topics.GetTopics()
+}
+
+// GetTopic returns metadata for a single topic by name.
+func (s *Server) GetTopic(name string) (template.TopicInfo, bool) {
+	return s.topics.GetTopic(name)
+}
+
+// PublishToTopic fans out msg to all subscribers of the named topic.
+func (s *Server) PublishToTopic(topic string, msg *ws.Message) (int, error) {
+	return s.topics.Publish(topic, msg)
+}
+
+// SubscribeClientToTopic manually subscribes a connected client to a topic.
+// It looks up the live connection by clientID and registers it with the TopicStore.
+func (s *Server) SubscribeClientToTopic(clientID, topic string) error {
+	s.mu.Lock()
+	conn, ok := s.connections[clientID]
+	s.mu.Unlock()
+	if !ok {
+		return fmt.Errorf("client %q not found", clientID)
+	}
+	s.topics.Subscribe(clientID, conn, topic)
+	return nil
+}
+
+// UnsubscribeClientFromTopic removes a client from a specific topic.
+// Returns the number of remaining subscribers.
+func (s *Server) UnsubscribeClientFromTopic(clientID, topic string) (int, error) {
+	s.mu.Lock()
+	_, ok := s.connections[clientID]
+	s.mu.Unlock()
+	if !ok {
+		return 0, fmt.Errorf("client %q not found", clientID)
+	}
+	remaining := s.topics.Unsubscribe(clientID, topic)
+	return remaining, nil
+}
+
+// UnsubscribeClientFromAllTopics removes a client from every topic it is subscribed to.
+// Returns the list of topic names from which the client was removed.
+func (s *Server) UnsubscribeClientFromAllTopics(clientID string) ([]string, error) {
+	s.mu.Lock()
+	_, ok := s.connections[clientID]
+	s.mu.Unlock()
+	if !ok {
+		return nil, fmt.Errorf("client %q not found", clientID)
+	}
+	affected := s.topics.UnsubscribeAll(clientID)
+	return affected, nil
 }
 
 // GetClientCount returns the number of active connections.

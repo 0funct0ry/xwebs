@@ -700,7 +700,7 @@ Example:
 						if cc.repl != nil {
 							sessionVars = cc.repl.GetVars()
 						}
-						tempDispatcher := handler.NewDispatcher(reg, nil, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist, nil)
+						tempDispatcher := handler.NewDispatcher(reg, nil, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist, nil, nil)
 						if isInteractive && r != nil {
 
 							tempDispatcher.Log = func(f string, a ...interface{}) { r.Printf(f, a...) }
@@ -773,7 +773,7 @@ Example:
 					if cc.repl != nil {
 						sessionVars = cc.repl.GetVars()
 					}
-					dispatcher = handler.NewDispatcher(handlerReg, conn, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist, nil)
+					dispatcher = handler.NewDispatcher(handlerReg, conn, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist, nil, nil)
 					cc.dispatcher = dispatcher
 					if isInteractive && r != nil {
 

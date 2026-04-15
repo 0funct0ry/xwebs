@@ -85,6 +85,18 @@ func (e *Engine) registerStringFuncs() {
 	e.funcs["contains"] = func(substr, s interface{}) bool {
 		return strings.Contains(cast.ToString(s), cast.ToString(substr))
 	}
+	e.funcs["hasPrefix"] = func(prefix, s interface{}) bool {
+		return strings.HasPrefix(cast.ToString(s), cast.ToString(prefix))
+	}
+	e.funcs["hasSuffix"] = func(suffix, s interface{}) bool {
+		return strings.HasSuffix(cast.ToString(s), cast.ToString(suffix))
+	}
+	e.funcs["trimPrefix"] = func(prefix, s interface{}) string {
+		return strings.TrimPrefix(cast.ToString(s), cast.ToString(prefix))
+	}
+	e.funcs["trimSuffix"] = func(suffix, s interface{}) string {
+		return strings.TrimSuffix(cast.ToString(s), cast.ToString(suffix))
+	}
 	e.funcs["regexMatch"] = func(pattern, s interface{}) (bool, error) {
 		return regexp.MatchString(cast.ToString(pattern), cast.ToString(s))
 	}

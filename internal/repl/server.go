@@ -45,6 +45,14 @@ type ServerContext interface {
 	DeleteHandler(name string) error
 	RenameHandler(oldName, newName string) error
 	ApplyHandlers(handlers []handler.Handler, variables map[string]interface{}) error
+
+	// Topic / pub-sub operations
+	GetTopics() []template.TopicInfo
+	GetTopic(name string) (template.TopicInfo, bool)
+	PublishToTopic(topic string, msg *ws.Message) (int, error)
+	SubscribeClientToTopic(clientID, topic string) error
+	UnsubscribeClientFromTopic(clientID, topic string) (int, error)
+	UnsubscribeClientFromAllTopics(clientID string) ([]string, error)
 }
 
 // RegisterServerCommands adds WebSocket server-specific commands to the REPL.
@@ -358,6 +366,8 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("  -p, --priority <n>        Numeric priority (higher runs first)\n")
 				r.Printf("  -r, --run <cmd>           Shell command to run on match\n")
 				r.Printf("  -R, --respond <tmpl>      Response template to send back\n")
+				r.Printf("  -B, --builtin <name>      Builtin action (subscribe, unsubscribe, publish)\n")
+				r.Printf("      --topic <template>    Topic name template for builtin actions\n")
 				r.Printf("  -e, --exclusive           Stop further matching if this handler matches\n")
 				r.Printf("  -s, --sequential          Run handler actions sequentially\n")
 				r.Printf("  -l, --rate-limit <limit>  Rate limit (e.g. '10/s')\n")
@@ -370,7 +380,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 				fs.SetOutput(nil)
 
-				var name, match, matchType, run, respond, rateLimit, debounce string
+				var name, match, matchType, run, respond, builtin, topic, rateLimit, debounce string
 				var priority int
 				var exclusive, sequential bool
 
@@ -380,6 +390,8 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.IntVarP(&priority, "priority", "p", 0, "Priority")
 				fs.StringVarP(&run, "run", "r", "", "Shell command")
 				fs.StringVarP(&respond, "respond", "R", "", "Response template")
+				fs.StringVarP(&builtin, "builtin", "B", "", "Builtin action (subscribe, unsubscribe, publish)")
+				fs.StringVar(&topic, "topic", "", "Topic name template for builtin actions")
 				fs.BoolVarP(&exclusive, "exclusive", "e", false, "Short-circuit match")
 				fs.BoolVarP(&sequential, "sequential", "s", false, "Run actions sequentially")
 				fs.StringVarP(&rateLimit, "rate-limit", "l", "", "Rate limit")
@@ -397,12 +409,18 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					name = namesgenerator.GetRandomName(0)
 				}
 
+				if builtin != "" && topic == "" {
+					return fmt.Errorf("--topic is required when --builtin is set")
+				}
+
 				h := handler.Handler{
 					Name:      name,
 					Priority:  priority,
 					Exclusive: exclusive,
 					Run:       run,
 					Respond:   respond,
+					Builtin:   builtin,
+					Topic:     topic,
 					Match: handler.Matcher{
 						Pattern: match,
 						Type:    matchType,
@@ -702,4 +720,268 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 			return nil
 		},
 	})
+
+	// ── Topic / pub-sub commands ─────────────────────────────────────────────
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "topics",
+		help: "List all active pub/sub topics with subscriber counts",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			topics := sc.GetTopics()
+			if len(topics) == 0 {
+				r.Printf("No active topics.\n")
+				return nil
+			}
+
+			totalSubs := 0
+			for _, t := range topics {
+				totalSubs += len(t.Subscribers)
+			}
+
+			tw := table.NewWriter()
+			tw.SetOutputMirror(nil)
+			tw.AppendHeader(table.Row{"TOPIC", "SUBSCRIBERS", "LAST ACTIVE"})
+
+			for _, t := range topics {
+				tw.AppendRow(table.Row{
+					t.Name,
+					len(t.Subscribers),
+					formatLastActive(t.LastActive),
+				})
+			}
+
+			tw.SetStyle(table.StyleColoredDark)
+			tw.Style().Options.SeparateRows = false
+			tw.Style().Options.SeparateColumns = true
+			tw.Style().Options.DrawBorder = true
+
+			r.Printf("\n%s\n\n%d %s, %d total %s\n",
+				tw.Render(),
+				len(topics),
+				pluralise(len(topics), "topic", "topics"),
+				totalSubs,
+				pluralise(totalSubs, "subscription", "subscriptions"),
+			)
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "topic",
+		help: "Show detailed state for a single topic: :topic <name>",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if len(args) == 0 {
+				return fmt.Errorf("usage: :topic <name>")
+			}
+			name := args[0]
+			info, ok := sc.GetTopic(name)
+			if !ok {
+				return fmt.Errorf("topic %q not found. Run :topics to see active topics", name)
+			}
+
+			r.Printf("\nTopic: %s\nSubscribers: %d\n", info.Name, len(info.Subscribers))
+
+			if len(info.Subscribers) == 0 {
+				r.Printf("  (no subscribers)\n")
+				return nil
+			}
+
+			tw := table.NewWriter()
+			tw.SetOutputMirror(nil)
+			tw.AppendHeader(table.Row{"ID", "REMOTE ADDR", "SUBSCRIBED", "MESSAGES SENT"})
+
+			for _, sub := range info.Subscribers {
+				tw.AppendRow(table.Row{
+					sub.ConnID,
+					sub.RemoteAddr,
+					formatLastActive(sub.SubscribedAt),
+					sub.MsgsSent,
+				})
+			}
+
+			tw.SetStyle(table.StyleColoredDark)
+			tw.Style().Options.SeparateRows = false
+			tw.Style().Options.SeparateColumns = true
+			tw.Style().Options.DrawBorder = true
+
+			r.Printf("\n%s\n", tw.Render())
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "publish",
+		help: "Publish a message to a topic: :publish [-t] [--allow-empty] <topic> <message>",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			var isTemplate, allowEmpty bool
+			fs := pflag.NewFlagSet("publish", pflag.ContinueOnError)
+			fs.SetOutput(nil)
+			fs.BoolVarP(&isTemplate, "template", "t", false, "Expand message as a Go template before sending")
+			fs.BoolVar(&allowEmpty, "allow-empty", false, "Send even when no subscribers are present")
+
+			if err := fs.Parse(args); err != nil {
+				return fmt.Errorf("parsing flags: %w", err)
+			}
+
+			remaining := fs.Args()
+			if len(remaining) < 2 {
+				return fmt.Errorf("usage: :publish [-t] [--allow-empty] <topic> <message>")
+			}
+
+			topic := remaining[0]
+			msgStr := strings.Join(remaining[1:], " ")
+
+			if isTemplate {
+				engine := sc.GetTemplateEngine()
+				if engine == nil {
+					return fmt.Errorf("template engine not available")
+				}
+				tmplCtx := template.NewContext()
+				r.PopulateContext(tmplCtx)
+				rendered, err := engine.Execute("repl-publish", msgStr, tmplCtx)
+				if err != nil {
+					return fmt.Errorf("rendering template: %w", err)
+				}
+				msgStr = rendered
+			}
+
+			msg := &ws.Message{
+				Type: ws.TextMessage,
+				Data: []byte(msgStr),
+				Metadata: ws.MessageMetadata{
+					Direction: "sent",
+					Timestamp: time.Now(),
+				},
+			}
+
+			delivered, err := sc.PublishToTopic(topic, msg)
+			if err != nil {
+				if allowEmpty {
+					// Topic has no subscribers yet — create it by doing nothing but report success.
+					r.Printf("✓ Published to %q → 0 clients (no subscribers)\n", topic)
+					return nil
+				}
+				return fmt.Errorf("topic %q has no subscribers. Message not sent", topic)
+			}
+
+			r.Printf("✓ Published to %q → %d %s\n", topic, delivered, pluralise(delivered, "client", "clients"))
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "subscribe",
+		help: "Manually subscribe a connected client to a topic: :subscribe <client-id> <topic>",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if len(args) < 2 {
+				return fmt.Errorf("usage: :subscribe <client-id> <topic>")
+			}
+			clientID := args[0]
+			topic := args[1]
+
+			if err := sc.SubscribeClientToTopic(clientID, topic); err != nil {
+				return err
+			}
+
+			// Fetch remote addr for the confirmation message (best-effort).
+			remoteAddr := ""
+			if info, ok := sc.GetClient(clientID); ok {
+				remoteAddr = info.RemoteAddr
+			}
+			if remoteAddr != "" {
+				r.Printf("✓ %s (%s) subscribed to %q\n", clientID, remoteAddr, topic)
+			} else {
+				r.Printf("✓ %s subscribed to %q\n", clientID, topic)
+			}
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "unsubscribe",
+		help: "Remove a client from a topic (or all topics): :unsubscribe <client-id> <topic> | :unsubscribe <client-id> --all",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			var all bool
+			fs := pflag.NewFlagSet("unsubscribe", pflag.ContinueOnError)
+			fs.SetOutput(nil)
+			fs.BoolVar(&all, "all", false, "Remove client from every subscribed topic")
+
+			if err := fs.Parse(args); err != nil {
+				return fmt.Errorf("parsing flags: %w", err)
+			}
+
+			remaining := fs.Args()
+			if len(remaining) == 0 {
+				return fmt.Errorf("usage: :unsubscribe <client-id> <topic> | :unsubscribe <client-id> --all")
+			}
+
+			clientID := remaining[0]
+
+			if all {
+				topics, err := sc.UnsubscribeClientFromAllTopics(clientID)
+				if err != nil {
+					return err
+				}
+				if len(topics) == 0 {
+					r.Printf("%s was not subscribed to any topics\n", clientID)
+					return nil
+				}
+				r.Printf("✓ %s removed from %d %s: %s\n",
+					clientID,
+					len(topics),
+					pluralise(len(topics), "topic", "topics"),
+					strings.Join(topics, ", "),
+				)
+				return nil
+			}
+
+			if len(remaining) < 2 {
+				return fmt.Errorf("usage: :unsubscribe <client-id> <topic> | :unsubscribe <client-id> --all")
+			}
+			topic := remaining[1]
+
+			remaining2, err := sc.UnsubscribeClientFromTopic(clientID, topic)
+			if err != nil {
+				return err
+			}
+
+			if remaining2 == 0 {
+				r.Printf("✓ %s removed from %q (no subscribers remain)\n", clientID, topic)
+			} else {
+				r.Printf("✓ %s removed from %q (%d %s remain)\n",
+					clientID, topic, remaining2,
+					pluralise(remaining2, "subscriber", "subscribers"),
+				)
+			}
+			return nil
+		},
+	})
+}
+
+// formatLastActive returns a human-readable description of how long ago t was.
+func formatLastActive(t time.Time) string {
+	if t.IsZero() {
+		return "never"
+	}
+	d := time.Since(t).Round(time.Second)
+	if d < 2*time.Second {
+		return "just now"
+	}
+	if d < time.Minute {
+		return fmt.Sprintf("%ds ago", int(d.Seconds()))
+	}
+	mins := int(d.Minutes())
+	secs := int(d.Seconds()) % 60
+	if secs == 0 {
+		return fmt.Sprintf("%dm ago", mins)
+	}
+	return fmt.Sprintf("%dm%02ds ago", mins, secs)
+}
+
+// pluralise returns singular when n==1, plural otherwise.
+func pluralise(n int, singular, plural string) string {
+	if n == 1 {
+		return singular
+	}
+	return plural
 }

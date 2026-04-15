@@ -61,6 +61,7 @@ func (m *rateLimitMockConn) Done() <-chan struct{}             { return make(cha
 func (m *rateLimitMockConn) GetURL() string                    { return "ws://localhost" }
 func (m *rateLimitMockConn) GetSubprotocol() string            { return "" }
 func (m *rateLimitMockConn) IsCompressionEnabled() bool        { return false }
+func (m *rateLimitMockConn) GetID() string                     { return "mock-ratelimit-conn" }
 func (m *rateLimitMockConn) RemoteAddr() string                { return "127.0.0.1:12345" }
 func (m *rateLimitMockConn) LocalAddr() string                 { return "127.0.0.1:8080" }
 func (m *rateLimitMockConn) ConnectedAt() time.Time            { return time.Now().Add(-1 * time.Minute) }
@@ -84,7 +85,7 @@ func TestDispatcherRateLimit(t *testing.T) {
 
 	conn := &rateLimitMockConn{}
 	engine := template.New(false)
-	dispatcher := NewDispatcher(registry, conn, engine, true, nil, nil, false, nil, nil)
+	dispatcher := NewDispatcher(registry, conn, engine, true, nil, nil, false, nil, nil, nil)
 
 	ctx := context.Background()
 	msg := &ws.Message{

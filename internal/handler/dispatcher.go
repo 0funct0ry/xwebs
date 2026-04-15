@@ -25,6 +25,7 @@ type Connection interface {
 	Unsubscribe(ch <-chan *ws.Message)
 	Done() <-chan struct{}
 	IsCompressionEnabled() bool
+	GetID() string
 	GetURL() string
 	GetSubprotocol() string
 	RemoteAddr() string
@@ -46,6 +47,14 @@ type ServerStatProvider interface {
 	GetClients() []template.ClientInfo
 }
 
+// TopicManager defines the required interface for pub/sub topic operations used
+// by the dispatcher when executing subscribe/unsubscribe/publish builtins.
+type TopicManager interface {
+	Subscribe(connID string, conn Connection, topic string)
+	Unsubscribe(connID, topic string) int
+	Publish(topic string, msg *ws.Message) (int, error)
+}
+
 // Dispatcher coordinates the execution of handlers for a connection.
 type Dispatcher struct {
 	registry       *Registry
@@ -64,11 +73,11 @@ type Dispatcher struct {
 	_handlerHits    uint64
 	_activeHandlers int32
 	serverStats     ServerStatProvider
+	topicManager    TopicManager
 }
 
 // NewDispatcher creates a new dispatcher.
-// NewDispatcher creates a new dispatcher.
-func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine, verbose bool, vars map[string]interface{}, session map[string]interface{}, sandbox bool, allowlist []string, serverStats ServerStatProvider) *Dispatcher {
+func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine, verbose bool, vars map[string]interface{}, session map[string]interface{}, sandbox bool, allowlist []string, serverStats ServerStatProvider, topicManager TopicManager) *Dispatcher {
 
 	// Initialize system environment
 	env := make(map[string]string)
@@ -90,8 +99,8 @@ func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine,
 		sandbox:          sandbox,
 		allowlist:        allowlist,
 		serverStats:      serverStats,
+		topicManager:     topicManager,
 		Log: func(f string, a ...interface{}) {
-
 			fmt.Printf(f, a...)
 		},
 		Error: func(f string, a ...interface{}) {
@@ -330,7 +339,7 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 			action := Action{Type: "shell", Run: h.Run, Timeout: h.Timeout}
 			return d.ExecuteAction(ctx, &action, tmplCtx, msg)
 		} else if h.Builtin != "" {
-			action := Action{Type: "builtin", Command: h.Builtin, Timeout: h.Timeout}
+			action := Action{Type: "builtin", Command: h.Builtin, Topic: h.Topic, Timeout: h.Timeout}
 			return d.ExecuteAction(ctx, &action, tmplCtx, msg)
 		}
 	}
@@ -375,6 +384,7 @@ func (d *Dispatcher) executePipeline(ctx context.Context, pipeline []PipelineSte
 		} else if step.Builtin != "" {
 			action.Type = "builtin"
 			action.Command = step.Builtin
+			action.Topic = step.Topic
 		}
 
 		if err := d.ExecuteAction(ctx, &action, tmplCtx, msg); err != nil {
@@ -707,7 +717,73 @@ func (d *Dispatcher) executeBuiltin(a *Action, ctx *template.TemplateContext) er
 	if d.verbose {
 		d.errorf("  [handler] builtin command requested: %s\n", cmdStr)
 	}
-	// TODO: Integrate with REPL commands if possible
+
+	switch strings.ToLower(strings.TrimSpace(cmdStr)) {
+	case "subscribe":
+		if d.topicManager == nil {
+			return fmt.Errorf("builtin subscribe: topic manager not available")
+		}
+		topic, err := d.templateEngine.Execute("topic", a.Topic, ctx)
+		if err != nil {
+			return fmt.Errorf("template error in topic expression: %w", err)
+		}
+		topic = strings.TrimSpace(topic)
+		if topic == "" {
+			return fmt.Errorf("builtin subscribe: topic evaluates to empty string")
+		}
+		d.topicManager.Subscribe(d.conn.GetID(), d.conn, topic)
+		if d.verbose {
+			d.errorf("  [handler] subscribed %s to topic %q\n", d.conn.GetID(), topic)
+		}
+
+	case "unsubscribe":
+		if d.topicManager == nil {
+			return fmt.Errorf("builtin unsubscribe: topic manager not available")
+		}
+		topic, err := d.templateEngine.Execute("topic", a.Topic, ctx)
+		if err != nil {
+			return fmt.Errorf("template error in topic expression: %w", err)
+		}
+		topic = strings.TrimSpace(topic)
+		if topic == "" {
+			return fmt.Errorf("builtin unsubscribe: topic evaluates to empty string")
+		}
+		remaining := d.topicManager.Unsubscribe(d.conn.GetID(), topic)
+		if d.verbose {
+			d.errorf("  [handler] unsubscribed %s from topic %q (%d remaining)\n", d.conn.GetID(), topic, remaining)
+		}
+
+	case "publish":
+		if d.topicManager == nil {
+			return fmt.Errorf("builtin publish: topic manager not available")
+		}
+		topic, err := d.templateEngine.Execute("topic", a.Topic, ctx)
+		if err != nil {
+			return fmt.Errorf("template error in topic expression: %w", err)
+		}
+		topic = strings.TrimSpace(topic)
+		if topic == "" {
+			return fmt.Errorf("builtin publish: topic evaluates to empty string")
+		}
+		msgStr, err := d.templateEngine.Execute("publish-msg", a.Message, ctx)
+		if err != nil {
+			return fmt.Errorf("template error in publish message: %w", err)
+		}
+		delivered, err := d.topicManager.Publish(topic, &ws.Message{
+			Type: ws.TextMessage,
+			Data: []byte(msgStr),
+		})
+		if err != nil {
+			return err
+		}
+		if d.verbose {
+			d.errorf("  [handler] published to topic %q → %d clients\n", topic, delivered)
+		}
+
+	default:
+		return fmt.Errorf("unknown builtin: %s", cmdStr)
+	}
+
 	return nil
 }
 

@@ -53,6 +53,21 @@ type ClientInfo struct {
 	MsgsOut     uint64        `json:"msgs_out"`
 }
 
+// TopicSubscriberInfo holds per-subscriber metadata for a pub/sub topic.
+type TopicSubscriberInfo struct {
+	ConnID       string        `json:"conn_id"`
+	RemoteAddr   string        `json:"remote_addr"`
+	SubscribedAt time.Time     `json:"subscribed_at"`
+	MsgsSent     uint64        `json:"msgs_sent"`
+}
+
+// TopicInfo holds metadata for a single pub/sub topic.
+type TopicInfo struct {
+	Name        string                `json:"name"`
+	Subscribers []TopicSubscriberInfo `json:"subscribers"`
+	LastActive  time.Time             `json:"last_active"`
+}
+
 // ServerContext provides global metrics when running in server mode.
 type ServerContext struct {
 	ClientCount     int           `json:"client_count"`

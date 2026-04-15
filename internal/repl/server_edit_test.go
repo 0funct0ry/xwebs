@@ -64,6 +64,12 @@ func (m *mockServerContext) ApplyHandlers(handlers []handler.Handler, variables 
 	m.vars = variables
 	return nil
 }
+func (m *mockServerContext) GetTopics() []template.TopicInfo                             { return nil }
+func (m *mockServerContext) GetTopic(name string) (template.TopicInfo, bool)             { return template.TopicInfo{}, false }
+func (m *mockServerContext) PublishToTopic(topic string, msg *ws.Message) (int, error)   { return 0, nil }
+func (m *mockServerContext) SubscribeClientToTopic(clientID, topic string) error         { return nil }
+func (m *mockServerContext) UnsubscribeClientFromTopic(clientID, topic string) (int, error) { return 0, nil }
+func (m *mockServerContext) UnsubscribeClientFromAllTopics(clientID string) ([]string, error) { return nil, nil }
 
 func TestHandlerEdit(t *testing.T) {
 	r, _ := New(ServerMode, &Config{Terminal: false})

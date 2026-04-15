@@ -393,3 +393,38 @@ func TestREPLPromptStats(t *testing.T) {
 	// But MsgsIn() etc. are methods on *Connection.
 	// In replenish tests, we often use a real connection pointing to a local server or a specialized mock.
 }
+
+func TestSplitCommand(t *testing.T) {
+	tests := []struct {
+		input string
+		want  []string
+	}{
+		// Basic unquoted args
+		{":handler add -m sub:*", []string{":handler", "add", "-m", "sub:*"}},
+		// Single-quoted arg strips outer quotes
+		{":send 'hello world'", []string{":send", "hello world"}},
+		// Double-quoted arg strips outer quotes
+		{`":send" "hello world"`, []string{":send", "hello world"}},
+		// Single-quoted string containing double-quotes (Go template with string literal)
+		{`:handler add --topic '{{.Message | trimPrefix "sub:"}}' -R 'subscribed:{{.Message | trimPrefix "sub:"}}' `,
+			[]string{":handler", "add", "--topic", `{{.Message | trimPrefix "sub:"}}`, "-R", `subscribed:{{.Message | trimPrefix "sub:"}}`}},
+		// Double-quoted template
+		{`:send "{{upper .Message}}"`, []string{":send", `{{upper .Message}}`}},
+		// Backslash escape
+		{`:send hello\ world`, []string{":send", "hello world"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := splitCommand(tt.input)
+			if len(got) != len(tt.want) {
+				t.Fatalf("splitCommand(%q) = %v (len %d); want %v (len %d)", tt.input, got, len(got), tt.want, len(tt.want))
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("splitCommand(%q)[%d] = %q; want %q", tt.input, i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}

@@ -920,35 +920,49 @@ func (r *REPL) AddCompletionItem(category string, item string) {
 func splitCommand(line string) []string {
 	var parts []string
 	var current strings.Builder
-	inQuotes := false
+	// Track single-quote and double-quote states independently so that
+	// double-quotes inside a single-quoted token (e.g. Go template strings)
+	// don't toggle the quoting state off.
+	inSingle := false
+	inDouble := false
 	braceLevel := 0
+
+	inQuoted := func() bool { return inSingle || inDouble }
 
 	for i := 0; i < len(line); i++ {
 		c := line[i]
 
-		// Handle escapes
-		if c == '\\' && i+1 < len(line) {
+		// Handle escapes (only meaningful outside single quotes)
+		if c == '\\' && !inSingle && i+1 < len(line) {
 			current.WriteByte(line[i+1])
 			i++
 			continue
 		}
 
 		switch {
-		case c == '"' || c == '\'':
-			inQuotes = !inQuotes
-			// Preserve quotes if we are inside a braced expression (like JSON)
+		case c == '\'' && !inDouble:
+			inSingle = !inSingle
+			// Preserve the quote character inside a braced expression (e.g. JSON)
 			if braceLevel > 0 {
 				current.WriteByte(c)
 			}
-		case c == '{' && !inQuotes:
+		case c == '"' && !inSingle:
+			inDouble = !inDouble
+			// Preserve the quote character inside a braced expression (e.g. JSON).
+			// When used as the outer quoting mechanism (braceLevel == 0) the `"`
+			// is stripped, matching standard shell behaviour.
+			if braceLevel > 0 {
+				current.WriteByte(c)
+			}
+		case c == '{' && !inQuoted():
 			braceLevel++
 			current.WriteByte(c)
-		case c == '}' && !inQuotes:
+		case c == '}' && !inQuoted():
 			if braceLevel > 0 {
 				braceLevel--
 			}
 			current.WriteByte(c)
-		case c <= ' ' && !inQuotes && braceLevel == 0:
+		case c <= ' ' && !inQuoted() && braceLevel == 0:
 			if current.Len() > 0 {
 				parts = append(parts, current.String())
 				current.Reset()

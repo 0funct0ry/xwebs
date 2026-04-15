@@ -76,6 +76,30 @@ func (c *serveContext) IsHandlerDisabled(name string) bool {
 	return c.srv.IsHandlerDisabled(name)
 }
 
+func (c *serveContext) GetTopics() []template.TopicInfo {
+	return c.srv.GetTopics()
+}
+
+func (c *serveContext) GetTopic(name string) (template.TopicInfo, bool) {
+	return c.srv.GetTopic(name)
+}
+
+func (c *serveContext) PublishToTopic(topic string, msg *ws.Message) (int, error) {
+	return c.srv.PublishToTopic(topic, msg)
+}
+
+func (c *serveContext) SubscribeClientToTopic(clientID, topic string) error {
+	return c.srv.SubscribeClientToTopic(clientID, topic)
+}
+
+func (c *serveContext) UnsubscribeClientFromTopic(clientID, topic string) (int, error) {
+	return c.srv.UnsubscribeClientFromTopic(clientID, topic)
+}
+
+func (c *serveContext) UnsubscribeClientFromAllTopics(clientID string) ([]string, error) {
+	return c.srv.UnsubscribeClientFromAllTopics(clientID)
+}
+
 func (c *serveContext) ReloadHandlers() error {
 	var handlers []handler.Handler
 	var variables map[string]interface{}
