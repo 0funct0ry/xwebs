@@ -37,21 +37,21 @@ build-ui:
 .PHONY: build
 build: build-ui
 	mkdir -p $(BIN_DIR)
-	$(GO) build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME) .
+	$(GO) build $(GOFLAGS) -tags ui -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME) .
 
 # Build for production (with ldflags)
 .PHONY: build-prod
 build-prod: build-ui
 	mkdir -p $(BIN_DIR)
-	$(GO) build $(GOFLAGS) -ldflags="-s -w $(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME) .
+	$(GO) build $(GOFLAGS) -tags ui -ldflags="-s -w $(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME) .
 
 # Build for all platforms
 .PHONY: build-all
 build-all:
-	GOOS=linux GOARCH=amd64 $(GO) build -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME)-linux-amd64 .
-	GOOS=darwin GOARCH=amd64 $(GO) build -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME)-darwin-amd64 .
-	GOOS=darwin GOARCH=arm64 $(GO) build -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME)-darwin-arm64 .
-	GOOS=windows GOARCH=amd64 $(GO) build -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME).exe .
+	GOOS=linux GOARCH=amd64 $(GO) build -tags ui -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME)-linux-amd64 .
+	GOOS=darwin GOARCH=amd64 $(GO) build -tags ui -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME)-darwin-amd64 .
+	GOOS=darwin GOARCH=arm64 $(GO) build -tags ui -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME)-darwin-arm64 .
+	GOOS=windows GOARCH=amd64 $(GO) build -tags ui -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME).exe .
 
 # Clean build artifacts
 .PHONY: clean
