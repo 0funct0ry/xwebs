@@ -664,6 +664,7 @@ func (r *REPL) PopulateContext(tmplCtx *template.TemplateContext) {
 		tmplCtx.Clients = r.serverCtx.GetClients()
 		tmplCtx.ServerUptime = r.serverCtx.GetUptime()
 		tmplCtx.ServerUptimeStr = template.FormatUptime(tmplCtx.ServerUptime)
+		tmplCtx.KV = r.serverCtx.ListKV()
 	}
 
 	if r.mode == ClientMode {

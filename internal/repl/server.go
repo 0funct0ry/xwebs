@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -53,6 +54,12 @@ type ServerContext interface {
 	SubscribeClientToTopic(clientID, topic string) error
 	UnsubscribeClientFromTopic(clientID, topic string) (int, error)
 	UnsubscribeClientFromAllTopics(clientID string) ([]string, error)
+	
+	// KV operations
+	ListKV() map[string]interface{}
+	GetKV(key string) (interface{}, bool)
+	SetKV(key string, val interface{})
+	DeleteKV(key string)
 }
 
 // RegisterServerCommands adds WebSocket server-specific commands to the REPL.
@@ -806,6 +813,134 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 
 			r.Printf("\n%s\n", tw.Render())
 			return nil
+		},
+	})
+
+	// ── Key-Value Store commands ──────────────────────────────────────────────
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "kv",
+		help: "Manage the server-side key-value store: :kv (list|get|set|del)",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if len(args) == 0 {
+				r.Printf("Usage:\n")
+				r.Printf("  :kv list             List all keys in the store\n")
+				r.Printf("  :kv get <key>        Get the value for a key\n")
+				r.Printf("  :kv set <key> <val>  Set a key-value pair\n")
+				r.Printf("  :kv del <key>        Delete a key\n")
+				r.Printf("\nFlags for 'set':\n")
+				r.Printf("  -t, --template       Render value as a template before storing\n")
+				r.Printf("  -j, --json           Parse value as JSON before storing\n")
+				return nil
+			}
+
+			sub := args[0]
+			switch sub {
+			case "list", "ls":
+				data := sc.ListKV()
+				if len(data) == 0 {
+					r.Printf("KV store is empty.\n")
+					return nil
+				}
+
+				tw := table.NewWriter()
+				tw.SetOutputMirror(nil)
+				tw.AppendHeader(table.Row{"KEY", "VALUE TYPE", "VALUE"})
+
+				// Sort keys for deterministic output
+				keys := make([]string, 0, len(data))
+				for k := range data {
+					keys = append(keys, k)
+				}
+				sort.Strings(keys)
+
+				for _, k := range keys {
+					v := data[k]
+					valStr := fmt.Sprintf("%v", v)
+					if len(valStr) > 50 {
+						valStr = valStr[:47] + "..."
+					}
+					tw.AppendRow(table.Row{k, fmt.Sprintf("%T", v), valStr})
+				}
+
+				tw.SetStyle(table.StyleColoredDark)
+				tw.Style().Options.SeparateRows = false
+				tw.Style().Options.SeparateColumns = true
+				tw.Style().Options.DrawBorder = true
+
+				r.Printf("\nKV Store Entries (%d):\n%s\n", len(data), tw.Render())
+				return nil
+
+			case "get":
+				if len(args) < 2 {
+					return fmt.Errorf("usage: :kv get <key>")
+				}
+				key := args[1]
+				val, ok := sc.GetKV(key)
+				if !ok {
+					return fmt.Errorf("key %q not found", key)
+				}
+				r.Printf("%s = %v\n", key, val)
+				return nil
+
+			case "set":
+				var asTemplate, asJSON bool
+				fs := pflag.NewFlagSet("kv set", pflag.ContinueOnError)
+				fs.SetOutput(nil)
+				fs.BoolVarP(&asTemplate, "template", "t", false, "Render as template")
+				fs.BoolVarP(&asJSON, "json", "j", false, "Parse as JSON")
+
+				if err := fs.Parse(args[1:]); err != nil {
+					return fmt.Errorf("parsing flags: %w", err)
+				}
+
+				remaining := fs.Args()
+				if len(remaining) < 2 {
+					return fmt.Errorf("usage: :kv set [-t/-j] <key> <value>")
+				}
+
+				key := remaining[0]
+				valStr := strings.Join(remaining[1:], " ")
+				var val interface{}
+
+				if asTemplate {
+					engine := sc.GetTemplateEngine()
+					if engine == nil {
+						return fmt.Errorf("template engine not available")
+					}
+					tmplCtx := template.NewContext()
+					r.PopulateContext(tmplCtx)
+					res, err := engine.Execute("repl-kv", valStr, tmplCtx)
+					if err != nil {
+						return fmt.Errorf("rendering template: %w", err)
+					}
+					valStr = res
+				}
+
+				if asJSON {
+					if err := json.Unmarshal([]byte(valStr), &val); err != nil {
+						return fmt.Errorf("invalid JSON: %w", err)
+					}
+				} else {
+					val = valStr
+				}
+
+				sc.SetKV(key, val)
+				r.Printf("✓ Key %q set\n", key)
+				return nil
+
+			case "del", "rm":
+				if len(args) < 2 {
+					return fmt.Errorf("usage: :kv del <key>")
+				}
+				key := args[1]
+				sc.DeleteKV(key)
+				r.Printf("✓ Key %q deleted\n", key)
+				return nil
+
+			default:
+				return fmt.Errorf("unknown kv subcommand: %s", sub)
+			}
 		},
 	})
 

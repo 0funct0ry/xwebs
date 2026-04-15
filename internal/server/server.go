@@ -605,6 +605,38 @@ func (s *Server) DisableHandler(name string) error {
 	return s.registry.DisableHandler(name)
 }
 
+// ListKV returns all entries in the key-value store.
+func (s *Server) ListKV() map[string]interface{} {
+	if s.kvStore == nil {
+		return make(map[string]interface{})
+	}
+	return s.kvStore.List()
+}
+
+// GetKV retrieves a value from the key-value store.
+func (s *Server) GetKV(key string) (interface{}, bool) {
+	if s.kvStore == nil {
+		return nil, false
+	}
+	return s.kvStore.Get(key)
+}
+
+// SetKV stores a value in the key-value store.
+func (s *Server) SetKV(key string, val interface{}) {
+	if s.kvStore == nil {
+		s.kvStore = kv.NewStore()
+	}
+	s.kvStore.Set(key, val)
+}
+
+// DeleteKV removes a key from the key-value store.
+func (s *Server) DeleteKV(key string) {
+	if s.kvStore == nil {
+		return
+	}
+	s.kvStore.Delete(key)
+}
+
 // GetHandlerStats returns statistics for a handler.
 func (s *Server) GetHandlerStats(name string) (uint64, time.Duration, uint64, bool) {
 	return s.registry.GetStats(name)

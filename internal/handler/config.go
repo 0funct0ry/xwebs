@@ -28,6 +28,8 @@ type Handler struct {
 	Respond      string                 `yaml:"respond,omitempty"`    // Shorthand for send action (after run)
 	Builtin      string                 `yaml:"builtin,omitempty"`    // Shorthand for builtin action
 	Topic        string                 `yaml:"topic,omitempty"`      // Topic name (template) for subscribe/unsubscribe/publish builtins
+	Key          string                 `yaml:"key,omitempty"`        // Key (template) for KV builtins
+	Value        string                 `yaml:"value,omitempty"`      // Value (template) for KV builtins
 	Pipeline     []PipelineStep         `yaml:"pipeline,omitempty"`   // Multi-step pipeline
 	Timeout      string                 `yaml:"timeout,omitempty"`    // Per-handler timeout
 	Retry        *RetryConfig           `yaml:"retry,omitempty"`      // Automatic retry on failure
@@ -54,6 +56,8 @@ type PipelineStep struct {
 	Run         string `yaml:"run,omitempty"`
 	Builtin     string `yaml:"builtin,omitempty"`
 	Topic       string `yaml:"topic,omitempty"`       // Topic name (template) for subscribe/unsubscribe/publish builtins
+	Key         string `yaml:"key,omitempty"`         // Key (template) for KV builtins
+	Value       string `yaml:"value,omitempty"`       // Value (template) for KV builtins
 	As          string `yaml:"as,omitempty"`          // Key to store results in .Steps.<name>
 	Timeout     string `yaml:"timeout,omitempty"`
 	IgnoreError bool   `yaml:"ignore_error,omitempty"`
@@ -103,6 +107,8 @@ type Action struct {
 	Message string            `yaml:"message,omitempty"` // For legacy "send" action (shorthand preferred)
 	Command string            `yaml:"command,omitempty"` // For legacy "shell" action (shorthand preferred)
 	Topic   string            `yaml:"topic,omitempty"`   // Topic name (template) for subscribe/unsubscribe/publish builtins
+	Key     string            `yaml:"key,omitempty"`     // Key (template) for KV builtins
+	Value   string            `yaml:"value,omitempty"`   // Value (template) for KV builtins
 	Target  string            `yaml:"target,omitempty"`  // For "log" action (e.g. filename or "stdout", "stderr")
 	Timeout string            `yaml:"timeout,omitempty"` // Timeout for shell/builtin actions
 	Env     map[string]string `yaml:"env,omitempty"`     // Environment variables for shell actions

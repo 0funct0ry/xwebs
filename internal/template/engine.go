@@ -53,6 +53,7 @@ func New(sandboxed bool) *Engine {
 	e.registerConnFuncs()
 	e.registerColorFuncs()
 	e.registerVisualFuncs()
+	e.registerKVFuncs()
 	return e
 }
 
@@ -205,6 +206,12 @@ func (e *Engine) registerContextFuncs() {
 		e.session = make(map[string]interface{})
 		return ""
 	}
+}
+
+// registerKVFuncs adds key-value store functions to the engine's function map.
+func (e *Engine) registerKVFuncs() {
+	// Placeholder for documentation/metadata.
+	e.funcs["kv"] = func(key string) interface{} { return nil }
 }
 
 // Execute renders the template string with the provided data.
@@ -398,6 +405,14 @@ func (e *Engine) Execute(name, text string, data interface{}) (string, error) {
 			return ""
 		}
 		funcs["secure"] = func() bool { return ctx.IsSecure }
+
+		// Key-Value Store
+		funcs["kv"] = func(key string) interface{} {
+			if ctx.KV != nil {
+				return ctx.KV[key]
+			}
+			return nil
+		}
 	}
 
 	tmpl, err := template.New(name).Funcs(funcs).Parse(text)

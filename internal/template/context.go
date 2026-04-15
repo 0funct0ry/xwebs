@@ -151,6 +151,10 @@ type TemplateContext struct {
 	Clients         []ClientInfo `json:"clients,omitempty"`
 	ServerUptime    time.Duration `json:"server_uptime,omitempty"`
 	ServerUptimeStr string        `json:"server_uptime_str,omitempty"`
+
+	// Key-Value Store
+	KV      map[string]interface{} `json:"kv,omitempty"`       // Global KV store snapshot
+	KvValue interface{}            `json:"kv_value,omitempty"` // Result of kv-get builtin
 }
 
 // NewContext creates a new TemplateContext with initialized maps.

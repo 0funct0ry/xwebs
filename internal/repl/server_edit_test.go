@@ -70,6 +70,10 @@ func (m *mockServerContext) PublishToTopic(topic string, msg *ws.Message) (int, 
 func (m *mockServerContext) SubscribeClientToTopic(clientID, topic string) error         { return nil }
 func (m *mockServerContext) UnsubscribeClientFromTopic(clientID, topic string) (int, error) { return 0, nil }
 func (m *mockServerContext) UnsubscribeClientFromAllTopics(clientID string) ([]string, error) { return nil, nil }
+func (m *mockServerContext) ListKV() map[string]interface{} { return nil }
+func (m *mockServerContext) GetKV(key string) (interface{}, bool) { return nil, false }
+func (m *mockServerContext) SetKV(key string, val interface{}) {}
+func (m *mockServerContext) DeleteKV(key string) {}
 
 func TestHandlerEdit(t *testing.T) {
 	r, _ := New(ServerMode, &Config{Terminal: false})

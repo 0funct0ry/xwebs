@@ -460,6 +460,7 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `:kick <id> [c] [r]`| Disconnect a client with optional close code and reason |
 | `:handlers` | List all registered server-side handlers with execution statistics (Matches, Latency, Errors) |
 | `:handler (add\|delete\|edit\|rename\|save\|<name>)` | Manage handlers: `add <flags>` (see flags below), `delete <name>`, `edit [name]`, `rename <old> <new>`, `save [file] [--force\|-f]`, or show details for `<name>` |
+| `:kv (list\|get\|set\|del)` | Manage the server-side key-value store. Subcommands: `list` (or `ls`), `get <key>`, `set <key> [-t\|-j] <val>`, `del <key>` |
 | `:reload` | Hot-reload the handler configuration file and variables from disk without restarting the server |
 | `:enable <name>` | Enable a previously disabled handler at runtime |
 | `:disable <name>`| Disable a handler at runtime to stop it from matching incoming messages |
@@ -522,12 +523,34 @@ handlers:
     respond: 'unsubscribed:{{.Message | trimPrefix "unsub:"}}'
 
   # JSON-style: client sends {"type":"subscribe","channel":"trades"}
-  - name: handle-subscribe-json
+  - name: static-file
     match:
-      jq: '.type == "subscribe"'
-    builtin: subscribe
-    topic: '{{.Message | jq ".channel"}}'
-    respond: '{"subscribed":"{{.Message | jq ".channel"}}"}'
+      jq: '.type == "download"'
+    builtin: file-send                   # Send file as binary frame
+    path: '{{.Message | jq ".path"}}'
+
+  # Key-Value Store Examples
+  - name: track-price
+    match:
+      jq: '.type == "price"'
+    builtin: kv-set
+    key: 'last:price:{{.Message | jq ".symbol"}}'
+    value: '{{.Message | jq ".price"}}'
+    respond: '{"ack":true}'
+
+  - name: get-price
+    match:
+      jq: '.type == "get-price"'
+    builtin: kv-get
+    key: 'last:price:{{.Message | jq ".symbol"}}'
+    respond: '{"symbol":"{{.Message | jq ".symbol"}}","price":"{{.KvValue}}"}'
+
+  - name: delete-price
+    match:
+      jq: '.type == "del-price"'
+    builtin: kv-del
+    key: 'last:price:{{.Message | jq ".symbol"}}'
+    respond: '{"deleted":true}'
 ```
 
 Topic pub-sub example session:

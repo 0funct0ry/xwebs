@@ -100,6 +100,11 @@ func (c *serveContext) UnsubscribeClientFromAllTopics(clientID string) ([]string
 	return c.srv.UnsubscribeClientFromAllTopics(clientID)
 }
 
+func (c *serveContext) ListKV() map[string]interface{} { return c.srv.ListKV() }
+func (c *serveContext) GetKV(key string) (interface{}, bool) { return c.srv.GetKV(key) }
+func (c *serveContext) SetKV(key string, val interface{}) { c.srv.SetKV(key, val) }
+func (c *serveContext) DeleteKV(key string) { c.srv.DeleteKV(key) }
+
 func (c *serveContext) ReloadHandlers() error {
 	var handlers []handler.Handler
 	var variables map[string]interface{}

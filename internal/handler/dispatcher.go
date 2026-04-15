@@ -55,6 +55,14 @@ type TopicManager interface {
 	Publish(topic string, msg *ws.Message) (int, error)
 }
 
+// KVManager defines the required interface for key-value store operations.
+type KVManager interface {
+	ListKV() map[string]interface{}
+	GetKV(key string) (interface{}, bool)
+	SetKV(key string, val interface{})
+	DeleteKV(key string)
+}
+
 // Dispatcher coordinates the execution of handlers for a connection.
 type Dispatcher struct {
 	registry       *Registry
@@ -74,6 +82,7 @@ type Dispatcher struct {
 	_activeHandlers int32
 	serverStats     ServerStatProvider
 	topicManager    TopicManager
+	kvManager       KVManager
 }
 
 // NewDispatcher creates a new dispatcher.
@@ -85,6 +94,13 @@ func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine,
 		pair := strings.SplitN(e, "=", 2)
 		if len(pair) == 2 {
 			env[pair[0]] = pair[1]
+		}
+	}
+
+	var kvManager KVManager
+	if serverStats != nil {
+		if kv, ok := serverStats.(KVManager); ok {
+			kvManager = kv
 		}
 	}
 
@@ -100,6 +116,7 @@ func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine,
 		allowlist:        allowlist,
 		serverStats:      serverStats,
 		topicManager:     topicManager,
+		kvManager:        kvManager,
 		Log: func(f string, a ...interface{}) {
 			fmt.Printf(f, a...)
 		},
@@ -339,7 +356,14 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 			action := Action{Type: "shell", Run: h.Run, Timeout: h.Timeout}
 			return d.ExecuteAction(ctx, &action, tmplCtx, msg)
 		} else if h.Builtin != "" {
-			action := Action{Type: "builtin", Command: h.Builtin, Topic: h.Topic, Timeout: h.Timeout}
+			action := Action{
+				Type:    "builtin",
+				Command: h.Builtin,
+				Topic:   h.Topic,
+				Key:     h.Key,
+				Value:   h.Value,
+				Timeout: h.Timeout,
+			}
 			return d.ExecuteAction(ctx, &action, tmplCtx, msg)
 		}
 	}
@@ -385,6 +409,8 @@ func (d *Dispatcher) executePipeline(ctx context.Context, pipeline []PipelineSte
 			action.Type = "builtin"
 			action.Command = step.Builtin
 			action.Topic = step.Topic
+			action.Key = step.Key
+			action.Value = step.Value
 		}
 
 		if err := d.ExecuteAction(ctx, &action, tmplCtx, msg); err != nil {
@@ -532,6 +558,16 @@ func (d *Dispatcher) populateTemplateContext(tmplCtx *template.TemplateContext, 
 		tmplCtx.Clients = clients
 		tmplCtx.ServerUptime = uptime
 		tmplCtx.ServerUptimeStr = uptimeStr
+	}
+
+	// Populate KV context
+	d.refreshKVSnapshot(tmplCtx)
+}
+
+// refreshKVSnapshot updates the KV snapshot in the template context from the global store.
+func (d *Dispatcher) refreshKVSnapshot(ctx *template.TemplateContext) {
+	if d.kvManager != nil {
+		ctx.KV = d.kvManager.ListKV()
 	}
 }
 
@@ -778,6 +814,57 @@ func (d *Dispatcher) executeBuiltin(a *Action, ctx *template.TemplateContext) er
 		}
 		if d.verbose {
 			d.errorf("  [handler] published to topic %q → %d clients\n", topic, delivered)
+		}
+
+	case "kv-set":
+		if d.kvManager == nil {
+			return fmt.Errorf("builtin kv-set: kv manager not available")
+		}
+		key, err := d.templateEngine.Execute("kv-key", a.Key, ctx)
+		if err != nil {
+			return fmt.Errorf("template error in kv key: %w", err)
+		}
+		val, err := d.templateEngine.Execute("kv-value", a.Value, ctx)
+		if err != nil {
+			return fmt.Errorf("template error in kv value: %w", err)
+		}
+		
+		d.kvManager.SetKV(key, val)
+		d.refreshKVSnapshot(ctx)
+		if d.verbose {
+			d.errorf("  [handler] kv-set: %s = %v\n", key, val)
+		}
+
+	case "kv-get":
+		if d.kvManager == nil {
+			return fmt.Errorf("builtin kv-get: kv manager not available")
+		}
+		key, err := d.templateEngine.Execute("kv-key", a.Key, ctx)
+		if err != nil {
+			return fmt.Errorf("template error in kv key: %w", err)
+		}
+		val, ok := d.kvManager.GetKV(key)
+		if ok {
+			ctx.KvValue = val
+		} else {
+			ctx.KvValue = nil
+		}
+		if d.verbose {
+			d.errorf("  [handler] kv-get: %s = %v (found=%v)\n", key, val, ok)
+		}
+
+	case "kv-del":
+		if d.kvManager == nil {
+			return fmt.Errorf("builtin kv-del: kv manager not available")
+		}
+		key, err := d.templateEngine.Execute("kv-key", a.Key, ctx)
+		if err != nil {
+			return fmt.Errorf("template error in kv key: %w", err)
+		}
+		d.kvManager.DeleteKV(key)
+		d.refreshKVSnapshot(ctx)
+		if d.verbose {
+			d.errorf("  [handler] kv-del: %s\n", key)
 		}
 
 	default:
