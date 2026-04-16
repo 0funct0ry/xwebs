@@ -80,6 +80,11 @@ func (m *mockServerContext) GetGlobalStats() observability.GlobalStats { return 
 func (m *mockServerContext) GetRegistryStats() (uint64, uint64) { return 0, 0 }
 func (m *mockServerContext) GetSlowLog(limit int) []handler.SlowLogEntry { return nil }
 
+func (m *mockServerContext) Drain()           {}
+func (m *mockServerContext) Pause()           {}
+func (m *mockServerContext) Resume()          {}
+func (m *mockServerContext) IsPaused() bool   { return false }
+
 func TestHandlerEdit(t *testing.T) {
 	r, _ := New(ServerMode, &Config{Terminal: false})
 	msc := &mockServerContext{

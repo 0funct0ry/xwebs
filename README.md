@@ -453,6 +453,9 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | Command | Description |
 |---------|-------------|
 | `:status` | Show server status, uptime, and client count |
+| `:drain` | Gracefully stop accepting connections and wait for existing ones to close |
+| `:pause` | Temporarily pause message processing (incoming messages will be buffered) |
+| `:resume` | Resume normal message processing and flush buffered messages |
 | `:clients` | List all connected clients with ID, address, uptime, and message counts |
 | `:client <id>` | Show detailed metadata for a specific client |
 | `:send [flags] <id> <msg>` | Send message to specific client (`-j` JSON, `-t` Template, `-b` Binary) |

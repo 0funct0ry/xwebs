@@ -10,6 +10,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -45,6 +46,8 @@ type ServerStatProvider interface {
 	GetClientCount() int
 	GetUptime() time.Duration
 	GetClients() []template.ClientInfo
+	IsPaused() bool
+	WaitIfPaused()
 }
 
 // TopicManager defines the required interface for pub/sub topic operations used
@@ -83,6 +86,9 @@ type Dispatcher struct {
 	serverStats     ServerStatProvider
 	topicManager    TopicManager
 	kvManager       KVManager
+
+	bufferMu sync.Mutex
+	buffer   []*ws.Message
 }
 
 // NewDispatcher creates a new dispatcher.
@@ -143,6 +149,24 @@ func (d *Dispatcher) Start(ctx context.Context) {
 	// Subscribe to incoming messages
 	msgCh := d.conn.Subscribe()
 
+	// Flush goroutine
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-d.conn.Done():
+				return
+			default:
+				if d.serverStats != nil {
+					d.serverStats.WaitIfPaused()
+				}
+				d.flushBuffer(ctx)
+				time.Sleep(10 * time.Millisecond) // Don't churn if resumed
+			}
+		}
+	}()
+
 	go func() {
 		defer d.conn.Unsubscribe(msgCh)
 
@@ -158,12 +182,46 @@ func (d *Dispatcher) Start(ctx context.Context) {
 				}
 				// Only handle received messages for matching
 				if msg.Metadata.Direction == "received" {
-					d.handleMessage(ctx, msg)
+					if d.serverStats != nil && d.serverStats.IsPaused() {
+						d.addToBuffer(msg)
+					} else {
+						d.handleMessage(ctx, msg)
+					}
 				}
 			}
 		}
 	}()
 }
+
+func (d *Dispatcher) addToBuffer(msg *ws.Message) {
+	d.bufferMu.Lock()
+	defer d.bufferMu.Unlock()
+	d.buffer = append(d.buffer, msg)
+	if d.verbose {
+		d.errorf("  [handler] debug: server paused, buffering message (%d in buffer)\n", len(d.buffer))
+	}
+}
+
+func (d *Dispatcher) flushBuffer(ctx context.Context) {
+	d.bufferMu.Lock()
+	if len(d.buffer) == 0 {
+		d.bufferMu.Unlock()
+		return
+	}
+	
+	pending := d.buffer
+	d.buffer = nil
+	d.bufferMu.Unlock()
+
+	if d.verbose {
+		d.errorf("  [handler] debug: server resumed, flushing %d buffered messages\n", len(pending))
+	}
+
+	for _, msg := range pending {
+		d.handleMessage(ctx, msg)
+	}
+}
+
 
 func (d *Dispatcher) handleMessage(ctx context.Context, msg *ws.Message) {
 	msgStr := string(msg.Data)

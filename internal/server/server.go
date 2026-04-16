@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/0funct0ry/xwebs/internal/handler"
@@ -17,6 +18,13 @@ import (
 	"github.com/0funct0ry/xwebs/internal/ws"
 	"github.com/0funct0ry/xwebs/ui"
 	"github.com/gorilla/websocket"
+)
+
+type serverState int32
+
+const (
+	serverRunning serverState = iota
+	serverDraining
 )
 
 // Server represents the WebSocket server.
@@ -33,6 +41,10 @@ type Server struct {
 	wg          sync.WaitGroup
 	startTime   time.Time
 	securityMgr *SecurityManager
+
+	state     serverState
+	paused    atomic.Bool
+	pauseCond *sync.Cond
 }
 
 // New creates a new WebSocket server with the given options.
@@ -49,7 +61,9 @@ func New(opts ...Option) *Server {
 		kvStore:     kv.NewStore(),
 		topics:      newTopicStore(),
 		startTime:   time.Now(),
+		state:       serverRunning,
 	}
+	s.pauseCond = sync.NewCond(&s.mu)
 
 	sm, err := NewSecurityManager(options)
 	if err != nil {
@@ -224,6 +238,14 @@ func (s *Server) Stop() error {
 }
 
 func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
+	if s.IsDraining() {
+		if s.opts.Verbose {
+			s.logf("[http] rejecting connection from %s: server is draining\n", r.RemoteAddr)
+		}
+		http.Error(w, "Server is draining", http.StatusServiceUnavailable)
+		return
+	}
+
 	if r.Header.Get("Upgrade") != "websocket" {
 		if s.opts.Verbose {
 			s.logf("[http] connection received: %s %s from %s (non-websocket)\n", r.Method, r.URL.Path, r.RemoteAddr)
@@ -554,8 +576,60 @@ func (s *Server) Send(id string, msg *ws.Message) error {
 
 // GetStatus returns the current server status.
 func (s *Server) GetStatus() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.state == serverDraining {
+		return "draining"
+	}
+	if s.paused.Load() {
+		return "paused"
+	}
 	return "running"
 }
+
+// Drain stops accepting new connections.
+func (s *Server) Drain() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.state = serverDraining
+}
+
+// IsDraining returns true if the server is in draining mode.
+func (s *Server) IsDraining() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.state == serverDraining
+}
+
+// Pause suspends message processing.
+func (s *Server) Pause() {
+	s.paused.Store(true)
+}
+
+// Resume resumes message processing and flushes buffers.
+func (s *Server) Resume() {
+	s.paused.Store(false)
+	s.pauseCond.Broadcast()
+}
+
+// IsPaused returns true if message processing is paused.
+func (s *Server) IsPaused() bool {
+	return s.paused.Load()
+}
+
+// WaitIfPaused blocks if the server is currently paused.
+func (s *Server) WaitIfPaused() {
+	if !s.paused.Load() {
+		return
+	}
+	s.mu.Lock()
+	for s.paused.Load() {
+		s.pauseCond.Wait()
+	}
+	s.mu.Unlock()
+}
+
 
 // GetTemplateEngine returns the server's template engine.
 func (s *Server) GetTemplateEngine() *template.Engine {

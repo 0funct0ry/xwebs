@@ -110,6 +110,11 @@ func (c *serveContext) GetGlobalStats() observability.GlobalStats { return c.srv
 func (c *serveContext) GetRegistryStats() (uint64, uint64) { return c.srv.GetRegistryStats() }
 func (c *serveContext) GetSlowLog(limit int) []handler.SlowLogEntry { return c.srv.GetSlowLog(limit) }
 
+func (c *serveContext) Drain()           { c.srv.Drain() }
+func (c *serveContext) Pause()           { c.srv.Pause() }
+func (c *serveContext) Resume()          { c.srv.Resume() }
+func (c *serveContext) IsPaused() bool   { return c.srv.IsPaused() }
+
 func (c *serveContext) ReloadHandlers() error {
 	var handlers []handler.Handler
 	var variables map[string]interface{}

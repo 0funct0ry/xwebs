@@ -66,6 +66,12 @@ type ServerContext interface {
 	GetGlobalStats() observability.GlobalStats
 	GetRegistryStats() (total uint64, errors uint64)
 	GetSlowLog(limit int) []handler.SlowLogEntry
+	
+	// Administrative
+	Drain()
+	Pause()
+	Resume()
+	IsPaused() bool
 }
 
 // RegisterServerCommands adds WebSocket server-specific commands to the REPL.
@@ -75,13 +81,88 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 		name: "status",
 		help: "Show server status and uptime",
 		handler: func(ctx context.Context, r *REPL, args []string) error {
+			status := sc.GetStatus()
+			statusColor := text.FgGreen
+			if status == "paused" {
+				statusColor = text.FgYellow
+			} else if status == "draining" {
+				statusColor = text.FgCyan
+			}
+
 			r.Printf("\nServer Status:\n")
-			r.Printf("  Status:      %s\n", sc.GetStatus())
+			r.Printf("  Status:      %s\n", statusColor.Sprint(status))
 			r.Printf("  Uptime:      %v\n", sc.GetUptime().Round(time.Second))
 			r.Printf("  Clients:     %d\n", sc.GetClientCount())
 
 			stats := sc.GetGlobalStats()
 			r.Printf("  Connections: %d\n", stats.TotalConnections)
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "drain",
+		help: "Gracefully stop accepting connections and wait for existing ones to close",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			sc.Drain()
+			r.Printf("✓ Server set to DRAINING. No new connections will be accepted.\n")
+			
+			// Optional immediate feedback loop in a goroutine
+			count := sc.GetClientCount()
+			if count > 0 {
+				r.Printf("Waiting for %d connection(s) to close...\n", count)
+				go func() {
+					lastCount := count
+					ticker := time.NewTicker(2 * time.Second)
+					defer ticker.Stop()
+					for {
+						select {
+						case <-ticker.C:
+							current := sc.GetClientCount()
+							if current == 0 {
+								r.Notify("\n✓ All connections drained. Server is ready for maintenance/shutdown.\n")
+								return
+							}
+							if current != lastCount {
+								r.Notify("[drain] %d connections remaining...\n", current)
+								lastCount = current
+							}
+						case <-ctx.Done():
+							return
+						}
+					}
+				}()
+			} else {
+				r.Printf("✓ Server is already empty.\n")
+			}
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "pause",
+		help: "Temporarily pause message processing (incoming messages will be buffered)",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if sc.IsPaused() {
+				r.Printf("Server is already paused.\n")
+				return nil
+			}
+			sc.Pause()
+			r.Printf("✓ Server PAUSED. Incoming messages from all clients will be buffered.\n")
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "resume",
+		help: "Resume normal message processing and flush buffered messages",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if !sc.IsPaused() {
+				r.Printf("Server is not paused.\n")
+				return nil
+			}
+			sc.Resume()
+			r.Printf("✓ Server RESUMED. Processing buffered messages...\n")
 			return nil
 		},
 	})
