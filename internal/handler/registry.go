@@ -26,6 +26,23 @@ type HandlerStats struct {
 	mu           sync.RWMutex
 }
 
+// SlowLogEntry records a single slow handler execution.
+type SlowLogEntry struct {
+	HandlerName string
+	Duration    time.Duration
+	Error       string
+	Timestamp   time.Time
+}
+
+// RegistryStats tracks global execution statistics.
+type RegistryStats struct {
+	TotalExecutions uint64
+	TotalErrors     uint64
+	SlowLog         []SlowLogEntry
+	maxSlowLog      int
+	mu              sync.RWMutex
+}
+
 // Registry manages a collection of message handlers.
 type Registry struct {
 	handlers   []Handler
@@ -34,6 +51,7 @@ type Registry struct {
 	limiters   map[string]*rate.Limiter
 	debouncers map[string]*debouncer
 	stats      map[string]*HandlerStats
+	global     RegistryStats
 	disabled   map[string]bool
 	mu         sync.RWMutex
 }
@@ -54,6 +72,9 @@ func NewRegistry() *Registry {
 		debouncers: make(map[string]*debouncer),
 		stats:      make(map[string]*HandlerStats),
 		disabled:   make(map[string]bool),
+		global: RegistryStats{
+			maxSlowLog: 50,
+		},
 	}
 }
 
@@ -730,6 +751,69 @@ func (r *Registry) RecordExecution(name string, duration time.Duration, err erro
 		s.ErrorCount++
 	}
 	s.mu.Unlock()
+
+	// Update global stats
+	r.global.mu.Lock()
+	defer r.global.mu.Unlock()
+
+	r.global.TotalExecutions++
+	if err != nil {
+		r.global.TotalErrors++
+	}
+
+	// Update SlowLog
+	errStr := ""
+	if err != nil {
+		errStr = err.Error()
+	}
+
+	entry := SlowLogEntry{
+		HandlerName: name,
+		Duration:    duration,
+		Error:       errStr,
+		Timestamp:   time.Now(),
+	}
+
+	// Insert into SlowLog and keep sorted (slowest first)
+	inserted := false
+	for i, existing := range r.global.SlowLog {
+		if duration > existing.Duration {
+			// Insert at index i
+			r.global.SlowLog = append(r.global.SlowLog[:i], append([]SlowLogEntry{entry}, r.global.SlowLog[i:]...)...)
+			inserted = true
+			break
+		}
+	}
+
+	if !inserted && len(r.global.SlowLog) < r.global.maxSlowLog {
+		r.global.SlowLog = append(r.global.SlowLog, entry)
+	}
+
+	// Trim if needed
+	if len(r.global.SlowLog) > r.global.maxSlowLog {
+		r.global.SlowLog = r.global.SlowLog[:r.global.maxSlowLog]
+	}
+}
+
+// GetGlobalStats returns global execution statistics.
+func (r *Registry) GetGlobalStats() (total uint64, errors uint64) {
+	r.global.mu.RLock()
+	defer r.global.mu.RUnlock()
+	return r.global.TotalExecutions, r.global.TotalErrors
+}
+
+// GetSlowLog returns the slowest handler executions.
+func (r *Registry) GetSlowLog(limit int) []SlowLogEntry {
+	r.global.mu.RLock()
+	defer r.global.mu.RUnlock()
+
+	if limit <= 0 || limit > len(r.global.SlowLog) {
+		limit = len(r.global.SlowLog)
+	}
+
+	res := make([]SlowLogEntry, limit)
+	copy(res, r.global.SlowLog[:limit])
+	return res
 }
 
 // getOrCreateStats returns the statistics for a handler, creating them if they don't exist.

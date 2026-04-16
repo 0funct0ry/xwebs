@@ -245,6 +245,7 @@ func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
 		if s.opts.Verbose {
 			s.errorf("[http] upgrade error: %v\n", err)
 		}
+		observability.IncrementTotalErrors()
 		return
 	}
 
@@ -266,6 +267,7 @@ func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 
 	observability.ActiveConnections.Inc()
+	observability.IncrementTotalConnections()
 
 	s.wg.Add(1)
 	go func() {
@@ -290,8 +292,10 @@ func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
 					}
 					if msg.Metadata.Direction == "received" {
 						observability.MessagesReceived.Inc()
+						observability.IncrementMessagesReceived()
 					} else {
 						observability.MessagesSent.Inc()
+						observability.IncrementMessagesSent()
 					}
 				case <-wsConn.Done():
 					return
@@ -640,6 +644,21 @@ func (s *Server) DeleteKV(key string) {
 // GetHandlerStats returns statistics for a handler.
 func (s *Server) GetHandlerStats(name string) (uint64, time.Duration, uint64, bool) {
 	return s.registry.GetStats(name)
+}
+
+// GetGlobalStats returns global server statistics.
+func (s *Server) GetGlobalStats() observability.GlobalStats {
+	return observability.GetGlobalStats()
+}
+
+// GetRegistryStats returns global handler execution stats.
+func (s *Server) GetRegistryStats() (uint64, uint64) {
+	return s.registry.GetGlobalStats()
+}
+
+// GetSlowLog returns the slowest handler executions.
+func (s *Server) GetSlowLog(limit int) []handler.SlowLogEntry {
+	return s.registry.GetSlowLog(limit)
 }
 
 // IsHandlerDisabled returns true if the handler is disabled.

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/0funct0ry/xwebs/internal/handler"
+	"github.com/0funct0ry/xwebs/internal/observability"
 	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/0funct0ry/xwebs/internal/ws"
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -60,6 +61,11 @@ type ServerContext interface {
 	GetKV(key string) (interface{}, bool)
 	SetKV(key string, val interface{})
 	DeleteKV(key string)
+
+	// Observability
+	GetGlobalStats() observability.GlobalStats
+	GetRegistryStats() (total uint64, errors uint64)
+	GetSlowLog(limit int) []handler.SlowLogEntry
 }
 
 // RegisterServerCommands adds WebSocket server-specific commands to the REPL.
@@ -73,6 +79,84 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 			r.Printf("  Status:      %s\n", sc.GetStatus())
 			r.Printf("  Uptime:      %v\n", sc.GetUptime().Round(time.Second))
 			r.Printf("  Clients:     %d\n", sc.GetClientCount())
+
+			stats := sc.GetGlobalStats()
+			r.Printf("  Connections: %d\n", stats.TotalConnections)
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "stats",
+		help: "Show global server statistics",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			stats := sc.GetGlobalStats()
+			hHits, hErrs := sc.GetRegistryStats()
+
+			tw := table.NewWriter()
+			tw.SetOutputMirror(nil)
+			tw.AppendHeader(table.Row{"Category", "Metric", "Value"})
+			tw.AppendRows([]table.Row{
+				{"Connections", "Current Active", sc.GetClientCount()},
+				{"Connections", "Total Lifetime", stats.TotalConnections},
+				{"Messages", "Received", stats.MessagesReceived},
+				{"Messages", "Sent", stats.MessagesSent},
+				{"Handlers", "Total Executions", hHits},
+				{"Handlers", "Errors", hErrs},
+				{"Server", "Global Errors", stats.TotalErrors},
+				{"Server", "Uptime", sc.GetUptime().Round(time.Second)},
+			})
+
+			tw.SetStyle(table.StyleColoredDark)
+			tw.Style().Options.SeparateRows = false
+			tw.Style().Options.SeparateColumns = true
+			tw.Style().Options.DrawBorder = true
+
+			r.Printf("\nServer Observability Statistics:\n%s\n", tw.Render())
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "slow",
+		help: "Show slowest handler executions: :slow [limit]",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			limit := 10
+			if len(args) > 0 {
+				if l, err := strconv.Atoi(args[0]); err == nil {
+					limit = l
+				}
+			}
+
+			slowLog := sc.GetSlowLog(limit)
+			if len(slowLog) == 0 {
+				r.Printf("No slow executions recorded yet.\n")
+				return nil
+			}
+
+			tw := table.NewWriter()
+			tw.SetOutputMirror(nil)
+			tw.AppendHeader(table.Row{"Timestamp", "Handler", "Duration", "Error"})
+
+			for _, entry := range slowLog {
+				errStr := "-"
+				if entry.Error != "" {
+					errStr = text.FgRed.Sprint(entry.Error)
+				}
+				tw.AppendRow(table.Row{
+					entry.Timestamp.Format("15:04:05"),
+					entry.HandlerName,
+					entry.Duration.Round(time.Microsecond),
+					errStr,
+				})
+			}
+
+			tw.SetStyle(table.StyleColoredDark)
+			tw.Style().Options.SeparateRows = false
+			tw.Style().Options.SeparateColumns = true
+			tw.Style().Options.DrawBorder = true
+
+			r.Printf("\nSlowest Handler Executions (Top %d):\n%s\n", limit, tw.Render())
 			return nil
 		},
 	})

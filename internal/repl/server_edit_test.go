@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/0funct0ry/xwebs/internal/handler"
+	"github.com/0funct0ry/xwebs/internal/observability"
 	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/0funct0ry/xwebs/internal/ws"
 )
@@ -74,6 +75,10 @@ func (m *mockServerContext) ListKV() map[string]interface{} { return nil }
 func (m *mockServerContext) GetKV(key string) (interface{}, bool) { return nil, false }
 func (m *mockServerContext) SetKV(key string, val interface{}) {}
 func (m *mockServerContext) DeleteKV(key string) {}
+
+func (m *mockServerContext) GetGlobalStats() observability.GlobalStats { return observability.GlobalStats{} }
+func (m *mockServerContext) GetRegistryStats() (uint64, uint64) { return 0, 0 }
+func (m *mockServerContext) GetSlowLog(limit int) []handler.SlowLogEntry { return nil }
 
 func TestHandlerEdit(t *testing.T) {
 	r, _ := New(ServerMode, &Config{Terminal: false})

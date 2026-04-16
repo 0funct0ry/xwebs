@@ -464,6 +464,8 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `:reload` | Hot-reload the handler configuration file and variables from disk without restarting the server |
 | `:enable <name>` | Enable a previously disabled handler at runtime |
 | `:disable <name>`| Disable a handler at runtime to stop it from matching incoming messages |
+| `:stats` | Show global server observability statistics (connections, messages, handler hits) |
+| `:slow [n]` | Show the top `n` slowest handler executions (default 10) |
 
 **`:handler add` flags:**
 

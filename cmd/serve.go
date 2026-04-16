@@ -9,6 +9,7 @@ import (
 
 	"github.com/0funct0ry/xwebs/internal/config"
 	"github.com/0funct0ry/xwebs/internal/handler"
+	"github.com/0funct0ry/xwebs/internal/observability"
 	"github.com/0funct0ry/xwebs/internal/repl"
 	"github.com/0funct0ry/xwebs/internal/server"
 	"github.com/0funct0ry/xwebs/internal/template"
@@ -104,6 +105,10 @@ func (c *serveContext) ListKV() map[string]interface{} { return c.srv.ListKV() }
 func (c *serveContext) GetKV(key string) (interface{}, bool) { return c.srv.GetKV(key) }
 func (c *serveContext) SetKV(key string, val interface{}) { c.srv.SetKV(key, val) }
 func (c *serveContext) DeleteKV(key string) { c.srv.DeleteKV(key) }
+
+func (c *serveContext) GetGlobalStats() observability.GlobalStats { return c.srv.GetGlobalStats() }
+func (c *serveContext) GetRegistryStats() (uint64, uint64) { return c.srv.GetRegistryStats() }
+func (c *serveContext) GetSlowLog(limit int) []handler.SlowLogEntry { return c.srv.GetSlowLog(limit) }
 
 func (c *serveContext) ReloadHandlers() error {
 	var handlers []handler.Handler
