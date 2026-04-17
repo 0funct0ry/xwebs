@@ -122,9 +122,9 @@ When running in a terminal (TTY), `xwebs connect` enters a rich interactive REPL
 | `:reconnect`     | Force a reconnection to the current URL              |
 | `:close [c][r]`  | Send a graceful close frame                          |
 | `:disconnect`    | Disconnect from the current server                   |
-| `:set <k> <v>`   | Set a session variable for templates                 |
-| `:get <k>`       | Get the value of a session variable                  |
-| `:vars`          | List all active session variables                    |
+| `:set <k> <v>`   | Set a session variable (Client mode only)            |
+| `:get <k>`       | Get a session variable (Client mode only)            |
+| `:vars`          | List session variables (Client mode only)             |
 | `:env`           | List all environment variables                       |
 | `:pwd [var]`     | Show current working directory (optional save to var)|
 | `:cd [path\|-]`  | Change the current working directory                 |
@@ -469,6 +469,9 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `:disable <name>`| Disable a handler at runtime to stop it from matching incoming messages |
 | `:stats` | Show global server observability statistics (connections, messages, handler hits) |
 | `:slow [n]` | Show the top `n` slowest handler executions (default 10) |
+
+> [!NOTE]
+> Session-variable commands (`:set`, `:get`, `:vars`) are not available in server mode as there is no single client session context. Use [Key-Value Store commands](#key-value-store-commands) (e.g., `:kv set`, `:kv get`) for shared administrative state.
 
 **`:handler add` flags:**
 

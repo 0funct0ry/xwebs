@@ -59,9 +59,7 @@ This document provides a comprehensive list of commands available in the `xwebs 
 | `:clear`               | Clear the terminal screen.                           | `:clear`                            |
 | `:! <command>`         | Execute a shell command from the REPL.               | `:! ls -la`                         |
 | `:shell`               | Switch to a full interactive shell session.          | `:shell`                            |
-| `:set <key> <val>`     | Set a session variable for templates.                | `:set env production`               |
-| `:get <key>`           | Display the value of a session variable.             | `:get env`                          |
-| `:vars`                | List all active session variables.                   | `:vars`                             |
+| `:env`                 | List all process environment variables.              | `:env`                              |
 | `:pwd` / `:cd` / `:ls` | Standard filesystem navigation commands.             | `:cd /path/to/project`              |
 | `:history`             | View command history with searching and filtering.   | `:history -n 10`                    |
 | `:hedit`               | Edit and re-run a previous command in `$EDITOR`.     | `:hedit -n 5`                       |
@@ -71,3 +69,6 @@ This document provides a comprehensive list of commands available in the `xwebs 
 | `:wait <duration>`     | Pause execution (e.g., `1s`, `500ms`).               | `:wait 2s`                          |
 | `:assert <expr>`       | Verify a condition (fails if empty, 0, or false).    | `:assert "{{eq .Last \"pong\"}}"`   |
 | `:write <file>`        | Save content (last msg, handlers, etc.) to a file.   | `:write --last-message result.json` |
+
+> [!NOTE]
+> Session-variable commands (`:set`, `:get`, `:vars`) are not available in server mode as there is no single client session context. Use [Key-Value Store commands](#key-value-store-commands) (e.g., `:kv set`, `:kv get`) for shared administrative state.

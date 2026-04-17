@@ -24,6 +24,7 @@ func (c *mockCommand) Execute(ctx context.Context, r *REPL, args []string) error
 	c.args = args
 	return nil
 }
+func (c *mockCommand) IsVisible(r *REPL) bool { return true }
 
 func TestREPLCommands(t *testing.T) {
 	r, err := New(ClientMode, &Config{Terminal: true})

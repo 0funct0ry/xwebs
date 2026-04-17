@@ -20,6 +20,8 @@ import (
 	"github.com/pmezard/go-difflib/difflib"
 	"github.com/spf13/pflag"
 	"golang.design/x/clipboard"
+	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/jedib0t/go-pretty/v6/text"
 	"gopkg.in/yaml.v3"
 	"runtime"
 )
@@ -29,13 +31,15 @@ type Command interface {
 	Name() string
 	Help() string
 	Execute(ctx context.Context, r *REPL, args []string) error
+	IsVisible(r *REPL) bool
 }
 
 // BuiltinCommand is a simple implementation of the Command interface.
 type BuiltinCommand struct {
-	name    string
-	help    string
-	handler func(ctx context.Context, r *REPL, args []string) error
+	name         string
+	help         string
+	handler      func(ctx context.Context, r *REPL, args []string) error
+	hideInServer bool
 }
 
 func (c *BuiltinCommand) Name() string {
@@ -48,6 +52,13 @@ func (c *BuiltinCommand) Help() string {
 
 func (c *BuiltinCommand) Execute(ctx context.Context, r *REPL, args []string) error {
 	return c.handler(ctx, r, args)
+}
+
+func (c *BuiltinCommand) IsVisible(r *REPL) bool {
+	if c.hideInServer && r.mode == ServerMode {
+		return false
+	}
+	return true
 }
 
 // Subsystem is a group of commands that can be added to the REPL.
@@ -72,8 +83,10 @@ func (r *REPL) RegisterCommonCommands() {
 		help: "List all commands and their descriptions",
 		handler: func(ctx context.Context, _ *REPL, args []string) error {
 			cmds := make([]string, 0, len(r.commands))
-			for name := range r.commands {
-				cmds = append(cmds, name)
+			for name, cmd := range r.commands {
+				if cmd.IsVisible(r) {
+					cmds = append(cmds, name)
+				}
 			}
 			sort.Strings(cmds)
 
@@ -137,7 +150,12 @@ func (r *REPL) RegisterCommonCommands() {
 	r.RegisterCommand(&BuiltinCommand{
 		name: "set",
 		help: "Set a session variable: :set <key> <value>",
+		hideInServer: true,
 		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if r.mode == ServerMode {
+				r.Printf(":set is not available in server mode. Use :kv set / :kv get for shared state.\n")
+				return nil
+			}
 			if len(args) < 2 {
 				return fmt.Errorf("usage: :set <key> <value>")
 			}
@@ -149,7 +167,12 @@ func (r *REPL) RegisterCommonCommands() {
 	r.RegisterCommand(&BuiltinCommand{
 		name: "get",
 		help: "Get a session variable: :get <key>",
+		hideInServer: true,
 		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if r.mode == ServerMode {
+				r.Printf(":get is not available in server mode. Use :kv set / :kv get for shared state.\n")
+				return nil
+			}
 			if len(args) < 1 {
 				return fmt.Errorf("usage: :get <key>")
 			}
@@ -166,21 +189,38 @@ func (r *REPL) RegisterCommonCommands() {
 	r.RegisterCommand(&BuiltinCommand{
 		name: "vars",
 		help: "List all session variables",
+		hideInServer: true,
 		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if r.mode == ServerMode {
+				r.Printf(":vars is not available in server mode. Use :kv set / :kv get for shared state.\n")
+				return nil
+			}
 			vars := r.GetVars()
 			if len(vars) == 0 {
 				r.Printf("No session variables defined.\n")
 				return nil
 			}
+
+			tw := table.NewWriter()
+			tw.SetOutputMirror(nil)
+			tw.AppendHeader(table.Row{"Variable", "Value"})
+
 			keys := make([]string, 0, len(vars))
 			for k := range vars {
 				keys = append(keys, k)
 			}
 			sort.Strings(keys)
-			r.Printf("\nSession Variables:\n")
+
 			for _, k := range keys {
-				r.Printf("  %-15s = %v\n", k, vars[k])
+				tw.AppendRow(table.Row{k, vars[k]})
 			}
+
+			tw.SetStyle(table.StyleColoredDark)
+			tw.Style().Options.SeparateRows = false
+			tw.Style().Options.SeparateColumns = true
+			tw.Style().Options.DrawBorder = true
+
+			r.Printf("\nSession Variables:\n%s\n", tw.Render())
 			return nil
 		},
 	})
@@ -1161,8 +1201,31 @@ func (r *REPL) RegisterCommonCommands() {
 			}
 
 			r.Printf("\nLoaded Handlers (priority order):\n")
-			for i, h := range handlers {
-				priorityStr := fmt.Sprintf("p=%d", h.Priority)
+
+			tw := table.NewWriter()
+			tw.SetOutputMirror(nil)
+			tw.AppendHeader(table.Row{"Name", "Matches", "Avg Latency", "Errors", "Status", "Pattern"})
+
+			for _, h := range handlers {
+				matches, totalLatency, errors, ok := r.Handlers.GetStats(h.Name)
+				avgLatencyStr := "-"
+				if ok && matches > 0 {
+					avgLatencyStr = (totalLatency / time.Duration(matches)).Round(time.Microsecond).String()
+				}
+				matchesStr := "-"
+				if ok {
+					matchesStr = fmt.Sprintf("%d", matches)
+				}
+				errorsStr := "-"
+				if ok {
+					errorsStr = fmt.Sprintf("%d", errors)
+				}
+
+				status := text.FgGreen.Sprint("enabled")
+				if r.Handlers.IsDisabled(h.Name) {
+					status = text.FgRed.Sprint("disabled")
+				}
+
 				matcherStr := ""
 				if h.Match.Regex != "" {
 					matcherStr = "regex:" + h.Match.Regex
@@ -1174,21 +1237,27 @@ func (r *REPL) RegisterCommonCommands() {
 					matcherStr = "text:" + h.Match.Pattern
 				}
 
-				extraInfo := ""
-				if h.Exclusive {
-					extraInfo += " [exclusive]"
-				}
-				if h.Concurrent != nil && !*h.Concurrent {
-					extraInfo += " [sequential]"
-				}
-				if h.RateLimit != "" {
-					extraInfo += fmt.Sprintf(" [limit:%s]", h.RateLimit)
-				}
-				if h.Debounce != "" {
-					extraInfo += fmt.Sprintf(" [debounce:%s]", h.Debounce)
-				}
+				tw.AppendRow(table.Row{
+					h.Name,
+					matchesStr,
+					avgLatencyStr,
+					errorsStr,
+					status,
+					matcherStr,
+				})
+			}
 
-				r.Printf("  %2d. %-20s [%s]%s match=%s\n", i+1, h.Name, priorityStr, extraInfo, matcherStr)
+			tw.SetStyle(table.StyleColoredDark)
+			tw.Style().Options.SeparateRows = false
+			tw.Style().Options.SeparateColumns = true
+			tw.Style().Options.DrawBorder = true
+
+			r.Printf("%s\n", tw.Render())
+
+			// Detailed actions list below the table for clarity
+			r.Printf("\nDetailed Actions:\n")
+			for i, h := range handlers {
+				r.Printf("  %d. %s:\n", i+1, h.Name)
 				for _, a := range h.Actions {
 					desc := a.Command
 					if desc == "" {

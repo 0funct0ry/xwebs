@@ -111,9 +111,9 @@ func (r *REPL) completeCommands(line string) ([][]rune, int) {
 	seen := make(map[string]bool)
 
 	// Command names
-	for name := range r.commands {
+	for name, cmd := range r.commands {
 		if strings.HasPrefix(strings.ToLower(name), strings.ToLower(prefix)) {
-			if !seen[name] {
+			if !seen[name] && cmd.IsVisible(r) {
 				suggestions = append(suggestions, []rune(name[len(prefix):]))
 				seen[name] = true
 			}
