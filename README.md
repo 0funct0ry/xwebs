@@ -1736,7 +1736,7 @@ profiles:
 
 Usage:
 ```bash
-xwebs --profile debug
+xwebs connect --profile debug URL
 ```
 
 ### Precedence

@@ -38,22 +38,7 @@ var validLogFormats = []string{"text", "json"}
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file path (default searches ~/.xwebs.yaml then .xwebs.yaml)")
-	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable verbose output")
-	rootCmd.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "suppress all output except errors")
-	rootCmd.PersistentFlags().StringVar(&color, "color", "auto", "color output mode: auto, on, off")
-	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "info", "logging level: debug, info, warn, error")
-	rootCmd.PersistentFlags().StringVar(&logFormat, "log-format", "text", "log format: text, json")
-	rootCmd.PersistentFlags().StringVar(&profile, "profile", "", "profile name for configuration")
-	rootCmd.PersistentFlags().StringVar(&proxy, "proxy", "", "proxy URL (http, https, socks5)")
-	rootCmd.PersistentFlags().StringVar(&handlersFile, "handlers", "", "handlers configuration file path (YAML)")
-	rootCmd.PersistentFlags().BoolVar(&noShellFunc, "no-shell-func", false, "disable dangerous template functions (shell, env, fileRead, etc.)")
-	rootCmd.PersistentFlags().StringArrayVar(&onHandlers, "on", nil, "Define a quick handler (pattern:command)")
-	rootCmd.PersistentFlags().StringArrayVar(&onMatchHandlers, "on-match", nil, "Define an inline JSON handler")
-	rootCmd.PersistentFlags().StringVar(&respondTemplate, "respond", "", "Default response template for inline handlers")
-	rootCmd.PersistentFlags().BoolVar(&sandboxEnabled, "sandbox", false, "Enable shell command allowlisting for handlers")
-	rootCmd.PersistentFlags().StringSliceVar(&allowlist, "allowlist", nil, "Comma-separated list of allowed shell commands")
-
+	// Persistent flags removed in favor of command-specific flags
 	_ = rootCmd.PersistentFlags().MarkDeprecated("toggle", "this flag is no longer used")
 
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
@@ -103,63 +88,54 @@ func initConfig() {
 		fmt.Fprintf(os.Stderr, "Using config file: %s\n", viper.ConfigFileUsed())
 	}
 
-	// Bind flags to Viper
-	_ = viper.BindPFlag("config", rootCmd.PersistentFlags().Lookup("config"))
-	_ = viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose"))
-	_ = viper.BindPFlag("quiet", rootCmd.PersistentFlags().Lookup("quiet"))
-	_ = viper.BindPFlag("color", rootCmd.PersistentFlags().Lookup("color"))
-	_ = viper.BindPFlag("log-level", rootCmd.PersistentFlags().Lookup("log-level"))
-	_ = viper.BindPFlag("log-format", rootCmd.PersistentFlags().Lookup("log-format"))
-	_ = viper.BindPFlag("profile", rootCmd.PersistentFlags().Lookup("profile"))
-	_ = viper.BindPFlag("proxy", rootCmd.PersistentFlags().Lookup("proxy"))
-	_ = viper.BindPFlag("handlers", rootCmd.PersistentFlags().Lookup("handlers"))
-	_ = viper.BindPFlag("no-shell-func", rootCmd.PersistentFlags().Lookup("no-shell-func"))
-	_ = viper.BindPFlag("on", rootCmd.PersistentFlags().Lookup("on"))
-	_ = viper.BindPFlag("on-match", rootCmd.PersistentFlags().Lookup("on-match"))
-	_ = viper.BindPFlag("respond", rootCmd.PersistentFlags().Lookup("respond"))
-	_ = viper.BindPFlag("sandbox", rootCmd.PersistentFlags().Lookup("sandbox"))
-	_ = viper.BindPFlag("allowlist", rootCmd.PersistentFlags().Lookup("allowlist"))
+	// Find the active command to bind its local flags to Viper
+	activeCmd, _, _ := rootCmd.Find(os.Args[1:])
+	if activeCmd != nil {
+		_ = viper.BindPFlags(activeCmd.Flags())
 
-	// Sync global variables from Viper and update flag defaults for help text
-	syncFlag := func(name string, ptr interface{}) {
-		f := rootCmd.PersistentFlags().Lookup(name)
-		if f == nil {
-			return
-		}
-		switch v := ptr.(type) {
-		case *string:
-			*v = viper.GetString(name)
-			f.DefValue = *v
-		case *bool:
-			*v = viper.GetBool(name)
-			if *v {
-				f.DefValue = "true"
-			} else {
-				f.DefValue = "false"
+		// Sync global variables from Viper and update flag defaults for help text
+		syncFlag := func(name string, ptr interface{}) {
+			f := activeCmd.Flags().Lookup(name)
+			if f == nil {
+				return
+			}
+			switch v := ptr.(type) {
+			case *string:
+				*v = viper.GetString(name)
+				f.DefValue = *v
+			case *bool:
+				*v = viper.GetBool(name)
+				if *v {
+					f.DefValue = "true"
+				} else {
+					f.DefValue = "false"
+				}
 			}
 		}
-	}
 
-	syncFlag("verbose", &verbose)
-	syncFlag("quiet", &quiet)
-	syncFlag("color", &color)
-	syncFlag("log-level", &logLevel)
-	syncFlag("log-format", &logFormat)
-	syncFlag("proxy", &proxy)
-	syncFlag("handlers", &handlersFile)
-	syncFlag("no-shell-func", &noShellFunc)
-	syncFlag("respond", &respondTemplate)
-	syncFlag("sandbox", &sandboxEnabled)
+		syncFlag("config", &cfgFile)
+		syncFlag("verbose", &verbose)
+		syncFlag("quiet", &quiet)
+		syncFlag("color", &color)
+		syncFlag("log-level", &logLevel)
+		syncFlag("log-format", &logFormat)
+		syncFlag("profile", &profile)
+		syncFlag("proxy", &proxy)
+		syncFlag("handlers", &handlersFile)
+		syncFlag("no-shell-func", &noShellFunc)
+		syncFlag("respond", &respondTemplate)
+		syncFlag("sandbox", &sandboxEnabled)
 
-	// String slices need manual syncing from Viper if not set via flags
-	if !rootCmd.PersistentFlags().Changed("on") && viper.IsSet("on") {
-		onHandlers = viper.GetStringSlice("on")
-	}
-	if !rootCmd.PersistentFlags().Changed("on-match") && viper.IsSet("on-match") {
-		onMatchHandlers = viper.GetStringSlice("on-match")
-	}
-	if !rootCmd.PersistentFlags().Changed("allowlist") && viper.IsSet("allowlist") {
-		allowlist = viper.GetStringSlice("allowlist")
+		// String slices need manual syncing from Viper if not set via flags
+		if !activeCmd.Flags().Changed("on") && viper.IsSet("on") {
+			onHandlers = viper.GetStringSlice("on")
+		}
+		if !activeCmd.Flags().Changed("on-match") && viper.IsSet("on-match") {
+			onMatchHandlers = viper.GetStringSlice("on-match")
+		}
+		if !activeCmd.Flags().Changed("allowlist") && viper.IsSet("allowlist") {
+			allowlist = viper.GetStringSlice("allowlist")
+		}
 	}
 }
 

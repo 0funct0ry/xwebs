@@ -325,6 +325,10 @@ Example:
 func init() {
 	rootCmd.AddCommand(serveCmd)
 
+	ConfigFlags(serveCmd)
+	OutputFlags(serveCmd)
+	HandlerFlags(serveCmd)
+
 	serveCmd.Flags().IntVarP(&servePort, "port", "p", 8080, "port to listen on")
 	serveCmd.Flags().StringArrayVar(&servePaths, "path", []string{"/"}, "WebSocket path(s) to listen on")
 	serveCmd.Flags().BoolVar(&serveTLS, "tls", false, "enable TLS (wss://)")

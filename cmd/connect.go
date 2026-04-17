@@ -1133,6 +1133,11 @@ Example:
 }
 
 func init() {
+	ConfigFlags(connectCmd)
+	OutputFlags(connectCmd)
+	HandlerFlags(connectCmd)
+	ConnectionFlags(connectCmd)
+
 	connectCmd.Flags().StringSliceVarP(&subprotocols, "subprotocol", "s", []string{}, "suggested subprotocols for negotiation")
 	connectCmd.Flags().BoolVarP(&insecure, "insecure", "k", false, "skip TLS certificate verification")
 	connectCmd.Flags().StringVar(&certFile, "cert", "", "path to client certificate file (mTLS)")
