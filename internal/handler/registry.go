@@ -18,6 +18,16 @@ import (
 	"golang.org/x/time/rate"
 )
 
+// RegistryMode defines the operational mode of the handler registry.
+type RegistryMode string
+
+const (
+	// ClientMode is used when xwebs is running as a client (connect).
+	ClientMode RegistryMode = "client"
+	// ServerMode is used when xwebs is running as a server (serve).
+	ServerMode RegistryMode = "server"
+)
+
 // HandlerStats tracks execution statistics for a handler.
 type HandlerStats struct {
 	MatchCount   uint64
@@ -53,6 +63,7 @@ type Registry struct {
 	stats      map[string]*HandlerStats
 	global     RegistryStats
 	disabled   map[string]bool
+	Mode       RegistryMode
 	mu         sync.RWMutex
 }
 
@@ -62,8 +73,8 @@ type debouncer struct {
 	pending *ws.Message
 }
 
-// NewRegistry creates a new handler registry.
-func NewRegistry() *Registry {
+// NewRegistry creates a new handler registry with the given mode.
+func NewRegistry(mode RegistryMode) *Registry {
 	return &Registry{
 		handlers:   make([]Handler, 0),
 		schemas:    make(map[string]*gojsonschema.Schema),
@@ -72,6 +83,7 @@ func NewRegistry() *Registry {
 		debouncers: make(map[string]*debouncer),
 		stats:      make(map[string]*HandlerStats),
 		disabled:   make(map[string]bool),
+		Mode:       mode,
 		global: RegistryStats{
 			maxSlowLog: 50,
 		},
@@ -82,6 +94,12 @@ func NewRegistry() *Registry {
 func (r *Registry) Add(h Handler) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
+	// Validate the handler against the current registry mode
+	cfg := Config{Handlers: []Handler{h}}
+	if err := cfg.Validate(r.Mode); err != nil {
+		return err
+	}
 
 	for _, existing := range r.handlers {
 		if existing.Name == h.Name {
@@ -124,6 +142,12 @@ func (r *Registry) UpdateHandler(h Handler) error {
 		return fmt.Errorf("handler %q not found", h.Name)
 	}
 
+	// Validate the handler against the current registry mode
+	cfg := Config{Handlers: []Handler{h}}
+	if err := cfg.Validate(r.Mode); err != nil {
+		return err
+	}
+
 	// Clean up resources for the old version
 	delete(r.handlerMu, h.Name)
 	delete(r.limiters, h.Name)
@@ -142,17 +166,31 @@ func (r *Registry) UpdateHandler(h Handler) error {
 }
 
 // AddHandlers adds multiple handlers to the registry and sorts them by priority.
-func (r *Registry) AddHandlers(handlers []Handler) {
+func (r *Registry) AddHandlers(handlers []Handler) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
+	// Validate all handlers first
+	cfg := Config{Handlers: handlers}
+	if err := cfg.Validate(r.Mode); err != nil {
+		return err
+	}
+
 	r.handlers = append(r.handlers, handlers...)
 	r.sort()
+	return nil
 }
 
 // ReplaceHandlers replaces all handlers in the registry and cleans up resources.
-func (r *Registry) ReplaceHandlers(handlers []Handler) {
+func (r *Registry) ReplaceHandlers(handlers []Handler) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
+	// Validate all handlers first
+	cfg := Config{Handlers: handlers}
+	if err := cfg.Validate(r.Mode); err != nil {
+		return err
+	}
 
 	// Clean up all resources
 	r.handlerMu = make(map[string]*sync.Mutex)
@@ -171,6 +209,7 @@ func (r *Registry) ReplaceHandlers(handlers []Handler) {
 
 	r.handlers = handlers
 	r.sort()
+	return nil
 }
 
 // Delete removes a handler by name and cleans up associated resources.

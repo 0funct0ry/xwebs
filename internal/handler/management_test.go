@@ -13,8 +13,8 @@ import (
 )
 
 func TestRegistry_Management(t *testing.T) {
-	r := NewRegistry()
-	h := Handler{Name: "test", Match: Matcher{Pattern: "ping"}}
+	r := NewRegistry(ServerMode)
+	h := Handler{Name: "test", Match: Matcher{Pattern: "ping"}, Respond: "ok"}
 	err := r.Add(h)
 	require.NoError(t, err)
 
@@ -64,7 +64,7 @@ func TestRegistry_Management(t *testing.T) {
 }
 
 func TestDispatcher_ExecuteRecordsStats(t *testing.T) {
-	r := NewRegistry()
+	r := NewRegistry(ServerMode)
 	require.NoError(t, r.Add(Handler{Name: "exec-test", Match: Matcher{Pattern: ".*", Type: "regex"}, Run: "echo hello"}))
 
 	tmplEngine := template.New(false)

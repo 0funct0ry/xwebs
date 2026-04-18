@@ -11,7 +11,7 @@ import (
 
 func TestServerObservability(t *testing.T) {
 	observability.ResetStats()
-	s := New(WithPort(0)) // random port
+	s, _ := New(WithPort(0)) // random port
 
 	// Verify initial stats
 	stats := s.GetGlobalStats()

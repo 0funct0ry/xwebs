@@ -14,7 +14,7 @@ import (
 )
 
 func TestDispatcher_ExecuteRetryLinear(t *testing.T) {
-	reg := NewRegistry()
+	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
 	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil)
@@ -64,7 +64,7 @@ func TestDispatcher_ExecuteRetryLinear(t *testing.T) {
 }
 
 func TestDispatcher_ExecuteRetryExponential(t *testing.T) {
-	reg := NewRegistry()
+	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
 	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil)
@@ -100,7 +100,7 @@ func TestDispatcher_ExecuteRetryExponential(t *testing.T) {
 }
 
 func TestDispatcher_ExecuteRetryPipeline(t *testing.T) {
-	reg := NewRegistry()
+	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
 	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil)

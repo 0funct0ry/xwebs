@@ -9,7 +9,7 @@ import (
 )
 
 func TestDispatcher_Sandbox(t *testing.T) {
-	reg := NewRegistry()
+	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
 

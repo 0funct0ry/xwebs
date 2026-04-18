@@ -10,12 +10,12 @@ import (
 )
 
 func TestRegistry_PrioritySorting(t *testing.T) {
-	reg := NewRegistry()
-	reg.AddHandlers([]Handler{
-		{Name: "low", Priority: 1, Match: Matcher{Type: "text", Pattern: "ping"}},
-		{Name: "high", Priority: 10, Match: Matcher{Type: "text", Pattern: "ping"}},
-		{Name: "medium", Priority: 5, Match: Matcher{Type: "text", Pattern: "ping"}},
-		{Name: "default", Priority: 0, Match: Matcher{Type: "text", Pattern: "ping"}},
+	reg := NewRegistry(ServerMode)
+	_ = reg.AddHandlers([]Handler{
+		{Name: "low", Priority: 1, Match: Matcher{Type: "text", Pattern: "ping"}, Respond: "ok"},
+		{Name: "high", Priority: 10, Match: Matcher{Type: "text", Pattern: "ping"}, Respond: "ok"},
+		{Name: "medium", Priority: 5, Match: Matcher{Type: "text", Pattern: "ping"}, Respond: "ok"},
+		{Name: "default", Priority: 0, Match: Matcher{Type: "text", Pattern: "ping"}, Respond: "ok"},
 	})
 
 	handlers := reg.Handlers()
@@ -27,27 +27,27 @@ func TestRegistry_PrioritySorting(t *testing.T) {
 }
 
 func TestRegistry_Match(t *testing.T) {
-	reg := NewRegistry()
-	reg.AddHandlers([]Handler{
-		{Name: "text_match", Match: Matcher{Type: "text", Pattern: "hello"}},
-		{Name: "regex_match", Match: Matcher{Type: "regex", Pattern: "^foo.*"}},
-		{Name: "regex_shorthand", Match: Matcher{Regex: "^user:[a-z0-9]+$"}},
-		{Name: "regex_complex", Match: Matcher{Regex: `\d{3}-\d{3}-\d{4}`}},
-		{Name: "glob_txt", Match: Matcher{Type: "glob", Pattern: "*.txt"}},
-		{Name: "glob_deploy", Match: Matcher{Type: "glob", Pattern: "*deploy*"}},
-		{Name: "glob_exact", Match: Matcher{Type: "glob", Pattern: "exact_match"}},
-		{Name: "json_match", Match: Matcher{Type: "json", Pattern: ".id == 1"}},
-		{Name: "jq_type_match", Match: Matcher{Type: "jq", Pattern: `.type == "release" and .env == "production"`}},
-		{Name: "jq_shorthand_match", Match: Matcher{JQ: `.user.role == "admin"`}},
-		{Name: "jq_array_match", Match: Matcher{JQ: `.tags | contains(["urgent"])`}},
-		{Name: "json_path_string", Match: Matcher{JSONPath: "user.name", Equals: "alice"}},
-		{Name: "json_path_number", Match: Matcher{JSONPath: "user.id", Equals: 123}},
-		{Name: "json_path_bool", Match: Matcher{JSONPath: "user.active", Equals: true}},
-		{Name: "json_path_root", Match: Matcher{JSONPath: "$", Equals: "root_val"}},
-		{Name: "json_path_nested", Match: Matcher{JSONPath: "$.meta.version", Equals: 1.2}},
-		{Name: "template_match", Match: Matcher{Template: `{{ eq .Message "match_me" }}`}},
-		{Name: "template_complex", Match: Matcher{Template: `{{ if (contains "alert" .Message) }}true{{ end }}`}},
-		{Name: "template_falsy", Match: Matcher{Template: `{{ if (contains "quiet" .Message) }}false{{ end }}`}},
+	reg := NewRegistry(ServerMode)
+	_ = reg.AddHandlers([]Handler{
+		{Name: "text_match", Match: Matcher{Type: "text", Pattern: "hello"}, Respond: "ok"},
+		{Name: "regex_match", Match: Matcher{Type: "regex", Pattern: "^foo.*"}, Respond: "ok"},
+		{Name: "regex_shorthand", Match: Matcher{Regex: "^user:[a-z0-9]+$"}, Respond: "ok"},
+		{Name: "regex_complex", Match: Matcher{Regex: `\d{3}-\d{3}-\d{4}`}, Respond: "ok"},
+		{Name: "glob_txt", Match: Matcher{Type: "glob", Pattern: "*.txt"}, Respond: "ok"},
+		{Name: "glob_deploy", Match: Matcher{Type: "glob", Pattern: "*deploy*"}, Respond: "ok"},
+		{Name: "glob_exact", Match: Matcher{Type: "glob", Pattern: "exact_match"}, Respond: "ok"},
+		{Name: "json_match", Match: Matcher{Type: "json", Pattern: ".id == 1"}, Respond: "ok"},
+		{Name: "jq_type_match", Match: Matcher{Type: "jq", Pattern: `.type == "release" and .env == "production"`}, Respond: "ok"},
+		{Name: "jq_shorthand_match", Match: Matcher{JQ: `.user.role == "admin"`}, Respond: "ok"},
+		{Name: "jq_array_match", Match: Matcher{JQ: `.tags | contains(["urgent"])`}, Respond: "ok"},
+		{Name: "json_path_string", Match: Matcher{JSONPath: "user.name", Equals: "alice"}, Respond: "ok"},
+		{Name: "json_path_number", Match: Matcher{JSONPath: "user.id", Equals: 123}, Respond: "ok"},
+		{Name: "json_path_bool", Match: Matcher{JSONPath: "user.active", Equals: true}, Respond: "ok"},
+		{Name: "json_path_root", Match: Matcher{JSONPath: "$", Equals: "root_val"}, Respond: "ok"},
+		{Name: "json_path_nested", Match: Matcher{JSONPath: "$.meta.version", Equals: 1.2}, Respond: "ok"},
+		{Name: "template_match", Match: Matcher{Template: `{{ eq .Message "match_me" }}`}, Respond: "ok"},
+		{Name: "template_complex", Match: Matcher{Template: `{{ if (contains "alert" .Message) }}true{{ end }}`}, Respond: "ok"},
+		{Name: "template_falsy", Match: Matcher{Template: `{{ if (contains "quiet" .Message) }}false{{ end }}`}, Respond: "ok"},
 	})
 
 	tests := []struct {
@@ -115,12 +115,12 @@ func TestRegistry_BinaryMatch(t *testing.T) {
 	trueVal := true
 	falseVal := false
 
-	reg := NewRegistry()
-	reg.AddHandlers([]Handler{
-		{Name: "only_binary", Match: Matcher{Binary: &trueVal}},
-		{Name: "only_text", Match: Matcher{Binary: &falseVal}},
-		{Name: "binary_with_pattern", Match: Matcher{Binary: &trueVal, Pattern: "foo"}},
-		{Name: "text_with_pattern", Match: Matcher{Binary: &falseVal, Pattern: "foo"}},
+	reg := NewRegistry(ServerMode)
+	_ = reg.AddHandlers([]Handler{
+		{Name: "only_binary", Match: Matcher{Binary: &trueVal}, Respond: "ok"},
+		{Name: "only_text", Match: Matcher{Binary: &falseVal}, Respond: "ok"},
+		{Name: "binary_with_pattern", Match: Matcher{Binary: &trueVal, Pattern: "foo"}, Respond: "ok"},
+		{Name: "text_with_pattern", Match: Matcher{Binary: &falseVal, Pattern: "foo"}, Respond: "ok"},
 	})
 
 	tests := []struct {
@@ -159,11 +159,11 @@ func TestRegistry_BinaryMatch(t *testing.T) {
 	}
 }
 func TestRegistry_ExclusiveMatch(t *testing.T) {
-	reg := NewRegistry()
-	reg.AddHandlers([]Handler{
-		{Name: "h1", Priority: 10, Exclusive: false, Match: Matcher{Type: "text", Pattern: "ping"}},
-		{Name: "h2", Priority: 5, Exclusive: true, Match: Matcher{Type: "text", Pattern: "ping"}},
-		{Name: "h3", Priority: 1, Exclusive: false, Match: Matcher{Type: "text", Pattern: "ping"}},
+	reg := NewRegistry(ServerMode)
+	_ = reg.AddHandlers([]Handler{
+		{Name: "h1", Priority: 10, Exclusive: false, Match: Matcher{Type: "text", Pattern: "ping"}, Respond: "ok"},
+		{Name: "h2", Priority: 5, Exclusive: true, Match: Matcher{Type: "text", Pattern: "ping"}, Respond: "ok"},
+		{Name: "h3", Priority: 1, Exclusive: false, Match: Matcher{Type: "text", Pattern: "ping"}, Respond: "ok"},
 	})
 
 	engine := template.New(false)
@@ -180,9 +180,9 @@ func TestRegistry_ExclusiveMatch(t *testing.T) {
 }
 
 func TestRegistry_Add(t *testing.T) {
-	reg := NewRegistry()
-	h1 := Handler{Name: "h1", Priority: 5, Match: Matcher{Type: "text", Pattern: "ping"}}
-	h2 := Handler{Name: "h2", Priority: 10, Match: Matcher{Type: "text", Pattern: "ping"}}
+	reg := NewRegistry(ServerMode)
+	h1 := Handler{Name: "h1", Priority: 5, Match: Matcher{Type: "text", Pattern: "ping"}, Respond: "ok"}
+	h2 := Handler{Name: "h2", Priority: 10, Match: Matcher{Type: "text", Pattern: "ping"}, Respond: "ok"}
 
 	err := reg.Add(h1)
 	require.NoError(t, err)
@@ -198,9 +198,9 @@ func TestRegistry_Add(t *testing.T) {
 }
 
 func TestRegistry_DuplicateAdd(t *testing.T) {
-	reg := NewRegistry()
-	h1 := Handler{Name: "h1", Match: Matcher{Type: "text", Pattern: "ping"}}
-	h2 := Handler{Name: "h1", Match: Matcher{Type: "text", Pattern: "pong"}}
+	reg := NewRegistry(ServerMode)
+	h1 := Handler{Name: "h1", Match: Matcher{Type: "text", Pattern: "ping"}, Respond: "ok"}
+	h2 := Handler{Name: "h1", Match: Matcher{Type: "text", Pattern: "pong"}, Respond: "ok"}
 
 	err := reg.Add(h1)
 	require.NoError(t, err)
@@ -211,12 +211,12 @@ func TestRegistry_DuplicateAdd(t *testing.T) {
 }
 
 func TestRegistry_Delete(t *testing.T) {
-	reg := NewRegistry()
-	h1 := Handler{Name: "h1", Priority: 5, Match: Matcher{Type: "text", Pattern: "ping"}}
-	h2 := Handler{Name: "h2", Priority: 10, Match: Matcher{Type: "text", Pattern: "pong"}}
-	h3 := Handler{Name: "h3", Priority: 0, Match: Matcher{Type: "text", Pattern: "echo"}}
+	reg := NewRegistry(ServerMode)
+	h1 := Handler{Name: "h1", Priority: 5, Match: Matcher{Type: "text", Pattern: "ping"}, Respond: "ok"}
+	h2 := Handler{Name: "h2", Priority: 10, Match: Matcher{Type: "text", Pattern: "pong"}, Respond: "ok"}
+	h3 := Handler{Name: "h3", Priority: 0, Match: Matcher{Type: "text", Pattern: "echo"}, Respond: "ok"}
 
-	reg.AddHandlers([]Handler{h1, h2, h3})
+	_ = reg.AddHandlers([]Handler{h1, h2, h3})
 	require.Len(t, reg.Handlers(), 3)
 
 	// Delete existing handler
@@ -241,8 +241,8 @@ func TestRegistry_Delete(t *testing.T) {
 }
 
 func TestRegistry_GetHandler(t *testing.T) {
-	reg := NewRegistry()
-	h1 := Handler{Name: "h1", Match: Matcher{Type: "text", Pattern: "ping"}}
+	reg := NewRegistry(ServerMode)
+	h1 := Handler{Name: "h1", Match: Matcher{Type: "text", Pattern: "ping"}, Respond: "ok"}
 	_ = reg.Add(h1)
 
 	h, ok := reg.GetHandler("h1")
@@ -254,8 +254,8 @@ func TestRegistry_GetHandler(t *testing.T) {
 }
 
 func TestRegistry_UpdateHandler(t *testing.T) {
-	reg := NewRegistry()
-	h1 := Handler{Name: "h1", Priority: 5, Match: Matcher{Type: "text", Pattern: "ping"}}
+	reg := NewRegistry(ServerMode)
+	h1 := Handler{Name: "h1", Priority: 5, Match: Matcher{Type: "text", Pattern: "ping"}, Respond: "ok"}
 	_ = reg.Add(h1)
 
 	// Resource presence
@@ -263,7 +263,7 @@ func TestRegistry_UpdateHandler(t *testing.T) {
 	require.NotNil(t, reg.limiters["h1"])
 
 	// Update handler
-	updated := Handler{Name: "h1", Priority: 10, Match: Matcher{Type: "text", Pattern: "pong"}}
+	updated := Handler{Name: "h1", Priority: 10, Match: Matcher{Type: "text", Pattern: "pong"}, Respond: "ok"}
 	err := reg.UpdateHandler(updated)
 	require.NoError(t, err)
 
@@ -276,23 +276,23 @@ func TestRegistry_UpdateHandler(t *testing.T) {
 	assert.Nil(t, reg.limiters["h1"])
 
 	// Update non-existent
-	err = reg.UpdateHandler(Handler{Name: "foo"})
+	err = reg.UpdateHandler(Handler{Name: "foo", Match: Matcher{Pattern: "*"}, Respond: "ok"})
 	require.Error(t, err)
 }
 
 func TestRegistry_ReplaceHandlers(t *testing.T) {
-	reg := NewRegistry()
-	reg.AddHandlers([]Handler{
-		{Name: "h1", Priority: 5},
-		{Name: "h2", Priority: 10},
+	reg := NewRegistry(ServerMode)
+	_ = reg.AddHandlers([]Handler{
+		{Name: "h1", Priority: 5, Match: Matcher{Pattern: "ping"}, Respond: "ok"},
+		{Name: "h2", Priority: 10, Match: Matcher{Pattern: "ping"}, Respond: "ok"},
 	})
 	_ = reg.GetLimiter("h1", "10/s")
 	require.NotNil(t, reg.limiters["h1"])
 
 	newHandlers := []Handler{
-		{Name: "new1", Priority: 1},
+		{Name: "new1", Priority: 1, Match: Matcher{Pattern: "*"}, Respond: "ok"},
 	}
-	reg.ReplaceHandlers(newHandlers)
+	_ = reg.ReplaceHandlers(newHandlers)
 
 	handlers := reg.Handlers()
 	require.Len(t, handlers, 1)

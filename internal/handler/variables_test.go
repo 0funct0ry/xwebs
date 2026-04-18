@@ -16,7 +16,7 @@ func TestHandlerVariables(t *testing.T) {
 	os.Setenv("XWEBS_TEST_ENV", "env-value")
 	defer os.Unsetenv("XWEBS_TEST_ENV")
 
-	reg := NewRegistry()
+	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
 
@@ -45,7 +45,7 @@ func TestHandlerVariables(t *testing.T) {
 		},
 		Run: "echo {{.Vars.msg}}",
 	}
-	reg.AddHandlers([]Handler{*h})
+	_ = reg.AddHandlers([]Handler{*h})
 
 	ctx := context.Background()
 	msg := &ws.Message{
@@ -85,7 +85,7 @@ func TestHandlerVariables(t *testing.T) {
 }
 
 func TestHandlerVariableOverride(t *testing.T) {
-	reg := NewRegistry()
+	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
 
@@ -103,7 +103,7 @@ func TestHandlerVariableOverride(t *testing.T) {
 		Match:   Matcher{Pattern: "*"},
 		Respond: "Value: {{.Vars.key}}",
 	}
-	reg.AddHandlers([]Handler{*h})
+	_ = reg.AddHandlers([]Handler{*h})
 
 	ctx := context.Background()
 	msg := &ws.Message{

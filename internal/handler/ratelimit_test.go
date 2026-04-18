@@ -74,14 +74,14 @@ func (m *rateLimitMockConn) RTT() time.Duration                { return 0 }
 func (m *rateLimitMockConn) AvgRTT() time.Duration             { return 0 }
 
 func TestDispatcherRateLimit(t *testing.T) {
-	registry := NewRegistry()
+	registry := NewRegistry(ServerMode)
 	handler := Handler{
 		Name:      "limited",
 		RateLimit: "2/s", // 2 per second, burst 2
 		Match:     Matcher{Pattern: "hello"},
 		Respond:   "limited response",
 	}
-	registry.AddHandlers([]Handler{handler})
+	_ = registry.AddHandlers([]Handler{handler})
 
 	conn := &rateLimitMockConn{}
 	engine := template.New(false)

@@ -57,8 +57,7 @@ func (c *serveContext) UpdateHandler(h handler.Handler) error         { return c
 func (c *serveContext) DeleteHandler(name string) error               { return c.srv.DeleteHandler(name) }
 func (c *serveContext) RenameHandler(oldName, newName string) error   { return c.srv.RenameHandler(oldName, newName) }
 func (c *serveContext) ApplyHandlers(handlers []handler.Handler, variables map[string]interface{}) error {
-	c.srv.ReloadHandlers(handlers, variables)
-	return nil
+	return c.srv.ReloadHandlers(handlers, variables)
 }
 
 func (c *serveContext) EnableHandler(name string) error {
@@ -120,7 +119,7 @@ func (c *serveContext) ReloadHandlers() error {
 	var variables map[string]interface{}
 
 	if handlersFile != "" {
-		cfg, err := handler.LoadConfig(handlersFile)
+		cfg, err := handler.LoadConfig(handlersFile, handler.ServerMode)
 		if err != nil {
 			return fmt.Errorf("loading handlers: %w", err)
 		}
@@ -151,8 +150,7 @@ func (c *serveContext) ReloadHandlers() error {
 		handlers = append(handlers, h)
 	}
 
-	c.srv.ReloadHandlers(handlers, variables)
-	return nil
+	return c.srv.ReloadHandlers(handlers, variables)
 }
 
 var serveCmd = &cobra.Command{
@@ -165,7 +163,17 @@ Handlers can be loaded from a configuration file using the --handlers flag.
 
 Example:
   xwebs serve --port 8080 --path /ws
-  xwebs serve --handlers echo.yaml --port 9000 --path /api --path /chat`,
+  xwebs serve --handlers echo.yaml --port 9000 --path /api --path /chat
+
+Available Builtin Actions (Server):
+  kv-del         Delete a key from the server's shared key-value store.
+  kv-get         Retrieve a value from the server's shared key-value store into .KvValue.
+  kv-set         Store a value in the server's shared key-value store.
+  noop           A shared builtin that does nothing (useful for testing).
+  publish        Publish a message to a pub/sub topic.
+  subscribe      Subscribe the current connection to a pub/sub topic.
+  unsubscribe    Unsubscribe the current connection from a pub/sub topic.
+`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		tmplEngine := template.New(noShellFunc)
 
@@ -173,7 +181,7 @@ Example:
 		var variables map[string]interface{}
 
 		if handlersFile != "" {
-			cfg, err := handler.LoadConfig(handlersFile)
+			cfg, err := handler.LoadConfig(handlersFile, handler.ServerMode)
 			if err != nil {
 				return fmt.Errorf("loading handlers: %w", err)
 			}
@@ -233,7 +241,7 @@ Example:
 			}
 		}
 
-		srv := server.New(
+		srv, err := server.New(
 			server.WithPort(servePort),
 			server.WithPaths(servePaths),
 			server.WithHandlers(handlers),
@@ -253,6 +261,9 @@ Example:
 			server.WithRateLimit(rateLimit),
 			server.WithUI(serveUI),
 		)
+		if err != nil {
+			return fmt.Errorf("initializing server: %w", err)
+		}
 
 		if !quiet {
 			protocol := "ws"

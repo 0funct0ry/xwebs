@@ -112,15 +112,29 @@ func TestParseInlineHandler(t *testing.T) {
 			},
 		},
 		{
+			name:  "builtin with topic",
+			hStr:  "* :: builtin:subscribe :: topic:test",
+			index: 8,
+			want: Handler{
+				Name: "inline-8",
+				Match: Matcher{
+					Type:    "glob",
+					Pattern: "*",
+				},
+				Builtin: "subscribe",
+				Topic:   "test",
+			},
+		},
+		{
 			name:    "invalid segment",
 			hStr:    "test :: unknown:cmd",
-			index:   8,
+			index:   9,
 			wantErr: true,
 		},
 		{
 			name:    "missing action",
 			hStr:    "test :: exclusive",
-			index:   9,
+			index:   10,
 			wantErr: true,
 		},
 	}

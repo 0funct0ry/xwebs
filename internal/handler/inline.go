@@ -49,6 +49,8 @@ func ParseInlineHandler(hStr string, defaultRespond string, index int) (Handler,
 			h.Timeout = strings.TrimSpace(strings.TrimPrefix(seg, "timeout:"))
 		case strings.HasPrefix(seg, "builtin:"):
 			h.Builtin = strings.TrimSpace(strings.TrimPrefix(seg, "builtin:"))
+		case strings.HasPrefix(seg, "topic:"):
+			h.Topic = strings.TrimSpace(strings.TrimPrefix(seg, "topic:"))
 		case seg == "exclusive":
 			h.Exclusive = true
 		default:

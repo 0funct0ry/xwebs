@@ -202,7 +202,7 @@ func New(mode Mode, cfg *Config) (*REPL, error) {
 		vars:           make(map[string]interface{}),
 		completionData: make(map[string][]string),
 		done:           make(chan struct{}),
-		Handlers:       handler.NewRegistry(),
+		Handlers:       handler.NewRegistry(modeToHandlerMode(mode)),
 		originalPrompt: cfg.Prompt,
 		prompt:         cfg.Prompt,
 		promptTemplate: cfg.PromptTemplate,
@@ -251,6 +251,17 @@ func New(mode Mode, cfg *Config) (*REPL, error) {
 	}
 
 	return r, nil
+}
+
+func modeToHandlerMode(mode Mode) handler.RegistryMode {
+	if mode == ServerMode {
+		return handler.ServerMode
+	}
+	return handler.ClientMode
+}
+
+func (r *REPL) getHandlerMode() handler.RegistryMode {
+	return modeToHandlerMode(r.mode)
 }
 
 // parseShortcut converts a shortcut string like "Ctrl+Q" or "Alt+K" or a raw number to a rune.
@@ -1046,9 +1057,8 @@ func (r *REPL) AddConfigPath(path string) {
 	r.configPaths = append(r.configPaths, abs)
 }
 
-// ReloadConfig reloads handlers and variables from a configuration file.
 func (r *REPL) ReloadConfig(path string) error {
-	cfg, err := handler.LoadConfig(path)
+	cfg, err := handler.LoadConfig(path, r.getHandlerMode())
 	if err != nil {
 		return err
 	}
@@ -1060,9 +1070,11 @@ func (r *REPL) ReloadConfig(path string) error {
 
 	// Replace handlers
 	if r.Handlers == nil {
-		r.Handlers = handler.NewRegistry()
+		r.Handlers = handler.NewRegistry(r.getHandlerMode())
 	}
-	r.Handlers.ReplaceHandlers(cfg.Handlers)
+	if err := r.Handlers.ReplaceHandlers(cfg.Handlers); err != nil {
+		return err
+	}
 
 	return nil
 }

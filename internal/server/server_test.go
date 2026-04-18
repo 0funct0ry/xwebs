@@ -14,7 +14,7 @@ import (
 )
 
 func TestServer_ServeStatus(t *testing.T) {
-	s := New(WithPaths([]string{"/ws"}))
+	s, _ := New(WithPaths([]string{"/ws"}))
 	
 	// Test HTML response
 	req := httptest.NewRequest("GET", "/", nil)
@@ -38,7 +38,7 @@ func TestServer_ServeStatus(t *testing.T) {
 }
 
 func TestServer_WebSocketUpgrade(t *testing.T) {
-	s := New(WithPaths([]string{"/ws"}))
+	s, _ := New(WithPaths([]string{"/ws"}))
 	
 	server := httptest.NewServer(http.HandlerFunc(s.serveWS))
 	defer server.Close()
@@ -57,7 +57,7 @@ func TestServer_WebSocketUpgrade(t *testing.T) {
 }
 
 func TestServer_NonWSRequestToWSPath(t *testing.T) {
-	s := New(WithPaths([]string{"/ws"}))
+	s, _ := New(WithPaths([]string{"/ws"}))
 	
 	server := httptest.NewServer(http.HandlerFunc(s.serveWS))
 	defer server.Close()
@@ -72,7 +72,7 @@ func TestServer_NonWSRequestToWSPath(t *testing.T) {
 }
 
 func TestServer_StartAndStop(t *testing.T) {
-	s := New(WithPort(0)) // Random port
+	s, _ := New(WithPort(0)) // Random port
 	
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

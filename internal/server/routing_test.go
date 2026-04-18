@@ -16,7 +16,7 @@ package server
 		opts.Paths = []string{"/ws1", "/ws2"}
 		opts.Port = 0 // Auto-assign
 		
-		srv := New(
+		srv, _ := New(
 			WithPaths(opts.Paths),
 		)
 

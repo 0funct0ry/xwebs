@@ -48,7 +48,7 @@ type Server struct {
 }
 
 // New creates a new WebSocket server with the given options.
-func New(opts ...Option) *Server {
+func New(opts ...Option) (*Server, error) {
 	options := DefaultOptions()
 	for _, opt := range opts {
 		opt(options)
@@ -85,12 +85,14 @@ func New(opts ...Option) *Server {
 		}
 	}
 
-	s.registry = handler.NewRegistry()
+	s.registry = handler.NewRegistry(handler.ServerMode)
 	if len(options.Handlers) > 0 {
-		s.registry.AddHandlers(options.Handlers)
+		if err := s.registry.AddHandlers(options.Handlers); err != nil {
+			return nil, err
+		}
 	}
 
-	return s
+	return s, nil
 }
 
 // UpdateOptions applies the given options to the server.
@@ -667,10 +669,13 @@ func (s *Server) GetVariables() map[string]interface{} {
 }
 
 // ReloadHandlers replaces all handlers in the registry.
-func (s *Server) ReloadHandlers(handlers []handler.Handler, variables map[string]interface{}) {
-	s.registry.ReplaceHandlers(handlers)
+func (s *Server) ReloadHandlers(handlers []handler.Handler, variables map[string]interface{}) error {
+	if err := s.registry.ReplaceHandlers(handlers); err != nil {
+		return err
+	}
 	s.opts.Handlers = handlers
 	s.opts.Variables = variables
+	return nil
 }
 
 // EnableHandler enables a handler by name.

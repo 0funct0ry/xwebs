@@ -9,7 +9,7 @@ import (
 )
 
 // LoadConfig reads a YAML file from the given path and returns a parsed Config.
-func LoadConfig(path string) (*Config, error) {
+func LoadConfig(path string, mode RegistryMode) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("reading handler config: %w", err)
@@ -31,7 +31,7 @@ func LoadConfig(path string) (*Config, error) {
 		cfg.Handlers[i].BaseDir = cfg.BaseDir
 	}
 
-	if err := cfg.Validate(); err != nil {
+	if err := cfg.Validate(mode); err != nil {
 		// Provide a more user-friendly error message for validation failures
 		return nil, fmt.Errorf("invalid handler configuration in %s: %w", path, err)
 	}

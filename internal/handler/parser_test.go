@@ -32,7 +32,7 @@ handlers:
 	require.NoError(t, err)
 	tmpfile.Close()
 
-	cfg, err := LoadConfig(tmpfile.Name())
+	cfg, err := LoadConfig(tmpfile.Name(), ServerMode)
 	require.NoError(t, err)
 
 	assert.Equal(t, "bar", cfg.Variables["foo"])
@@ -166,7 +166,7 @@ handlers:
 			_, _ = tmpfile.Write([]byte(tt.content))
 			tmpfile.Close()
 
-			_, err := LoadConfig(tmpfile.Name())
+			_, err := LoadConfig(tmpfile.Name(), ServerMode)
 			if tt.wantErr != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErr)

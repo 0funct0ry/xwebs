@@ -9,7 +9,7 @@ import (
 )
 
 func TestRegistryStats(t *testing.T) {
-	r := NewRegistry()
+	r := NewRegistry(ServerMode)
 
 	// Record some executions
 	r.RecordExecution("h1", 100*time.Millisecond, nil)
@@ -30,7 +30,7 @@ func TestRegistryStats(t *testing.T) {
 }
 
 func TestSlowLogLimit(t *testing.T) {
-	r := NewRegistry()
+	r := NewRegistry(ServerMode)
 	r.global.maxSlowLog = 2
 
 	r.RecordExecution("h1", 100*time.Millisecond, nil)

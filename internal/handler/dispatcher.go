@@ -925,6 +925,11 @@ func (d *Dispatcher) executeBuiltin(a *Action, ctx *template.TemplateContext) er
 			d.errorf("  [handler] kv-del: %s\n", key)
 		}
 
+	case "noop":
+		if d.verbose {
+			d.errorf("  [handler] builtin noop: doing nothing\n")
+		}
+
 	default:
 		return fmt.Errorf("unknown builtin: %s", cmdStr)
 	}

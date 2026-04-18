@@ -13,7 +13,7 @@ import (
 
 func TestHandler_ConcurrencyControl(t *testing.T) {
 	engine := template.New(false)
-	reg := NewRegistry()
+	reg := NewRegistry(ServerMode)
 	conn := &mockConn{}
 	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil)
 

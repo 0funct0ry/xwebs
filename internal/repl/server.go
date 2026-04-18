@@ -679,7 +679,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 
 					// Validate
 					cfg := handler.Config{Handlers: []handler.Handler{updatedh}}
-					if err := cfg.Validate(); err != nil {
+					if err := cfg.Validate(r.getHandlerMode()); err != nil {
 						return fmt.Errorf("validation failed: %w", err)
 					}
 
@@ -720,7 +720,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 						return fmt.Errorf("unmarshaling edited configuration: %w", err)
 					}
 
-					if err := newCfg.Validate(); err != nil {
+					if err := newCfg.Validate(r.getHandlerMode()); err != nil {
 						return fmt.Errorf("validation failed: %w", err)
 					}
 

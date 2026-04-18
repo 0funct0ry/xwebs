@@ -29,15 +29,16 @@ func TestJSONSchemaMatcher(t *testing.T) {
 	err = os.WriteFile(schemaPath, []byte(schemaContent), 0644)
 	require.NoError(t, err)
 
-	reg := NewRegistry()
+	reg := NewRegistry(ServerMode)
 	h := Handler{
 		Name: "test-schema",
 		Match: Matcher{
 			JSONSchema: "schema.json",
 		},
+		Respond: "ok",
 		BaseDir: tmpDir,
 	}
-	reg.AddHandlers([]Handler{h})
+	_ = reg.AddHandlers([]Handler{h})
 
 	tests := []struct {
 		name    string
@@ -104,14 +105,15 @@ func TestJSONSchemaMatcherAbsolute(t *testing.T) {
 	err = os.WriteFile(schemaPath, []byte(schemaContent), 0644)
 	require.NoError(t, err)
 
-	reg := NewRegistry()
+	reg := NewRegistry(ServerMode)
 	h := Handler{
 		Name: "test-abs",
 		Match: Matcher{
 			JSONSchema: schemaPath,
 		},
+		Respond: "ok",
 	}
-	reg.AddHandlers([]Handler{h})
+	_ = reg.AddHandlers([]Handler{h})
 
 	msg := &ws.Message{Data: []byte("123")}
 	engine := template.New(false)

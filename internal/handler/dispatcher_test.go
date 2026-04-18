@@ -15,7 +15,7 @@ import (
 )
 
 func TestDispatcher_ExecutePipeline(t *testing.T) {
-	reg := NewRegistry()
+	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
 	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil)
@@ -46,7 +46,7 @@ func TestDispatcher_ExecutePipeline(t *testing.T) {
 }
 
 func TestDispatcher_ExecutePipelineFailure(t *testing.T) {
-	reg := NewRegistry()
+	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
 	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil)
@@ -78,7 +78,7 @@ func TestDispatcher_ExecutePipelineFailure(t *testing.T) {
 }
 
 func TestDispatcher_ExecutePipelineIgnoreError(t *testing.T) {
-	reg := NewRegistry()
+	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
 	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil)
@@ -109,7 +109,7 @@ func TestDispatcher_ExecutePipelineIgnoreError(t *testing.T) {
 }
 
 func TestDispatcher_GlobalVariables(t *testing.T) {
-	reg := NewRegistry()
+	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
 	vars := map[string]interface{}{"tmp": "/tmp/test", "version": 1}
@@ -138,7 +138,7 @@ func TestDispatcher_GlobalVariables(t *testing.T) {
 }
 
 func TestDispatcher_Shorthands(t *testing.T) {
-	reg := NewRegistry()
+	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
 	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil)
@@ -166,7 +166,7 @@ func TestDispatcher_Shorthands(t *testing.T) {
 }
 
 func TestDispatcher_RespondContext(t *testing.T) {
-	reg := NewRegistry()
+	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
 	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil)
@@ -195,18 +195,19 @@ func TestDispatcher_RespondContext(t *testing.T) {
 }
 
 func TestDispatcher_Debounce(t *testing.T) {
-	reg := NewRegistry()
+	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
 	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil)
 
 	h := &Handler{
 		Name:     "debounce-test",
+		Match:    Matcher{Pattern: "*"},
 		Debounce: "100ms",
 		Run:      "echo 'processed {{.Message}}'",
 		Respond:  "{{.Stdout | trim}}",
 	}
-	reg.AddHandlers([]Handler{*h})
+	_ = reg.AddHandlers([]Handler{*h})
 
 	// Send 3 messages in rapid succession
 	ctx := context.Background()
@@ -223,7 +224,7 @@ func TestDispatcher_Debounce(t *testing.T) {
 }
 
 func TestDispatcher_ExclusiveShortCircuit(t *testing.T) {
-	reg := NewRegistry()
+	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
 	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil)
@@ -254,7 +255,7 @@ func TestDispatcher_ExclusiveShortCircuit(t *testing.T) {
 		Run:       "echo 'h3'",
 	}
 
-	reg.AddHandlers([]Handler{h1, h2, h3})
+	_ = reg.AddHandlers([]Handler{h1, h2, h3})
 
 	// Wrap Dispatcher.Log to track executions
 	d.Log = func(f string, a ...interface{}) {
@@ -287,7 +288,7 @@ func TestDispatcher_ExclusiveShortCircuit(t *testing.T) {
 }
 
 func TestDispatcher_ExclusivePriority(t *testing.T) {
-	reg := NewRegistry()
+	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
 	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil)
@@ -311,7 +312,7 @@ func TestDispatcher_ExclusivePriority(t *testing.T) {
 		Run:       "echo 'lower'",
 	}
 
-	reg.AddHandlers([]Handler{h1, h2})
+	_ = reg.AddHandlers([]Handler{h1, h2})
 
 	d.Log = func(f string, a ...interface{}) {
 		mu.Lock()

@@ -62,12 +62,12 @@ func (m *mockLifecycleConn) RTT() time.Duration    { return 0 }
 func (m *mockLifecycleConn) AvgRTT() time.Duration { return 0 }
 
 func TestLifecycleHooks(t *testing.T) {
-	reg := NewRegistry()
+	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockLifecycleConn{done: make(chan struct{})}
 
 	// 1. Test on_connect
-	reg.AddHandlers([]Handler{
+	_ = reg.AddHandlers([]Handler{
 		{
 			Name: "conn_handler",
 			OnConnect: []Action{
@@ -83,7 +83,7 @@ func TestLifecycleHooks(t *testing.T) {
 	assert.Equal(t, "hello from connect", string(conn.messages[0].Data))
 
 	// 2. Test on_disconnect
-	reg.AddHandlers([]Handler{
+	_ = reg.AddHandlers([]Handler{
 		{
 			Name: "disc_handler",
 			OnDisconnect: []Action{
@@ -98,7 +98,7 @@ func TestLifecycleHooks(t *testing.T) {
 	assert.Equal(t, "bye bye", string(conn.messages[1].Data))
 
 	// 3. Test on_error with .Error context
-	reg.AddHandlers([]Handler{
+	_ = reg.AddHandlers([]Handler{
 		{
 			Name: "err_handler",
 			OnError: []Action{
@@ -115,12 +115,12 @@ func TestLifecycleHooks(t *testing.T) {
 }
 
 func TestHandlerErrorTrigger(t *testing.T) {
-	reg := NewRegistry()
+	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockLifecycleConn{done: make(chan struct{})}
 
 	// Handler that fails
-	reg.AddHandlers([]Handler{
+	_ = reg.AddHandlers([]Handler{
 		{
 			Name:  "failing_handler",
 			Match: Matcher{Type: "glob", Pattern: "*"},

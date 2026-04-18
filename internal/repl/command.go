@@ -1307,6 +1307,8 @@ func (r *REPL) RegisterCommonCommands() {
 				r.Printf("  --priority <n>        Numeric priority (higher runs first)\n")
 				r.Printf("  --run <cmd>           Shell command to run on match\n")
 				r.Printf("  --respond <tmpl>      Response template to send after run\n")
+				r.Printf("  -B, --builtin <name>  Builtin action (noop)\n")
+				r.Printf("  --topic <template>    Topic name template for builtin actions\n")
 				r.Printf("  --exclusive           Stop further matching if this handler matches\n")
 				r.Printf("  --sequential          Run handler actions sequentially (disable concurrency)\n")
 				r.Printf("  --rate-limit <limit>  Rate limit (e.g. '10/s')\n")
@@ -1366,7 +1368,7 @@ func (r *REPL) RegisterCommonCommands() {
 
 					// Validate (wrap in Config for full validation)
 					cfg := handler.Config{Handlers: []handler.Handler{updatedh}}
-					if err := cfg.Validate(); err != nil {
+					if err := cfg.Validate(r.getHandlerMode()); err != nil {
 						return fmt.Errorf("validation failed: %w", err)
 					}
 
@@ -1403,12 +1405,14 @@ func (r *REPL) RegisterCommonCommands() {
 						return fmt.Errorf("unmarshaling edited configuration: %w", err)
 					}
 
-					if err := newCfg.Validate(); err != nil {
+					if err := newCfg.Validate(r.getHandlerMode()); err != nil {
 						return fmt.Errorf("validation failed: %w", err)
 					}
 
 					// Apply changes
-					r.Handlers.ReplaceHandlers(newCfg.Handlers)
+					if err := r.Handlers.ReplaceHandlers(newCfg.Handlers); err != nil {
+						return err
+					}
 					if newCfg.Variables != nil {
 						r.ReplaceVars(newCfg.Variables)
 					}
@@ -1465,14 +1469,14 @@ func (r *REPL) RegisterCommonCommands() {
 
 			// Safety check: ensure Handlers registry is initialized
 			if r.Handlers == nil {
-				r.Handlers = handler.NewRegistry()
+				r.Handlers = handler.NewRegistry(r.getHandlerMode())
 			}
 
 			// Parse flags robustly using pflag
 			fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 			fs.SetOutput(nil) // Suppress automatic usage printing on error
 
-			var name, match, matchType, run, respond, rateLimit, debounce string
+			var name, match, matchType, run, respond, builtin, topic, rateLimit, debounce string
 			var priority int
 			var exclusive, sequential bool
 
@@ -1482,6 +1486,8 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.IntVarP(&priority, "priority", "p", 0, "Priority")
 			fs.StringVarP(&run, "run", "r", "", "Shell command")
 			fs.StringVarP(&respond, "respond", "R", "", "Response template")
+			fs.StringVarP(&builtin, "builtin", "B", "", "Builtin action (noop)")
+			fs.StringVar(&topic, "topic", "", "Topic name template for builtin actions")
 			fs.BoolVarP(&exclusive, "exclusive", "e", false, "Short-circuit match")
 			fs.BoolVarP(&sequential, "sequential", "s", false, "Run actions sequentially")
 			fs.StringVarP(&rateLimit, "rate-limit", "l", "", "Rate limit")
@@ -1508,6 +1514,8 @@ func (r *REPL) RegisterCommonCommands() {
 				Exclusive: exclusive,
 				Run:       run,
 				Respond:   respond,
+				Builtin:   builtin,
+				Topic:     topic,
 				Match: handler.Matcher{
 					Pattern: match,
 					Type:    matchType,

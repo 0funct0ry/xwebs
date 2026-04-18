@@ -10,10 +10,10 @@ import (
 )
 
 func TestRegistry_CompositeMatch(t *testing.T) {
-	reg := NewRegistry()
+	reg := NewRegistry(ServerMode)
 	falseVal := false
 
-	reg.AddHandlers([]Handler{
+	err := reg.AddHandlers([]Handler{
 		{
 			Name: "all_match",
 			Match: Matcher{
@@ -22,6 +22,7 @@ func TestRegistry_CompositeMatch(t *testing.T) {
 					{Regex: ".*error.*"},
 				},
 			},
+			Respond: "ok",
 		},
 		{
 			Name: "any_match",
@@ -31,6 +32,7 @@ func TestRegistry_CompositeMatch(t *testing.T) {
 					{Pattern: "pong"},
 				},
 			},
+			Respond: "ok",
 		},
 		{
 			Name: "nested_match",
@@ -45,6 +47,7 @@ func TestRegistry_CompositeMatch(t *testing.T) {
 					},
 				},
 			},
+			Respond: "ok",
 		},
 		{
 			Name: "mixed_top_and_composite",
@@ -54,8 +57,10 @@ func TestRegistry_CompositeMatch(t *testing.T) {
 					{JQ: ".source == \"system\""},
 				},
 			},
+			Respond: "ok",
 		},
 	})
+	require.NoError(t, err)
 
 	tests := []struct {
 		name    string

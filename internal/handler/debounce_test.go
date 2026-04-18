@@ -10,7 +10,7 @@ import (
 )
 
 func TestRegistry_Debounce(t *testing.T) {
-	reg := NewRegistry()
+	reg := NewRegistry(ServerMode)
 	msg1 := &ws.Message{Data: []byte("msg1")}
 	msg2 := &ws.Message{Data: []byte("msg2")}
 	msg3 := &ws.Message{Data: []byte("msg3")}

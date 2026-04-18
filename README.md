@@ -511,9 +511,25 @@ xwebs> :handler add -n echo -m '*' -R 'echo:{{.Message}}'
 
 Topics are created automatically when the first client subscribes and removed when the last subscriber leaves.  All topic commands support tab completion for both topic names and client IDs from live server state.
 
-**Handler builtins for pub-sub:**
+### Builtin Actions
 
-Clients subscribe to topics by sending messages that match a handler with `builtin: subscribe`.  The `topic:` field is a Go template that resolves the topic name from the message:
+`xwebs` includes several built-in actions that perform specialized tasks without requiring an external shell. Some builtins are only available in a specific mode (Client or Server).
+
+| Builtin | Scope | Description |
+|---------|-------|-------------|
+| `noop` | Shared | Does nothing; useful for testing or as a placeholder. |
+| `subscribe` | Server | Subscribes the client connection to a pub/sub topic. |
+| `unsubscribe` | Server | Unsubscribes the client from a pub/sub topic. |
+| `publish` | Server | Broadcasts a message to all subscribers of a topic. |
+| `kv-set` | Server | Sets a value in the shared server key-value store. |
+| `kv-get` | Server | Retrieves a value from the KV store into `.KvValue`. |
+| `kv-del` | Server | Deletes a key from the KV store. |
+
+Using a server-only builtin (like `subscribe`) in a client-mode handler will result in a validation error: `builtin "subscribe" is only available in server mode`.
+
+#### Pub-Sub Builtins (Server Only)
+
+Clients subscribe to topics by sending messages that match a handler with `builtin: subscribe`. The `topic:` field is a Go template that resolves the topic name from the message:
 
 ```yaml
 handlers:

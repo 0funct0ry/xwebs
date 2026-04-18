@@ -148,7 +148,11 @@ or a short alias/bookmark defined in your configuration file.
 Example:
   xwebs connect prod
   xwebs connect wss://echo.websocket.org --subprotocol v1.xwebs
-  xwebs connect secure-server --cert client.crt --key client.key --ca ca.crt`,
+  xwebs connect secure-server --cert client.crt --key client.key --ca ca.crt
+
+Available Builtin Actions (Client):
+  noop           A shared builtin that does nothing (useful for testing).
+`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var r *repl.REPL
@@ -175,7 +179,7 @@ Example:
 		var handlers []handler.Handler
 
 		if handlersFile != "" {
-			cfg, err := handler.LoadConfig(handlersFile)
+			cfg, err := handler.LoadConfig(handlersFile, handler.ClientMode)
 			if err != nil {
 				return fmt.Errorf("loading handlers: %w", err)
 			}
@@ -220,8 +224,10 @@ Example:
 		}
 
 		if len(handlers) > 0 {
-			reg = handler.NewRegistry()
-			reg.AddHandlers(handlers)
+			reg = handler.NewRegistry(handler.ClientMode)
+			if err := reg.AddHandlers(handlers); err != nil {
+				return err
+			}
 			if !quiet && (len(onHandlers) > 0 || len(onMatchHandlers) > 0) {
 				fmt.Fprintf(os.Stderr, "✓ Added %d inline handlers\n", len(onHandlers)+len(onMatchHandlers))
 			}
@@ -543,7 +549,9 @@ Example:
 
 				if reg != nil {
 					// Merge into the already initialized REPL handlers
-					r.Handlers.AddHandlers(reg.Handlers())
+					if err := r.Handlers.AddHandlers(reg.Handlers()); err != nil {
+						return err
+					}
 				}
 				defer r.Close()
 			}

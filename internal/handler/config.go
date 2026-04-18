@@ -142,8 +142,8 @@ func (a *Action) UnmarshalYAML(value *yaml.Node) error {
 	return nil
 }
 
-// Validate checks the configuration for common errors.
-func (c *Config) Validate() error {
+// Validate checks the configuration for common errors within the given mode context.
+func (c *Config) Validate(mode RegistryMode) error {
 	for i, h := range c.Handlers {
 		if h.Name == "" {
 			return fmt.Errorf("handler[%d] is missing a name", i)
@@ -166,22 +166,22 @@ func (c *Config) Validate() error {
 		}
 
 		for j, a := range h.Actions {
-			if err := a.Validate(); err != nil {
+			if err := a.Validate(mode); err != nil {
 				return fmt.Errorf("handler %q action[%d]: %w", h.Name, j, err)
 			}
 		}
 		for j, a := range h.OnConnect {
-			if err := a.Validate(); err != nil {
+			if err := a.Validate(mode); err != nil {
 				return fmt.Errorf("handler %q on_connect action[%d]: %w", h.Name, j, err)
 			}
 		}
 		for j, a := range h.OnDisconnect {
-			if err := a.Validate(); err != nil {
+			if err := a.Validate(mode); err != nil {
 				return fmt.Errorf("handler %q on_disconnect action[%d]: %w", h.Name, j, err)
 			}
 		}
 		for j, a := range h.OnError {
-			if err := a.Validate(); err != nil {
+			if err := a.Validate(mode); err != nil {
 				return fmt.Errorf("handler %q on_error action[%d]: %w", h.Name, j, err)
 			}
 		}
@@ -203,13 +203,27 @@ func (c *Config) Validate() error {
 				return fmt.Errorf("handler %q invalid debounce %q: %w", h.Name, h.Debounce, err)
 			}
 		}
+
+		// Validate top-level builtin (shorthand)
+		if h.Builtin != "" {
+			allowed, exists, _ := IsBuiltinAllowed(h.Builtin, mode)
+			if !exists {
+				return fmt.Errorf("handler %q: unknown builtin action: %s", h.Name, h.Builtin)
+			}
+			if !allowed {
+				if mode == ClientMode {
+					return fmt.Errorf("handler %q: builtin %q is only available in server mode", h.Name, h.Builtin)
+				}
+				return fmt.Errorf("handler %q: builtin %q is only available in client mode", h.Name, h.Builtin)
+			}
+		}
 	}
 
 	return nil
 }
 
-// Validate checks a single action for required fields based on its type.
-func (a *Action) Validate() error {
+// Validate checks a single action for required fields and mode compatibility.
+func (a *Action) Validate(mode RegistryMode) error {
 	switch strings.ToLower(a.Type) {
 	case "shell":
 		if a.Run == "" && a.Command == "" {
@@ -226,6 +240,14 @@ func (a *Action) Validate() error {
 	case "builtin":
 		if a.Command == "" {
 			return fmt.Errorf("builtin action missing command")
+		}
+		allowed, exists, scope := IsBuiltinAllowed(a.Command, mode)
+		if exists && !allowed {
+			m := "server"
+			if scope == ClientOnly {
+				m = "client"
+			}
+			return fmt.Errorf("builtin %q is only available in %s mode", a.Command, m)
 		}
 	case "":
 		return fmt.Errorf("missing action type")
