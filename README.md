@@ -513,7 +513,7 @@ Topics are created automatically when the first client subscribes and removed wh
 
 ### Builtin Actions
 
-`xwebs` includes several built-in actions that perform specialized tasks without requiring an external shell. Some builtins are only available in a specific mode (Client or Server).
+`xwebs` includes several built-in actions that perform specialized tasks without requiring an external shell. These actions are formally defined via a registry, ensuring consistent behavior and **strict load-time validation**.
 
 | Builtin | Scope | Description |
 |---------|-------|-------------|
@@ -525,7 +525,10 @@ Topics are created automatically when the first client subscribes and removed wh
 | `kv-get` | Server | Retrieves a value from the KV store into `.KvValue`. |
 | `kv-del` | Server | Deletes a key from the KV store. |
 
-Using a server-only builtin (like `subscribe`) in a client-mode handler will result in a validation error: `builtin "subscribe" is only available in server mode`.
+**Validation Features:**
+- **Unknown Builtins**: Using an unknown builtin name in handler configuration causes an immediate startup error.
+- **Mode Scoping**: Builtins are scoped to specific modes (Server/Client/Shared). For example, using `subscribe` in a client-mode handler will result in a validation error: `builtin "subscribe" is only available in server mode`.
+- **Parameter Validation**: Each builtin validates its required configuration fields (e.g., `topic`, `key`) when the configuration is loaded, preventing runtime failures.
 
 #### Pub-Sub Builtins (Server Only)
 

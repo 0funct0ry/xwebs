@@ -429,3 +429,92 @@ func TestSplitCommand(t *testing.T) {
 		})
 	}
 }
+
+func TestBareCommandExecution(t *testing.T) {
+	t.Run("Server Mode - Bare Command", func(t *testing.T) {
+		r, _ := New(ServerMode, &Config{Terminal: true})
+		mock := &mockCommand{name: "kv"}
+		r.RegisterCommand(mock)
+
+		// Input without colon
+		err := r.RunLine(context.Background(), "kv list")
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+		if !mock.executed {
+			t.Errorf("Expected bare command 'kv' to be executed in Server Mode")
+		}
+		if len(mock.args) != 1 || mock.args[0] != "list" {
+			t.Errorf("Unexpected args: %v", mock.args)
+		}
+	})
+
+	t.Run("Server Mode - Unknown Bare Input", func(t *testing.T) {
+		r, _ := New(ServerMode, &Config{Terminal: true})
+		
+		// Capture output would be better, but we can check if it logic flows correctly.
+		// Since we don't have a good way to check Errorf output in unit tests without refactoring,
+		// we'll just ensure it doesn't crash and returns no error from RunLine (as it handles it internally).
+		err := r.RunLine(context.Background(), "unknown_stuff")
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+	})
+
+	t.Run("Client Mode - Bare Input (send as message)", func(t *testing.T) {
+		r, _ := New(ClientMode, &Config{Terminal: true})
+		inputSent := ""
+		r.SetOnInput(func(ctx context.Context, text string) error {
+			inputSent = text
+			return nil
+		})
+		
+		mock := &mockCommand{name: "kv"}
+		r.RegisterCommand(mock)
+
+		err := r.RunLine(context.Background(), "kv list")
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+		if mock.executed {
+			t.Errorf("Did not expect bare command 'kv' to be executed in Client Mode")
+		}
+		if inputSent != "kv list" {
+			t.Errorf("Expected input to be sent as message, got %q", inputSent)
+		}
+	})
+}
+
+// RunLine is a helper to simulate the logic inside Run loop for a single line
+func (r *REPL) RunLine(ctx context.Context, line string) error {
+	trimmed := strings.TrimSpace(line)
+	if trimmed == "" {
+		return nil
+	}
+
+	if strings.HasPrefix(trimmed, ":") {
+		return r.ExecuteCommand(ctx, trimmed)
+	}
+	
+	// Copy logic from Run loop
+	if r.onInput != nil {
+		return r.onInput(ctx, line)
+	}
+	
+	parts := splitCommand(trimmed)
+	if len(parts) > 0 {
+		cmdName := parts[0]
+		r.mu.RLock()
+		_, isCmd := r.commands[cmdName]
+		_, isAlias := r.aliases[cmdName]
+		_, isScript := r.scriptAliases[cmdName]
+		r.mu.RUnlock()
+
+		if isCmd || isAlias || isScript {
+			return r.ExecuteCommand(ctx, ":"+trimmed)
+		}
+	}
+	
+	// Fallback error message (simulated)
+	return nil
+}

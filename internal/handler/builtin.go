@@ -1,8 +1,13 @@
 package handler
 
 import (
+	"context"
+	"fmt"
 	"sort"
 	"strings"
+	"sync"
+
+	"github.com/0funct0ry/xwebs/internal/template"
 )
 
 // BuiltinScope defines where a builtin action is allowed to run.
@@ -24,57 +29,72 @@ type BuiltinMetadata struct {
 	Scope       BuiltinScope
 }
 
-var (
-	// builtinRegistry stores all defined builtins.
-	builtinRegistry = map[string]BuiltinMetadata{
-		"subscribe": {
-			Name:        "subscribe",
-			Description: "Subscribe the current connection to a pub/sub topic.",
-			Scope:       ServerOnly,
-		},
-		"unsubscribe": {
-			Name:        "unsubscribe",
-			Description: "Unsubscribe the current connection from a pub/sub topic.",
-			Scope:       ServerOnly,
-		},
-		"publish": {
-			Name:        "publish",
-			Description: "Publish a message to a pub/sub topic.",
-			Scope:       ServerOnly,
-		},
-		"kv-set": {
-			Name:        "kv-set",
-			Description: "Store a value in the server's shared key-value store.",
-			Scope:       ServerOnly,
-		},
-		"kv-get": {
-			Name:        "kv-get",
-			Description: "Retrieve a value from the server's shared key-value store into .KvValue.",
-			Scope:       ServerOnly,
-		},
-		"kv-del": {
-			Name:        "kv-del",
-			Description: "Delete a key from the server's shared key-value store.",
-			Scope:       ServerOnly,
-		},
-		"noop": {
-			Name:        "noop",
-			Description: "A shared builtin that does nothing (useful for testing).",
-			Scope:       Shared,
-		},
-	}
-)
-
-// GetBuiltin returns the metadata for a builtin by name.
-func GetBuiltin(name string) (BuiltinMetadata, bool) {
-	m, ok := builtinRegistry[strings.ToLower(strings.TrimSpace(name))]
-	return m, ok
+// BuiltinHandler defines the interface for all built-in actions.
+type BuiltinHandler interface {
+	Name() string
+	Description() string
+	Scope() BuiltinScope
+	Validate(a Action) error
+	Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error
 }
 
-// ListBuiltins returns a sorted list of builtins available for the given mode.
+var (
+	// builtinRegistry stores all defined builtins.
+	builtinRegistry   = make(map[string]BuiltinHandler)
+	builtinRegistryMu sync.RWMutex
+)
+
+// Register adds a new builtin handler to the registry.
+// It returns an error if a builtin with the same name already exists.
+func Register(h BuiltinHandler) error {
+	builtinRegistryMu.Lock()
+	defer builtinRegistryMu.Unlock()
+
+	name := strings.ToLower(strings.TrimSpace(h.Name()))
+	if _, ok := builtinRegistry[name]; ok {
+		return fmt.Errorf("builtin action %q already registered", name)
+	}
+
+	builtinRegistry[name] = h
+	return nil
+}
+
+// MustRegister is like Register but panics if the registration fails.
+// This is typically used in init() functions.
+func MustRegister(h BuiltinHandler) {
+	if err := Register(h); err != nil {
+		panic(err)
+	}
+}
+
+// GetBuiltinResult contains both the handler and its metadata.
+type GetBuiltinResult struct {
+	Handler  BuiltinHandler
+	Metadata BuiltinMetadata
+}
+
+// GetBuiltin returns the handler for a builtin by name.
+func GetBuiltin(name string) (BuiltinHandler, bool) {
+	builtinRegistryMu.RLock()
+	defer builtinRegistryMu.RUnlock()
+
+	h, ok := builtinRegistry[strings.ToLower(strings.TrimSpace(name))]
+	return h, ok
+}
+
+// ListBuiltins returns a sorted list of builtin metadata available for the given mode.
 func ListBuiltins(mode RegistryMode) []BuiltinMetadata {
+	builtinRegistryMu.RLock()
+	defer builtinRegistryMu.RUnlock()
+
 	var results []BuiltinMetadata
-	for _, m := range builtinRegistry {
+	for _, h := range builtinRegistry {
+		m := BuiltinMetadata{
+			Name:        h.Name(),
+			Description: h.Description(),
+			Scope:       h.Scope(),
+		}
+
 		allowed := false
 		switch m.Scope {
 		case Shared:
@@ -99,12 +119,13 @@ func ListBuiltins(mode RegistryMode) []BuiltinMetadata {
 
 // IsBuiltinAllowed checks if a builtin is allowed in the given mode.
 func IsBuiltinAllowed(name string, mode RegistryMode) (allowed bool, exists bool, scope BuiltinScope) {
-	m, ok := GetBuiltin(name)
+	h, ok := GetBuiltin(name)
 	if !ok {
 		return false, false, ""
 	}
 
-	switch m.Scope {
+	scope = h.Scope()
+	switch scope {
 	case Shared:
 		return true, true, Shared
 	case ClientOnly:
@@ -112,6 +133,6 @@ func IsBuiltinAllowed(name string, mode RegistryMode) (allowed bool, exists bool
 	case ServerOnly:
 		return mode == ServerMode, true, ServerOnly
 	default:
-		return false, true, m.Scope
+		return false, true, scope
 	}
 }

@@ -206,15 +206,31 @@ func (c *Config) Validate(mode RegistryMode) error {
 
 		// Validate top-level builtin (shorthand)
 		if h.Builtin != "" {
-			allowed, exists, _ := IsBuiltinAllowed(h.Builtin, mode)
+			bh, exists := GetBuiltin(h.Builtin)
 			if !exists {
 				return fmt.Errorf("handler %q: unknown builtin action: %s", h.Name, h.Builtin)
 			}
+
+			allowed, _, _ := IsBuiltinAllowed(h.Builtin, mode)
 			if !allowed {
 				if mode == ClientMode {
 					return fmt.Errorf("handler %q: builtin %q is only available in server mode", h.Name, h.Builtin)
 				}
 				return fmt.Errorf("handler %q: builtin %q is only available in client mode", h.Name, h.Builtin)
+			}
+
+			// Validate builtin-specific fields using the handler's Validate method.
+			// Wrap the shorthand fields into a temporary Action for validation.
+			tmpAction := Action{
+				Type:    "builtin",
+				Command: h.Builtin,
+				Topic:   h.Topic,
+				Key:     h.Key,
+				Value:   h.Value,
+				Timeout: h.Timeout,
+			}
+			if err := bh.Validate(tmpAction); err != nil {
+				return fmt.Errorf("handler %q: %w", h.Name, err)
 			}
 		}
 	}
@@ -241,13 +257,22 @@ func (a *Action) Validate(mode RegistryMode) error {
 		if a.Command == "" {
 			return fmt.Errorf("builtin action missing command")
 		}
-		allowed, exists, scope := IsBuiltinAllowed(a.Command, mode)
-		if exists && !allowed {
+		bh, exists := GetBuiltin(a.Command)
+		if !exists {
+			return fmt.Errorf("unknown builtin action: %s", a.Command)
+		}
+
+		allowed, _, scope := IsBuiltinAllowed(a.Command, mode)
+		if !allowed {
 			m := "server"
 			if scope == ClientOnly {
 				m = "client"
 			}
 			return fmt.Errorf("builtin %q is only available in %s mode", a.Command, m)
+		}
+
+		if err := bh.Validate(*a); err != nil {
+			return err
 		}
 	case "":
 		return fmt.Errorf("missing action type")

@@ -686,7 +686,7 @@ func (d *Dispatcher) ExecuteAction(ctx context.Context, a *Action, tmplCtx *temp
 	case "log":
 		return d.executeLog(a, tmplCtx)
 	case "builtin":
-		return d.executeBuiltin(a, tmplCtx)
+		return d.executeBuiltin(ctx, a, tmplCtx)
 	default:
 		return fmt.Errorf("unknown action type: %s", a.Type)
 	}
@@ -802,8 +802,8 @@ func (d *Dispatcher) executeLog(a *Action, ctx *template.TemplateContext) error 
 	return nil
 }
 
-func (d *Dispatcher) executeBuiltin(a *Action, ctx *template.TemplateContext) error {
-	cmdStr, err := d.templateEngine.Execute("builtin", a.Command, ctx)
+func (d *Dispatcher) executeBuiltin(ctx context.Context, a *Action, tmplCtx *template.TemplateContext) error {
+	cmdStr, err := d.templateEngine.Execute("builtin", a.Command, tmplCtx)
 	if err != nil {
 		return fmt.Errorf("template error in builtin command: %w", err)
 	}
@@ -812,129 +812,12 @@ func (d *Dispatcher) executeBuiltin(a *Action, ctx *template.TemplateContext) er
 		d.errorf("  [handler] builtin command requested: %s\n", cmdStr)
 	}
 
-	switch strings.ToLower(strings.TrimSpace(cmdStr)) {
-	case "subscribe":
-		if d.topicManager == nil {
-			return fmt.Errorf("builtin subscribe: topic manager not available")
-		}
-		topic, err := d.templateEngine.Execute("topic", a.Topic, ctx)
-		if err != nil {
-			return fmt.Errorf("template error in topic expression: %w", err)
-		}
-		topic = strings.TrimSpace(topic)
-		if topic == "" {
-			return fmt.Errorf("builtin subscribe: topic evaluates to empty string")
-		}
-		d.topicManager.Subscribe(d.conn.GetID(), d.conn, topic)
-		if d.verbose {
-			d.errorf("  [handler] subscribed %s to topic %q\n", d.conn.GetID(), topic)
-		}
-
-	case "unsubscribe":
-		if d.topicManager == nil {
-			return fmt.Errorf("builtin unsubscribe: topic manager not available")
-		}
-		topic, err := d.templateEngine.Execute("topic", a.Topic, ctx)
-		if err != nil {
-			return fmt.Errorf("template error in topic expression: %w", err)
-		}
-		topic = strings.TrimSpace(topic)
-		if topic == "" {
-			return fmt.Errorf("builtin unsubscribe: topic evaluates to empty string")
-		}
-		remaining := d.topicManager.Unsubscribe(d.conn.GetID(), topic)
-		if d.verbose {
-			d.errorf("  [handler] unsubscribed %s from topic %q (%d remaining)\n", d.conn.GetID(), topic, remaining)
-		}
-
-	case "publish":
-		if d.topicManager == nil {
-			return fmt.Errorf("builtin publish: topic manager not available")
-		}
-		topic, err := d.templateEngine.Execute("topic", a.Topic, ctx)
-		if err != nil {
-			return fmt.Errorf("template error in topic expression: %w", err)
-		}
-		topic = strings.TrimSpace(topic)
-		if topic == "" {
-			return fmt.Errorf("builtin publish: topic evaluates to empty string")
-		}
-		msgStr, err := d.templateEngine.Execute("publish-msg", a.Message, ctx)
-		if err != nil {
-			return fmt.Errorf("template error in publish message: %w", err)
-		}
-		delivered, err := d.topicManager.Publish(topic, &ws.Message{
-			Type: ws.TextMessage,
-			Data: []byte(msgStr),
-		})
-		if err != nil {
-			return err
-		}
-		if d.verbose {
-			d.errorf("  [handler] published to topic %q → %d clients\n", topic, delivered)
-		}
-
-	case "kv-set":
-		if d.kvManager == nil {
-			return fmt.Errorf("builtin kv-set: kv manager not available")
-		}
-		key, err := d.templateEngine.Execute("kv-key", a.Key, ctx)
-		if err != nil {
-			return fmt.Errorf("template error in kv key: %w", err)
-		}
-		val, err := d.templateEngine.Execute("kv-value", a.Value, ctx)
-		if err != nil {
-			return fmt.Errorf("template error in kv value: %w", err)
-		}
-		
-		d.kvManager.SetKV(key, val)
-		d.refreshKVSnapshot(ctx)
-		if d.verbose {
-			d.errorf("  [handler] kv-set: %s = %v\n", key, val)
-		}
-
-	case "kv-get":
-		if d.kvManager == nil {
-			return fmt.Errorf("builtin kv-get: kv manager not available")
-		}
-		key, err := d.templateEngine.Execute("kv-key", a.Key, ctx)
-		if err != nil {
-			return fmt.Errorf("template error in kv key: %w", err)
-		}
-		val, ok := d.kvManager.GetKV(key)
-		if ok {
-			ctx.KvValue = val
-		} else {
-			ctx.KvValue = nil
-		}
-		if d.verbose {
-			d.errorf("  [handler] kv-get: %s = %v (found=%v)\n", key, val, ok)
-		}
-
-	case "kv-del":
-		if d.kvManager == nil {
-			return fmt.Errorf("builtin kv-del: kv manager not available")
-		}
-		key, err := d.templateEngine.Execute("kv-key", a.Key, ctx)
-		if err != nil {
-			return fmt.Errorf("template error in kv key: %w", err)
-		}
-		d.kvManager.DeleteKV(key)
-		d.refreshKVSnapshot(ctx)
-		if d.verbose {
-			d.errorf("  [handler] kv-del: %s\n", key)
-		}
-
-	case "noop":
-		if d.verbose {
-			d.errorf("  [handler] builtin noop: doing nothing\n")
-		}
-
-	default:
+	h, ok := GetBuiltin(cmdStr)
+	if !ok {
 		return fmt.Errorf("unknown builtin: %s", cmdStr)
 	}
 
-	return nil
+	return h.Execute(ctx, d, a, tmplCtx)
 }
 
 // HandleConnect runs all on_connect actions in priority order.
