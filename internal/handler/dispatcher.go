@@ -379,8 +379,11 @@ func (d *Dispatcher) Execute(ctx context.Context, h *Handler, msg *ws.Message) e
 	// Always execute respond if present (after all main actions/retries)
 	// Concise handlers always run respond if present (it acts as a completion hook).
 	// Pipelines and multi-action handlers only run respond if all steps succeeded.
+	// NOTE: For concise handlers (h.Run or h.Builtin), Respond is now handled 
+	// INSIDE ExecuteAction to maintain consistency. We only send here if it's 
+	// NOT a concise handler and we have a top-level Respond to send.
 	isConcise := h.Run != "" || h.Builtin != ""
-	if h.Respond != "" && (lastErr == nil || isConcise) {
+	if h.Respond != "" && !isConcise && (lastErr == nil) {
 		action := Action{Type: "send", Message: h.Respond}
 		if err := d.ExecuteAction(ctx, &action, tmplCtx, msg); err != nil {
 			// We track respondent error as well
@@ -411,7 +414,13 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 	} else {
 		// Concise top-level model (run or builtin)
 		if h.Run != "" {
-			action := Action{Type: "shell", Run: h.Run, Timeout: h.Timeout}
+			action := Action{
+				Type:    "shell", 
+				Run:     h.Run, 
+				Timeout: h.Timeout,
+				Delay:   h.Delay,
+				Respond: h.Respond,
+			}
 			return d.ExecuteAction(ctx, &action, tmplCtx, msg)
 		} else if h.Builtin != "" {
 			action := Action{
@@ -421,6 +430,8 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 				Key:     h.Key,
 				Value:   h.Value,
 				Timeout: h.Timeout,
+				Delay:   h.Delay,
+				Respond: h.Respond,
 			}
 			return d.ExecuteAction(ctx, &action, tmplCtx, msg)
 		}
@@ -459,7 +470,11 @@ func (d *Dispatcher) calculateBackoff(cfg *RetryConfig, attempt int) time.Durati
 // executePipeline runs a sequence of steps.
 func (d *Dispatcher) executePipeline(ctx context.Context, pipeline []PipelineStep, tmplCtx *template.TemplateContext, msg *ws.Message) error {
 	for i, step := range pipeline {
-		action := Action{Timeout: step.Timeout}
+		action := Action{
+			Timeout: step.Timeout,
+			Delay:   step.Delay,
+			Respond: step.Respond,
+		}
 		if step.Run != "" {
 			action.Type = "shell"
 			action.Run = step.Run
@@ -678,18 +693,50 @@ func evaluateVariables(engine *template.Engine, vars map[string]interface{}, ctx
 }
 
 func (d *Dispatcher) ExecuteAction(ctx context.Context, a *Action, tmplCtx *template.TemplateContext, msg *ws.Message) error {
+	// 1. Handle Delay
+	if a.Delay != "" {
+		dur, err := time.ParseDuration(a.Delay)
+		if err == nil {
+			if d.verbose {
+				d.errorf("  [handler] waiting %v (delay)...\n", dur)
+			}
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(dur):
+				// Continue
+			}
+		} else {
+			d.errorf("  [handler] warning: invalid delay %q: %v\n", a.Delay, err)
+		}
+	}
+
+	// 2. Execute Primary Action
+	var err error
 	switch strings.ToLower(a.Type) {
 	case "shell":
-		return d.executeShell(ctx, a, tmplCtx)
+		err = d.executeShell(ctx, a, tmplCtx)
 	case "send":
-		return d.executeSend(a, tmplCtx)
+		err = d.executeSend(a, tmplCtx)
 	case "log":
-		return d.executeLog(a, tmplCtx)
+		err = d.executeLog(a, tmplCtx)
 	case "builtin":
-		return d.executeBuiltin(ctx, a, tmplCtx)
+		err = d.executeBuiltin(ctx, a, tmplCtx)
 	default:
 		return fmt.Errorf("unknown action type: %s", a.Type)
 	}
+
+	if err != nil {
+		return err
+	}
+
+	// 3. Handle Respond (transformation override or follow-up)
+	if a.Respond != "" {
+		respAction := &Action{Type: "send", Message: a.Respond}
+		return d.executeSend(respAction, tmplCtx)
+	}
+
+	return nil
 }
 
 func (d *Dispatcher) executeShell(ctx context.Context, a *Action, tmplCtx *template.TemplateContext) error {

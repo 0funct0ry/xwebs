@@ -117,6 +117,18 @@ func TestBuiltinValidation(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "valid echo",
+			action: Action{Type: "builtin", Command: "echo"},
+			mode: ServerMode,
+			wantErr: false,
+		},
+		{
+			name: "client mode echo (Shared)",
+			action: Action{Type: "builtin", Command: "echo"},
+			mode: ClientMode,
+			wantErr: false,
+		},
+		{
 			name: "client mode subscribe (ServerOnly)",
 			action: Action{Type: "builtin", Command: "subscribe", Topic: "foo"},
 			mode: ClientMode,

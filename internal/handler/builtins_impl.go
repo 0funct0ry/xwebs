@@ -17,6 +17,7 @@ func init() {
 	MustRegister(&KVGetBuiltin{})
 	MustRegister(&KVDelBuiltin{})
 	MustRegister(&NoopBuiltin{})
+	MustRegister(&EchoBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -253,4 +254,43 @@ func (b *NoopBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmp
 		d.errorf("  [handler] builtin noop: doing nothing\n")
 	}
 	return nil
+}
+
+// EchoBuiltin reflects the incoming message back to the sender.
+type EchoBuiltin struct{}
+
+func (b *EchoBuiltin) Name() string        { return "echo" }
+func (b *EchoBuiltin) Description() string { return "Reflect the incoming message back to the sender." }
+func (b *EchoBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *EchoBuiltin) Validate(a Action) error { return nil }
+
+func (b *EchoBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	// If a.Respond is set, ExecuteAction will handle sending the transformed message.
+	// We only send the verbatim message here if no override is provided.
+	if a.Respond != "" {
+		if d.verbose {
+			d.errorf("  [handler] builtin echo: respond override present, skipping verbatim echo\n")
+		}
+		return nil
+	}
+
+	if d.verbose {
+		d.errorf("  [handler] builtin echo: reflecting original message\n")
+	}
+
+	// Determine original message type from context
+	mt := ws.TextMessage
+	if tmplCtx.MessageType == "binary" {
+		mt = ws.BinaryMessage
+	} else if tmplCtx.MessageType == "ping" {
+		mt = ws.PingMessage
+	} else if tmplCtx.MessageType == "pong" {
+		mt = ws.PongMessage
+	}
+
+	return d.conn.Write(&ws.Message{
+		Type: mt,
+		Data: tmplCtx.MessageBytes,
+	})
 }

@@ -581,10 +581,6 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					name = namesgenerator.GetRandomName(0)
 				}
 
-				if builtin != "" && topic == "" {
-					return fmt.Errorf("--topic is required when --builtin is set")
-				}
-
 				h := handler.Handler{
 					Name:      name,
 					Priority:  priority,

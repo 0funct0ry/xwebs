@@ -35,6 +35,7 @@ type Handler struct {
 	Retry        *RetryConfig           `yaml:"retry,omitempty"`      // Automatic retry on failure
 	RateLimit    string                 `yaml:"rate_limit,omitempty"` // Per-handler rate limit (e.g. "10/s", "100/m")
 	Debounce     string                 `yaml:"debounce,omitempty"`   // Per-handler debounce duration (e.g. "500ms")
+	Delay        string                 `yaml:"delay,omitempty"`      // Per-handler delay (e.g. "1s")
 	Actions      []Action               `yaml:"actions,omitempty"`
 	Variables    map[string]interface{} `yaml:"variables,omitempty"`
 	OnConnect    []Action               `yaml:"on_connect,omitempty"`
@@ -60,6 +61,8 @@ type PipelineStep struct {
 	Value       string `yaml:"value,omitempty"`       // Value (template) for KV builtins
 	As          string `yaml:"as,omitempty"`          // Key to store results in .Steps.<name>
 	Timeout     string `yaml:"timeout,omitempty"`
+	Delay       string `yaml:"delay,omitempty"`
+	Respond     string `yaml:"respond,omitempty"`
 	IgnoreError bool   `yaml:"ignore_error,omitempty"`
 }
 
@@ -111,6 +114,8 @@ type Action struct {
 	Value   string            `yaml:"value,omitempty"`   // Value (template) for KV builtins
 	Target  string            `yaml:"target,omitempty"`  // For "log" action (e.g. filename or "stdout", "stderr")
 	Timeout string            `yaml:"timeout,omitempty"` // Timeout for shell/builtin actions
+	Delay   string            `yaml:"delay,omitempty"`   // Delay before execution
+	Respond string            `yaml:"respond,omitempty"` // Override response for echo or generic follow-up
 	Env     map[string]string `yaml:"env,omitempty"`     // Environment variables for shell actions
 	Silent  bool              `yaml:"silent,omitempty"`  // Suppress output for shell actions
 }
@@ -203,6 +208,11 @@ func (c *Config) Validate(mode RegistryMode) error {
 				return fmt.Errorf("handler %q invalid debounce %q: %w", h.Name, h.Debounce, err)
 			}
 		}
+		if h.Delay != "" {
+			if _, err := time.ParseDuration(h.Delay); err != nil {
+				return fmt.Errorf("handler %q invalid delay %q: %w", h.Name, h.Delay, err)
+			}
+		}
 
 		// Validate top-level builtin (shorthand)
 		if h.Builtin != "" {
@@ -228,6 +238,8 @@ func (c *Config) Validate(mode RegistryMode) error {
 				Key:     h.Key,
 				Value:   h.Value,
 				Timeout: h.Timeout,
+				Delay:   h.Delay,
+				Respond: h.Respond,
 			}
 			if err := bh.Validate(tmpAction); err != nil {
 				return fmt.Errorf("handler %q: %w", h.Name, err)
@@ -279,6 +291,13 @@ func (a *Action) Validate(mode RegistryMode) error {
 	default:
 		return fmt.Errorf("unknown action type: %s", a.Type)
 	}
+
+	if a.Delay != "" {
+		if _, err := time.ParseDuration(a.Delay); err != nil {
+			return fmt.Errorf("invalid delay %q: %w", a.Delay, err)
+		}
+	}
+
 	return nil
 }
 

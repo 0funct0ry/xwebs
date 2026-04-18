@@ -518,12 +518,14 @@ Topics are created automatically when the first client subscribes and removed wh
 | Builtin | Scope | Description |
 |---------|-------|-------------|
 | `noop` | Shared | Does nothing; useful for testing or as a placeholder. |
+| `echo` | Shared | Reflects the incoming message back to the sender. If `respond:` is present, it skips verbatim echo and only sends the transformed response. |
 | `subscribe` | Server | Subscribes the client connection to a pub/sub topic. |
 | `unsubscribe` | Server | Unsubscribes the client from a pub/sub topic. |
 | `publish` | Server | Broadcasts a message to all subscribers of a topic. |
 | `kv-set` | Server | Sets a value in the shared server key-value store. |
 | `kv-get` | Server | Retrieves a value from the KV store into `.KvValue`. |
 | `kv-del` | Server | Deletes a key from the KV store. |
+| `kv-list` | Server | Lists all keys in the KV store into `.KvKeys`. |
 
 **Validation Features:**
 - **Unknown Builtins**: Using an unknown builtin name in handler configuration causes an immediate startup error.
@@ -689,7 +691,10 @@ Client Information: conn-12345678
   - `debounce`: A duration string (e.g., `500ms`, `1s`, `2s`).
   - **Behavior**: Implements **trailing-edge debounce**. The timer resets on each new matching message. Only the most recent message is processed when the quiet period ends.
   - **Scope**: Debounce timers are managed per-handler name and are global across all connections.
-- **Exclusive Matching (Short-Circuiting)**: Setting `exclusive: true` on a handler ensures that if it matches, all subsequent handlers (lower priority) are skipped for that message. This is useful for high-priority "catch" handlers that should prevent a message from reaching more general-purpose handlers. Short-circuiting applies to both matching and execution, improving performance for complex handler sets.
+- **Exclusive Matching (Short-Circuiting)**: Setting `exclusive: true` on a handler ensures that if it matches, all subsequent handlers (lower priority) are skipped for that message. This is critical when multiple handlers might match (e.g., a specific handler vs a catch-all `*`), ensuring only the intended response is sent.
+- **Action Modifiers**: All actions and concise handlers support powerful modifiers:
+  - `delay`: A duration string (e.g., `500ms`, `2s`) that defers the execution of the action and its response.
+  - `respond`: A Go template that overrides the default action output or adds a response to builtins. For the `echo` builtin, providing `respond:` disables the automatic verbatim echo.
 - **Shell Sandboxing**: Restrict shell command execution to an explicit allowlist for enhanced security when handling untrusted messages or configurations.
   - `--sandbox`: Enables sandboxing mode.
   - `--allowlist`: Configures a comma-separated list of approved executables (e.g., `echo,ls,grep`).
