@@ -29,7 +29,7 @@ type ServerContext interface {
 	GetUptime() time.Duration
 	GetClients() []template.ClientInfo
 	GetClient(id string) (template.ClientInfo, bool)
-	Broadcast(msg *ws.Message) error
+	Broadcast(msg *ws.Message, excludeIDs ...string) int
 	Send(id string, msg *ws.Message) error
 	Kick(id string, code int, reason string) error
 	GetStatus() string
@@ -297,7 +297,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 		handler: func(ctx context.Context, r *REPL, args []string) error {
 			var isJSON, isTemplate, isBinary bool
 			fs := pflag.NewFlagSet("broadcast", pflag.ContinueOnError)
-			fs.SetOutput(nil)
+			fs.SetOutput(r.Stdout())
 			fs.BoolVarP(&isJSON, "json", "j", false, "Send as JSON")
 			fs.BoolVarP(&isTemplate, "template", "t", false, "Send as rendered template")
 			fs.BoolVarP(&isBinary, "binary", "b", false, "Send as binary (hex or base64: prefix)")
@@ -355,10 +355,8 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					Timestamp: time.Now(),
 				},
 			}
-			if err := sc.Broadcast(msg); err != nil {
-				return fmt.Errorf("broadcast failed: %w", err)
-			}
-			r.Printf("✓ Broadcasted message to %d clients\n", sc.GetClientCount())
+			count := sc.Broadcast(msg)
+			r.Printf("✓ Broadcasted message to %d clients\n", count)
 			return nil
 		},
 	})
@@ -540,6 +538,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("  -R, --respond <tmpl>      Response template to send back\n")
 				r.Printf("  -B, --builtin <name>      Builtin action (subscribe, unsubscribe, publish)\n")
 				r.Printf("      --topic <template>    Topic name template for builtin actions\n")
+				r.Printf("  -M, --message <template>  Message template for broadcast or publish\n")
 				r.Printf("  -e, --exclusive           Stop further matching if this handler matches\n")
 				r.Printf("  -s, --sequential          Run handler actions sequentially\n")
 				r.Printf("  -l, --rate-limit <limit>  Rate limit (e.g. '10/s')\n")
@@ -550,9 +549,9 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 			if args[0] == "add" {
 				// Parse flags using pflag
 				fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
-				fs.SetOutput(nil)
+				fs.SetOutput(r.Stdout())
 
-				var name, match, matchType, run, respond, builtin, topic, rateLimit, debounce string
+				var name, match, matchType, run, respond, builtin, topic, message, rateLimit, debounce string
 				var priority int
 				var exclusive, sequential bool
 
@@ -568,6 +567,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.BoolVarP(&sequential, "sequential", "s", false, "Run actions sequentially")
 				fs.StringVarP(&rateLimit, "rate-limit", "l", "", "Rate limit")
 				fs.StringVarP(&debounce, "debounce", "d", "", "Debounce duration")
+				fs.StringVarP(&message, "message", "M", "", "Message template")
 
 				if err := fs.Parse(args[1:]); err != nil {
 					return fmt.Errorf("parsing flags: %w", err)
@@ -589,6 +589,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					Respond:   respond,
 					Builtin:   builtin,
 					Topic:     topic,
+					Message:   message,
 					Match: handler.Matcher{
 						Pattern: match,
 						Type:    matchType,

@@ -2,6 +2,7 @@ package repl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -23,6 +24,8 @@ import (
 	"os/signal"
 	"runtime"
 	"syscall"
+
+	"github.com/spf13/pflag"
 )
 
 // ErrExit is returned when a command requests to exit the REPL.
@@ -343,6 +346,30 @@ func (r *REPL) Printf(format string, args ...interface{}) {
 	}
 }
 
+// Stdout returns an io.Writer that writes to the REPL output.
+func (r *REPL) Stdout() io.Writer {
+	return &replWriter{r: r}
+}
+
+// StdoutWithColor returns an io.Writer that writes to the REPL output with a specific color.
+func (r *REPL) StdoutWithColor(color string) io.Writer {
+	return &replWriter{r: r, color: color}
+}
+
+type replWriter struct {
+	r     *REPL
+	color string
+}
+
+func (w *replWriter) Write(p []byte) (n int, err error) {
+	text := string(p)
+	if w.color != "" && w.r.Display != nil {
+		text = w.r.Display.colorizedText(text, w.color)
+	}
+	w.r.Printf("%s", text)
+	return len(p), nil
+}
+
 // Errorf prints a formatted error string to the REPL stderr.
 func (r *REPL) Errorf(format string, args ...interface{}) {
 	if r.rl != nil && r.IsInteractive {
@@ -653,6 +680,9 @@ func (r *REPL) ExecuteCommand(ctx context.Context, line string) error {
 		}
 		if strings.Contains(err.Error(), "disabled in sandbox mode") {
 			return err
+		}
+		if errors.Is(err, pflag.ErrHelp) {
+			return nil
 		}
 		return fmt.Errorf("command error: %w", err)
 	}

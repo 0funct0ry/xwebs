@@ -532,15 +532,27 @@ func (s *Server) GetClient(id string) (template.ClientInfo, bool) {
 	}, true
 }
 
-// Broadcast sends a message to all connected clients.
-func (s *Server) Broadcast(msg *ws.Message) error {
+// Broadcast sends a message to all connected clients except those listed in excludeIDs.
+// Returns the number of clients the message was successfully delivered to.
+func (s *Server) Broadcast(msg *ws.Message, excludeIDs ...string) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	for _, conn := range s.connections {
-		_ = conn.Write(msg)
+	excluded := make(map[string]bool)
+	for _, id := range excludeIDs {
+		excluded[id] = true
 	}
-	return nil
+
+	count := 0
+	for id, conn := range s.connections {
+		if excluded[id] {
+			continue
+		}
+		if err := conn.Write(msg); err == nil {
+			count++
+		}
+	}
+	return count
 }
 
 // Kick disconnects a specific client by ID with an optional close code and reason.

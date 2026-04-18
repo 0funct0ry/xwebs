@@ -48,6 +48,7 @@ type ServerStatProvider interface {
 	GetClients() []template.ClientInfo
 	IsPaused() bool
 	WaitIfPaused()
+	Broadcast(msg *ws.Message, excludeIDs ...string) int
 }
 
 // TopicManager defines the required interface for pub/sub topic operations used
@@ -429,6 +430,7 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 				Topic:   h.Topic,
 				Key:     h.Key,
 				Value:   h.Value,
+				Message: h.Message,
 				Timeout: h.Timeout,
 				Delay:   h.Delay,
 				Respond: h.Respond,
@@ -484,6 +486,7 @@ func (d *Dispatcher) executePipeline(ctx context.Context, pipeline []PipelineSte
 			action.Topic = step.Topic
 			action.Key = step.Key
 			action.Value = step.Value
+			action.Message = step.Message
 		}
 
 		if err := d.ExecuteAction(ctx, &action, tmplCtx, msg); err != nil {

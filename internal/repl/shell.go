@@ -60,8 +60,8 @@ func (r *REPL) executeShellCommand(ctx context.Context, shellCmd string) error {
 	r.Notify("Executing: %s\n", shellCmd)
 
 	// Create writers that stream to the REPL output
-	stdoutW := &replWriter{r: r, color: "green"} // Shell output in green for clarity
-	stderrW := &replWriter{r: r, color: "red"}   // Stderr in red
+	stdoutW := r.StdoutWithColor("green") // Shell output in green for clarity
+	stderrW := r.StdoutWithColor("red")   // Stderr in red
 
 	res, err := shell.ExecuteStreaming(ctx, shellCmd, stdoutW, stderrW, os.Stdin, nil)
 	if err != nil {
@@ -75,21 +75,6 @@ func (r *REPL) executeShellCommand(ctx context.Context, shellCmd string) error {
 	}
 
 	return nil
-}
-
-// replWriter implements io.Writer by calling r.Printf for each chunk.
-type replWriter struct {
-	r     *REPL
-	color string
-}
-
-func (w *replWriter) Write(p []byte) (n int, err error) {
-	text := string(p)
-	if w.color != "" {
-		text = w.r.Display.colorizedText(text, w.color)
-	}
-	w.r.Printf("%s", text)
-	return len(p), nil
 }
 
 // switchToShell drops the user into a full interactive system shell.

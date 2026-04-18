@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/0funct0ry/xwebs/internal/ws"
@@ -18,6 +19,8 @@ func init() {
 	MustRegister(&KVDelBuiltin{})
 	MustRegister(&NoopBuiltin{})
 	MustRegister(&EchoBuiltin{})
+	MustRegister(&BroadcastBuiltin{})
+	MustRegister(&BroadcastOthersBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -293,4 +296,132 @@ func (b *EchoBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmp
 		Type: mt,
 		Data: tmplCtx.MessageBytes,
 	})
+}
+
+// BroadcastBuiltin fouts a message to all connected clients.
+type BroadcastBuiltin struct{}
+
+func (b *BroadcastBuiltin) Name() string        { return "broadcast" }
+func (b *BroadcastBuiltin) Description() string { return "Send a message to all connected clients." }
+func (b *BroadcastBuiltin) Scope() BuiltinScope { return ServerOnly }
+
+func (b *BroadcastBuiltin) Validate(a Action) error {
+	return nil // message or respond is optional; defaults to incoming message
+}
+
+func (b *BroadcastBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	if d.serverStats == nil {
+		return fmt.Errorf("broadcast is only available in server mode")
+	}
+
+	msgContent := a.Message
+	if msgContent == "" {
+		msgContent = a.Send
+	}
+
+	var data []byte
+	var msgType ws.MessageType
+
+	if msgContent != "" {
+		res, err := d.templateEngine.Execute("broadcast", msgContent, tmplCtx)
+		if err != nil {
+			return fmt.Errorf("rendering broadcast template: %w", err)
+		}
+		data = []byte(res)
+		msgType = ws.TextMessage
+	} else {
+		// Default to original message content
+		data = tmplCtx.MessageBytes
+		mt := ws.TextMessage
+		if tmplCtx.MessageType == "binary" {
+			mt = ws.BinaryMessage
+		} else if tmplCtx.MessageType == "ping" {
+			mt = ws.PingMessage
+		} else if tmplCtx.MessageType == "pong" {
+			mt = ws.PongMessage
+		}
+		msgType = mt
+	}
+
+	broadcastMsg := &ws.Message{
+		Type: msgType,
+		Data: data,
+		Metadata: ws.MessageMetadata{
+			Direction: "sent",
+			Timestamp: time.Now(),
+		},
+	}
+
+	count := d.serverStats.Broadcast(broadcastMsg)
+	tmplCtx.Stdout = fmt.Sprintf("Broadcasted to %d clients", count)
+	if d.verbose {
+		d.log("  [builtin:broadcast] delivered to %d clients\n", count)
+	}
+
+	return nil
+}
+
+// BroadcastOthersBuiltin fouts a message to all connected clients except the sender.
+type BroadcastOthersBuiltin struct{}
+
+func (b *BroadcastOthersBuiltin) Name() string        { return "broadcast-others" }
+func (b *BroadcastOthersBuiltin) Description() string { return "Send a message to all connected clients except the sender." }
+func (b *BroadcastOthersBuiltin) Scope() BuiltinScope { return ServerOnly }
+
+func (b *BroadcastOthersBuiltin) Validate(a Action) error { return nil }
+
+func (b *BroadcastOthersBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	if d.serverStats == nil {
+		return fmt.Errorf("broadcast-others is only available in server mode")
+	}
+
+	msgContent := a.Message
+	if msgContent == "" {
+		msgContent = a.Send
+	}
+
+	var data []byte
+	var msgType ws.MessageType
+
+	if msgContent != "" {
+		res, err := d.templateEngine.Execute("broadcast-others", msgContent, tmplCtx)
+		if err != nil {
+			return fmt.Errorf("rendering broadcast template: %w", err)
+		}
+		data = []byte(res)
+		msgType = ws.TextMessage
+	} else {
+		data = tmplCtx.MessageBytes
+		mt := ws.TextMessage
+		if tmplCtx.MessageType == "binary" {
+			mt = ws.BinaryMessage
+		} else if tmplCtx.MessageType == "ping" {
+			mt = ws.PingMessage
+		} else if tmplCtx.MessageType == "pong" {
+			mt = ws.PongMessage
+		}
+		msgType = mt
+	}
+
+	broadcastMsg := &ws.Message{
+		Type: msgType,
+		Data: data,
+		Metadata: ws.MessageMetadata{
+			Direction: "sent",
+			Timestamp: time.Now(),
+		},
+	}
+
+	excludeID := ""
+	if d.conn != nil {
+		excludeID = d.conn.GetID()
+	}
+
+	count := d.serverStats.Broadcast(broadcastMsg, excludeID)
+	tmplCtx.Stdout = fmt.Sprintf("Broadcasted to %d other clients", count)
+	if d.verbose {
+		d.log("  [builtin:broadcast-others] delivered to %d clients\n", count)
+	}
+
+	return nil
 }

@@ -44,7 +44,9 @@ func (c *serveContext) GetClientCount() int                            { return 
 func (c *serveContext) GetUptime() time.Duration                       { return c.srv.GetUptime() }
 func (c *serveContext) GetClients() []template.ClientInfo              { return c.srv.GetClients() }
 func (c *serveContext) GetClient(id string) (template.ClientInfo, bool) { return c.srv.GetClient(id) }
-func (c *serveContext) Broadcast(msg *ws.Message) error                { return c.srv.Broadcast(msg) }
+func (c *serveContext) Broadcast(msg *ws.Message, excludeIDs ...string) int {
+	return c.srv.Broadcast(msg, excludeIDs...)
+}
 func (c *serveContext) Send(id string, msg *ws.Message) error          { return c.srv.Send(id, msg) }
 func (c *serveContext) Kick(id string, code int, reason string) error  { return c.srv.Kick(id, code, reason) }
 func (c *serveContext) GetStatus() string                              { return c.srv.GetStatus() }

@@ -27,7 +27,7 @@ func (m *mockServerContext) GetClientCount() int                            { re
 func (m *mockServerContext) GetUptime() time.Duration                       { return 0 }
 func (m *mockServerContext) GetClients() []template.ClientInfo              { return nil }
 func (m *mockServerContext) GetClient(id string) (template.ClientInfo, bool) { return template.ClientInfo{}, false }
-func (m *mockServerContext) Broadcast(msg *ws.Message) error                { return nil }
+func (m *mockServerContext) Broadcast(msg *ws.Message, excludeIDs ...string) int { return 0 }
 func (m *mockServerContext) Send(id string, msg *ws.Message) error          { return nil }
 func (m *mockServerContext) Kick(id string, code int, reason string) error  { return nil }
 func (m *mockServerContext) GetStatus() string                              { return "running" }

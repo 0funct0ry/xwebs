@@ -36,6 +36,7 @@ type Handler struct {
 	RateLimit    string                 `yaml:"rate_limit,omitempty"` // Per-handler rate limit (e.g. "10/s", "100/m")
 	Debounce     string                 `yaml:"debounce,omitempty"`   // Per-handler debounce duration (e.g. "500ms")
 	Delay        string                 `yaml:"delay,omitempty"`      // Per-handler delay (e.g. "1s")
+	Message      string                 `yaml:"message,omitempty"`    // Message content (template) for broadcast/publish builtins
 	Actions      []Action               `yaml:"actions,omitempty"`
 	Variables    map[string]interface{} `yaml:"variables,omitempty"`
 	OnConnect    []Action               `yaml:"on_connect,omitempty"`
@@ -63,6 +64,7 @@ type PipelineStep struct {
 	Timeout     string `yaml:"timeout,omitempty"`
 	Delay       string `yaml:"delay,omitempty"`
 	Respond     string `yaml:"respond,omitempty"`
+	Message     string `yaml:"message,omitempty"` // Message content (template) for broadcast/publish builtins
 	IgnoreError bool   `yaml:"ignore_error,omitempty"`
 }
 
