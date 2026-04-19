@@ -104,7 +104,7 @@ func TestRegistry_Match(t *testing.T) {
 
 			var names []string
 			for _, m := range matches {
-				names = append(names, m.Name)
+				names = append(names, m.Handler.Name)
 			}
 			assert.Equal(t, tt.expect, names)
 		})
@@ -152,7 +152,7 @@ func TestRegistry_BinaryMatch(t *testing.T) {
 
 			var names []string
 			for _, m := range matches {
-				names = append(names, m.Name)
+				names = append(names, m.Handler.Name)
 			}
 			assert.Equal(t, tt.expect, names)
 		})
@@ -175,8 +175,8 @@ func TestRegistry_ExclusiveMatch(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Len(t, matches, 2)
-	assert.Equal(t, "h1", matches[0].Name)
-	assert.Equal(t, "h2", matches[1].Name)
+	assert.Equal(t, "h1", matches[0].Handler.Name)
+	assert.Equal(t, "h2", matches[1].Handler.Name)
 }
 
 func TestRegistry_Add(t *testing.T) {

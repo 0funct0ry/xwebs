@@ -708,7 +708,7 @@ Available Builtin Actions (Client):
 						if cc.repl != nil {
 							sessionVars = cc.repl.GetVars()
 						}
-						tempDispatcher := handler.NewDispatcher(reg, nil, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist, nil, nil)
+						tempDispatcher := handler.NewDispatcher(reg, nil, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist, nil, nil, nil)
 						if isInteractive && r != nil {
 
 							tempDispatcher.Log = func(f string, a ...interface{}) { r.Printf(f, a...) }
@@ -781,7 +781,7 @@ Available Builtin Actions (Client):
 					if cc.repl != nil {
 						sessionVars = cc.repl.GetVars()
 					}
-					dispatcher = handler.NewDispatcher(handlerReg, conn, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist, nil, nil)
+					dispatcher = handler.NewDispatcher(handlerReg, conn, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist, nil, nil, nil)
 					cc.dispatcher = dispatcher
 					if isInteractive && r != nil {
 

@@ -18,7 +18,7 @@ func TestDispatcher_ExecutePipeline(t *testing.T) {
 	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
-	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil)
+	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil)
 
 	h := &Handler{
 		Name: "pipeline-test",
@@ -37,7 +37,7 @@ func TestDispatcher_ExecutePipeline(t *testing.T) {
 		},
 	}
 
-	err := d.Execute(context.Background(), h, msg)
+	err := d.Execute(context.Background(), h, msg, nil)
 	require.NoError(t, err)
 
 	conn.mu.Lock()
@@ -49,7 +49,7 @@ func TestDispatcher_ExecutePipelineFailure(t *testing.T) {
 	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
-	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil)
+	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil)
 
 	h := &Handler{
 		Name: "pipeline-failure",
@@ -68,7 +68,7 @@ func TestDispatcher_ExecutePipelineFailure(t *testing.T) {
 		},
 	}
 
-	err := d.Execute(context.Background(), h, msg)
+	err := d.Execute(context.Background(), h, msg, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "pipeline step \"step1\" failed: exit code 2")
 
@@ -81,7 +81,7 @@ func TestDispatcher_ExecutePipelineIgnoreError(t *testing.T) {
 	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
-	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil)
+	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil)
 
 	h := &Handler{
 		Name: "pipeline-ignore",
@@ -100,7 +100,7 @@ func TestDispatcher_ExecutePipelineIgnoreError(t *testing.T) {
 		},
 	}
 
-	err := d.Execute(context.Background(), h, msg)
+	err := d.Execute(context.Background(), h, msg, nil)
 	require.NoError(t, err)
 
 	conn.mu.Lock()
@@ -113,7 +113,7 @@ func TestDispatcher_GlobalVariables(t *testing.T) {
 	engine := template.New(false)
 	conn := &mockConn{}
 	vars := map[string]interface{}{"tmp": "/tmp/test", "version": 1}
-	d := NewDispatcher(reg, conn, engine, false, vars, nil, false, nil, nil, nil)
+	d := NewDispatcher(reg, conn, engine, false, vars, nil, false, nil, nil, nil, nil)
 
 	h := &Handler{
 		Name:    "vars-test",
@@ -129,7 +129,7 @@ func TestDispatcher_GlobalVariables(t *testing.T) {
 		},
 	}
 
-	err := d.Execute(context.Background(), h, msg)
+	err := d.Execute(context.Background(), h, msg, nil)
 	require.NoError(t, err)
 
 	conn.mu.Lock()
@@ -141,7 +141,7 @@ func TestDispatcher_Shorthands(t *testing.T) {
 	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
-	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil)
+	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil)
 
 	h := &Handler{
 		Name:    "shorthand-test",
@@ -157,7 +157,7 @@ func TestDispatcher_Shorthands(t *testing.T) {
 		},
 	}
 
-	err := d.Execute(context.Background(), h, msg)
+	err := d.Execute(context.Background(), h, msg, nil)
 	require.NoError(t, err)
 
 	conn.mu.Lock()
@@ -169,7 +169,7 @@ func TestDispatcher_RespondContext(t *testing.T) {
 	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
-	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil)
+	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil)
 
 	h := &Handler{
 		Name:    "respond-context-test",
@@ -185,7 +185,7 @@ func TestDispatcher_RespondContext(t *testing.T) {
 		},
 	}
 
-	err := d.Execute(context.Background(), h, msg)
+	err := d.Execute(context.Background(), h, msg, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "exit code 2")
 
@@ -198,7 +198,7 @@ func TestDispatcher_Debounce(t *testing.T) {
 	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
-	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil)
+	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil)
 
 	h := &Handler{
 		Name:     "debounce-test",
@@ -227,7 +227,7 @@ func TestDispatcher_ExclusiveShortCircuit(t *testing.T) {
 	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
-	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil)
+	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil)
 
 	var mu sync.Mutex
 	executed := make([]string, 0)
@@ -291,7 +291,7 @@ func TestDispatcher_ExclusivePriority(t *testing.T) {
 	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
-	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil)
+	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil)
 
 	var mu sync.Mutex
 	executed := make([]string, 0)

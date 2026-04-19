@@ -73,7 +73,7 @@ func (m *mockServerContext) UnsubscribeClientFromTopic(clientID, topic string) (
 func (m *mockServerContext) UnsubscribeClientFromAllTopics(clientID string) ([]string, error) { return nil, nil }
 func (m *mockServerContext) ListKV() map[string]interface{} { return nil }
 func (m *mockServerContext) GetKV(key string) (interface{}, bool) { return nil, false }
-func (m *mockServerContext) SetKV(key string, val interface{}) {}
+func (m *mockServerContext) SetKV(key string, val interface{}, ttl time.Duration) {}
 func (m *mockServerContext) DeleteKV(key string) {}
 
 func (m *mockServerContext) GetGlobalStats() observability.GlobalStats { return observability.GlobalStats{} }

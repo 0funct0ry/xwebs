@@ -104,7 +104,7 @@ func (c *serveContext) UnsubscribeClientFromAllTopics(clientID string) ([]string
 
 func (c *serveContext) ListKV() map[string]interface{} { return c.srv.ListKV() }
 func (c *serveContext) GetKV(key string) (interface{}, bool) { return c.srv.GetKV(key) }
-func (c *serveContext) SetKV(key string, val interface{}) { c.srv.SetKV(key, val) }
+func (c *serveContext) SetKV(key string, val interface{}, ttl time.Duration) { c.srv.SetKV(key, val, ttl) }
 func (c *serveContext) DeleteKV(key string) { c.srv.DeleteKV(key) }
 
 func (c *serveContext) GetGlobalStats() observability.GlobalStats { return c.srv.GetGlobalStats() }

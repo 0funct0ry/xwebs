@@ -27,7 +27,7 @@ func TestRegistry_Management(t *testing.T) {
 
 	// Test Match records hit
 	msg := &ws.Message{Data: []byte("ping")}
-	matchesResult, err := r.Match(msg, nil, nil)
+	matchesResult, err := r.Match(msg, nil, template.NewContext())
 	assert.NoError(t, err)
 	assert.Len(t, matchesResult, 1)
 
@@ -39,7 +39,7 @@ func TestRegistry_Management(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, r.IsDisabled("test"))
 
-	matchesResult, err = r.Match(msg, nil, nil)
+	matchesResult, err = r.Match(msg, nil, template.NewContext())
 	assert.NoError(t, err)
 	assert.Len(t, matchesResult, 0, "Disabled handler should not match")
 
@@ -48,7 +48,7 @@ func TestRegistry_Management(t *testing.T) {
 	assert.NoError(t, err)
 	assert.False(t, r.IsDisabled("test"))
 
-	matchesResult, err = r.Match(msg, nil, nil)
+	matchesResult, err = r.Match(msg, nil, template.NewContext())
 	assert.NoError(t, err)
 	assert.Len(t, matchesResult, 1)
 
@@ -69,12 +69,12 @@ func TestDispatcher_ExecuteRecordsStats(t *testing.T) {
 
 	tmplEngine := template.New(false)
 	conn := &mockConn{}
-	d := NewDispatcher(r, conn, tmplEngine, false, nil, nil, false, nil, nil, nil)
+	d := NewDispatcher(r, conn, tmplEngine, false, nil, nil, false, nil, nil, nil, nil)
 
 	msg := &ws.Message{Data: []byte("hi")}
 	h, _ := r.GetHandler("exec-test")
 
-	err := d.Execute(context.Background(), &h, msg)
+	err := d.Execute(context.Background(), &h, msg, nil)
 	assert.NoError(t, err)
 
 	matches, totalLatency, errorsCount, ok := r.GetStats("exec-test")

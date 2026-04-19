@@ -59,7 +59,7 @@ type ServerContext interface {
 	// KV operations
 	ListKV() map[string]interface{}
 	GetKV(key string) (interface{}, bool)
-	SetKV(key string, val interface{})
+	SetKV(key string, val interface{}, ttl time.Duration)
 	DeleteKV(key string)
 
 	// Observability
@@ -999,6 +999,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("\nFlags for 'set':\n")
 				r.Printf("  -t, --template       Render value as a template before storing\n")
 				r.Printf("  -j, --json           Parse value as JSON before storing\n")
+				r.Printf("      --ttl <duration> Set a TTL for the key (e.g. 1m, 1h)\n")
 				return nil
 			}
 
@@ -1053,10 +1054,12 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 
 			case "set":
 				var asTemplate, asJSON bool
+				var ttlStr string
 				fs := pflag.NewFlagSet("kv set", pflag.ContinueOnError)
 				fs.SetOutput(nil)
 				fs.BoolVarP(&asTemplate, "template", "t", false, "Render as template")
 				fs.BoolVarP(&asJSON, "json", "j", false, "Parse as JSON")
+				fs.StringVar(&ttlStr, "ttl", "", "TTL duration (e.g. 5m, 1h)")
 
 				if err := fs.Parse(args[1:]); err != nil {
 					return fmt.Errorf("parsing flags: %w", err)
@@ -1093,8 +1096,21 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					val = valStr
 				}
 
-				sc.SetKV(key, val)
-				r.Printf("✓ Key %q set\n", key)
+				ttl := time.Duration(0)
+				if ttlStr != "" {
+					if d, err := time.ParseDuration(ttlStr); err == nil {
+						ttl = d
+					} else {
+						return fmt.Errorf("invalid ttl: %w", err)
+					}
+				}
+
+				sc.SetKV(key, val, ttl)
+				if ttl > 0 {
+					r.Printf("✓ Key %q set with ttl %v\n", key, ttl)
+				} else {
+					r.Printf("✓ Key %q set\n", key)
+				}
 				return nil
 
 			case "del", "rm":

@@ -1,0 +1,8 @@
+handlers:
+  - name: run-command
+    match: "*"
+    concurrent: false
+    timeout: 30s
+    run: "{{.Message}}"
+    respond: |
+      {"stdout":"{{.Stdout | js}}","stderr":"{{.Stderr | js}}","exit":{{.ExitCode}},"cmd":"{{.Message | js}}"}

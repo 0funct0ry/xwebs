@@ -14,13 +14,13 @@ func TestDispatcher_Sandbox(t *testing.T) {
 	conn := &mockConn{}
 
 	t.Run("Sandbox Enabled - Allowed", func(t *testing.T) {
-		d := NewDispatcher(reg, conn, engine, false, nil, nil, true, []string{"echo"}, nil, nil)
+		d := NewDispatcher(reg, conn, engine, false, nil, nil, true, []string{"echo"}, nil, nil, nil)
 		h := &Handler{
 			Name: "test-allowed",
 			Run:  "echo 'hello'",
 		}
 
-		err := d.Execute(context.Background(), h, &ws.Message{Data: []byte("test"), Metadata: ws.MessageMetadata{Direction: "received"}})
+		err := d.Execute(context.Background(), h, &ws.Message{Data: []byte("test"), Metadata: ws.MessageMetadata{Direction: "received"}}, nil)
 		assert.NoError(t, err)
 
 		conn.mu.Lock()
@@ -29,37 +29,37 @@ func TestDispatcher_Sandbox(t *testing.T) {
 	})
 
 	t.Run("Sandbox Enabled - Disallowed", func(t *testing.T) {
-		d := NewDispatcher(reg, conn, engine, false, nil, nil, true, []string{"echo"}, nil, nil)
+		d := NewDispatcher(reg, conn, engine, false, nil, nil, true, []string{"echo"}, nil, nil, nil)
 		h := &Handler{
 			Name: "test-disallowed",
 			Run:  "ls",
 		}
 
-		err := d.Execute(context.Background(), h, &ws.Message{Data: []byte("test"), Metadata: ws.MessageMetadata{Direction: "received"}})
+		err := d.Execute(context.Background(), h, &ws.Message{Data: []byte("test"), Metadata: ws.MessageMetadata{Direction: "received"}}, nil)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "not in the allowlist")
 	})
 
 	t.Run("Sandbox Enabled - Empty Allowlist", func(t *testing.T) {
-		d := NewDispatcher(reg, conn, engine, false, nil, nil, true, []string{}, nil, nil)
+		d := NewDispatcher(reg, conn, engine, false, nil, nil, true, []string{}, nil, nil, nil)
 		h := &Handler{
 			Name: "test-deny-all",
 			Run:  "echo 'forbidden'",
 		}
 
-		err := d.Execute(context.Background(), h, &ws.Message{Data: []byte("test"), Metadata: ws.MessageMetadata{Direction: "received"}})
+		err := d.Execute(context.Background(), h, &ws.Message{Data: []byte("test"), Metadata: ws.MessageMetadata{Direction: "received"}}, nil)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "allowlist is empty")
 	})
 
 	t.Run("Sandbox Disabled - Allowed All", func(t *testing.T) {
-		d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil)
+		d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil)
 		h := &Handler{
 			Name: "test-no-sandbox",
 			Run:  "ls",
 		}
 
-		err := d.Execute(context.Background(), h, &ws.Message{Data: []byte("test"), Metadata: ws.MessageMetadata{Direction: "received"}})
+		err := d.Execute(context.Background(), h, &ws.Message{Data: []byte("test"), Metadata: ws.MessageMetadata{Direction: "received"}}, nil)
 		assert.NoError(t, err)
 	})
 }

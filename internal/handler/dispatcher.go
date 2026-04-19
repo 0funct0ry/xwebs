@@ -63,7 +63,7 @@ type TopicManager interface {
 type KVManager interface {
 	ListKV() map[string]interface{}
 	GetKV(key string) (interface{}, bool)
-	SetKV(key string, val interface{})
+	SetKV(key string, val interface{}, ttl time.Duration)
 	DeleteKV(key string)
 }
 
@@ -93,7 +93,7 @@ type Dispatcher struct {
 }
 
 // NewDispatcher creates a new dispatcher.
-func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine, verbose bool, vars map[string]interface{}, session map[string]interface{}, sandbox bool, allowlist []string, serverStats ServerStatProvider, topicManager TopicManager) *Dispatcher {
+func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine, verbose bool, vars map[string]interface{}, session map[string]interface{}, sandbox bool, allowlist []string, serverStats ServerStatProvider, topicManager TopicManager, kvManager KVManager) *Dispatcher {
 
 	// Initialize system environment
 	env := make(map[string]string)
@@ -104,13 +104,6 @@ func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine,
 		}
 	}
 
-	var kvManager KVManager
-	if serverStats != nil {
-		if kv, ok := serverStats.(KVManager); ok {
-			kvManager = kv
-		}
-	}
-
 	return &Dispatcher{
 		registry:         registry,
 		conn:             conn,
@@ -118,12 +111,12 @@ func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine,
 		verbose:          verbose,
 		variables:        vars,
 		sessionVariables: session,
-		systemEnv:        env,
 		sandbox:          sandbox,
 		allowlist:        allowlist,
 		serverStats:      serverStats,
 		topicManager:     topicManager,
 		kvManager:        kvManager,
+		systemEnv:        env,
 		Log: func(f string, a ...interface{}) {
 			fmt.Printf(f, a...)
 		},
@@ -234,7 +227,7 @@ func (d *Dispatcher) handleMessage(ctx context.Context, msg *ws.Message) {
 	tmplCtx := template.NewContext()
 	d.populateTemplateContext(tmplCtx, msg)
 
-	matches, err := d.registry.Match(msg, d.templateEngine, tmplCtx)
+	results, err := d.registry.Match(msg, d.templateEngine, tmplCtx)
 	if err != nil {
 		if d.verbose {
 			d.errorf("  [handler] error matching message: %v\n", err)
@@ -242,7 +235,7 @@ func (d *Dispatcher) handleMessage(ctx context.Context, msg *ws.Message) {
 		return
 	}
 
-	if len(matches) == 0 {
+	if len(results) == 0 {
 		if d.verbose {
 			d.errorf("  [handler] debug: no handlers matched message %q\n", msgStr)
 		}
@@ -250,10 +243,12 @@ func (d *Dispatcher) handleMessage(ctx context.Context, msg *ws.Message) {
 	}
 
 	if d.verbose {
-		d.errorf("  [handler] debug: found %d matches for %q\n", len(matches), msgStr)
+		d.errorf("  [handler] debug: found %d matches for %q\n", len(results), msgStr)
 	}
 
-	for _, h := range matches {
+	for _, res := range results {
+		h := res.Handler
+		matches := res.Matches
 		if d.verbose {
 			d.errorf("  [handler] executing handler %q (priority %d)\n", h.Name, h.Priority)
 		}
@@ -277,18 +272,18 @@ func (d *Dispatcher) handleMessage(ctx context.Context, msg *ws.Message) {
 					d.errorf("  [handler] executing debounced handler %q\n", h.Name)
 				}
 				// Use context from Dispatcher.Start which is passed as ctx
-				if err := d.Execute(ctx, h, m); err != nil {
+				if err := d.Execute(ctx, h, m, matches); err != nil {
 					d.errorf("  [handler] error executing debounced %q: %v\n", h.Name, err)
 				}
 			})
 			continue
 		}
 
-		go func(handler Handler) {
-			if err := d.Execute(ctx, &handler, msg); err != nil {
+		go func(handler Handler, captured []string) {
+			if err := d.Execute(ctx, &handler, msg, captured); err != nil {
 				d.errorf("  [handler] error executing %q: %v\n", handler.Name, err)
 			}
-		}(*h)
+		}(*h, matches)
 
 		// If the handler is exclusive, stop processing further handlers.
 		if h.Exclusive {
@@ -298,7 +293,7 @@ func (d *Dispatcher) handleMessage(ctx context.Context, msg *ws.Message) {
 }
 
 // Execute runs the actions defined in a handler.
-func (d *Dispatcher) Execute(ctx context.Context, h *Handler, msg *ws.Message) error {
+func (d *Dispatcher) Execute(ctx context.Context, h *Handler, msg *ws.Message, matches []string) error {
 	atomic.AddUint64(&d._handlerHits, 1)
 	atomic.AddInt32(&d._activeHandlers, 1)
 	defer atomic.AddInt32(&d._activeHandlers, -1)
@@ -319,6 +314,7 @@ func (d *Dispatcher) Execute(ctx context.Context, h *Handler, msg *ws.Message) e
 
 	tmplCtx := template.NewContext()
 	d.populateTemplateContext(tmplCtx, msg)
+	tmplCtx.Matches = matches
 
 	// Merge and evaluate per-handler variables
 	if h.Variables != nil {
@@ -436,6 +432,8 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 				Timeout: h.Timeout,
 				Delay:   h.Delay,
 				Respond: h.Respond,
+				TTL:     h.TTL,
+				Default: h.Default,
 			}
 			return d.ExecuteAction(ctx, &action, tmplCtx, msg)
 		}
@@ -490,6 +488,8 @@ func (d *Dispatcher) executePipeline(ctx context.Context, pipeline []PipelineSte
 			action.Value = step.Value
 			action.Target = step.Target
 			action.Message = step.Message
+			action.TTL = step.TTL
+			action.Default = step.Default
 		}
 
 		if err := d.ExecuteAction(ctx, &action, tmplCtx, msg); err != nil {

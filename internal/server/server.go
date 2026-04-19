@@ -343,6 +343,7 @@ func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
 			s.opts.Allowlist,
 			s,        // Server implements ServerStatProvider
 			s.topics, // Server.topics implements TopicManager
+			s,        // Server implements KVManager
 		)
 			
 			// Setup logging/error handlers for dispatcher
@@ -717,11 +718,11 @@ func (s *Server) GetKV(key string) (interface{}, bool) {
 }
 
 // SetKV stores a value in the key-value store.
-func (s *Server) SetKV(key string, val interface{}) {
+func (s *Server) SetKV(key string, val interface{}, ttl time.Duration) {
 	if s.kvStore == nil {
 		s.kvStore = kv.NewStore()
 	}
-	s.kvStore.Set(key, val)
+	s.kvStore.Set(key, val, ttl)
 }
 
 // DeleteKV removes a key from the key-value store.

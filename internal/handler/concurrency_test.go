@@ -15,7 +15,7 @@ func TestHandler_ConcurrencyControl(t *testing.T) {
 	engine := template.New(false)
 	reg := NewRegistry(ServerMode)
 	conn := &mockConn{}
-	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil)
+	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil)
 
 	// Handler that sleeps for 100ms
 	// Use a shell command to simulate work
@@ -37,7 +37,7 @@ func TestHandler_ConcurrencyControl(t *testing.T) {
 		for i := 0; i < numRequests; i++ {
 			go func() {
 				defer wg.Done()
-				err := d.Execute(context.Background(), h, msg)
+				err := d.Execute(context.Background(), h, msg, nil)
 				assert.NoError(t, err)
 			}()
 		}
@@ -67,7 +67,7 @@ func TestHandler_ConcurrencyControl(t *testing.T) {
 		for i := 0; i < numRequests; i++ {
 			go func() {
 				defer wg.Done()
-				err := d.Execute(context.Background(), h, msg)
+				err := d.Execute(context.Background(), h, msg, nil)
 				assert.NoError(t, err)
 			}()
 		}
@@ -100,12 +100,12 @@ func TestHandler_ConcurrencyControl(t *testing.T) {
 
 		go func() {
 			defer wg.Done()
-			err := d.Execute(context.Background(), h1, msg)
+			err := d.Execute(context.Background(), h1, msg, nil)
 			assert.NoError(t, err)
 		}()
 		go func() {
 			defer wg.Done()
-			err := d.Execute(context.Background(), h2, msg)
+			err := d.Execute(context.Background(), h2, msg, nil)
 			assert.NoError(t, err)
 		}()
 

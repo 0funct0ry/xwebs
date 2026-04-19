@@ -95,7 +95,7 @@ func TestRegistry_CompositeMatch(t *testing.T) {
 
 			var names []string
 			for _, m := range matches {
-				names = append(names, m.Name)
+				names = append(names, m.Handler.Name)
 			}
 			assert.ElementsMatch(t, tt.expect, names)
 		})

@@ -77,16 +77,12 @@ func TestJSONSchemaMatcher(t *testing.T) {
 			msg := &ws.Message{
 				Data: []byte(tt.message),
 			}
-			engine := template.New(false)
-			ctx := template.NewContext()
-			ctx.Message = tt.message
 
-			matches, err := reg.Match(msg, engine, ctx)
+			matches, err := reg.Match(msg, nil, template.NewContext())
 			require.NoError(t, err)
-
 			if tt.want {
 				assert.Len(t, matches, 1)
-				assert.Equal(t, "test-schema", matches[0].Name)
+				assert.Equal(t, "test-schema", matches[0].Handler.Name)
 			} else {
 				assert.Len(t, matches, 0)
 			}

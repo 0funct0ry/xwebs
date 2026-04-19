@@ -162,7 +162,7 @@ func (s *Server) handleSetKV(w http.ResponseWriter, r *http.Request) {
 		s.kvStore = kv.NewStore()
 	}
 
-	s.kvStore.Set(key, val)
+	s.kvStore.Set(key, val, 0)
 	s.jsonResponse(w, http.StatusOK, map[string]interface{}{key: val})
 }
 

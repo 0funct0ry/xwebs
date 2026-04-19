@@ -76,7 +76,7 @@ func TestLifecycleHooks(t *testing.T) {
 		},
 	})
 
-	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil)
+	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil)
 	d.HandleConnect()
 
 	assert.Len(t, conn.messages, 1)
@@ -134,7 +134,7 @@ func TestHandlerErrorTrigger(t *testing.T) {
 		},
 	})
 
-	d := NewDispatcher(reg, conn, engine, true, nil, nil, false, nil, nil, nil)
+	d := NewDispatcher(reg, conn, engine, true, nil, nil, false, nil, nil, nil, nil)
 
 	msg := &ws.Message{
 		Type:     ws.TextMessage,
@@ -144,8 +144,9 @@ func TestHandlerErrorTrigger(t *testing.T) {
 
 	// Execute synchronously for testing
 	matches, _ := reg.Match(msg, engine, template.NewContext())
-	for _, h := range matches {
-		err := d.Execute(context.Background(), h, msg)
+	for _, res := range matches {
+		h := res.Handler
+		err := d.Execute(context.Background(), h, msg, res.Matches)
 		if h.Name == "failing_handler" {
 			assert.Error(t, err)
 		} else {

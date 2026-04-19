@@ -38,6 +38,8 @@ type Handler struct {
 	Debounce     string                 `yaml:"debounce,omitempty"`   // Per-handler debounce duration (e.g. "500ms")
 	Delay        string                 `yaml:"delay,omitempty"`      // Per-handler delay (e.g. "1s")
 	Message      string                 `yaml:"message,omitempty"`    // Message content (template) for broadcast/publish builtins
+	TTL          string                 `yaml:"ttl,omitempty"`        // TTL (template) for KV builtins
+	Default      string                 `yaml:"default,omitempty"`    // Default value (template) for KV builtins
 	Actions      []Action               `yaml:"actions,omitempty"`
 	Variables    map[string]interface{} `yaml:"variables,omitempty"`
 	OnConnect    []Action               `yaml:"on_connect,omitempty"`
@@ -68,6 +70,8 @@ type PipelineStep struct {
 	Delay       string `yaml:"delay,omitempty"`
 	Respond     string `yaml:"respond,omitempty"`
 	Message     string `yaml:"message,omitempty"` // Message content (template) for broadcast/publish builtins
+	TTL         string `yaml:"ttl,omitempty"`         // TTL (template) for KV builtins
+	Default     string `yaml:"default,omitempty"`     // Default value (template) for KV builtins
 	IgnoreError bool   `yaml:"ignore_error,omitempty"`
 }
 
@@ -121,6 +125,8 @@ type Action struct {
 	Timeout string            `yaml:"timeout,omitempty"` // Timeout for shell/builtin actions
 	Delay   string            `yaml:"delay,omitempty"`   // Delay before execution
 	Respond string            `yaml:"respond,omitempty"` // Override response for echo or generic follow-up
+	TTL     string            `yaml:"ttl,omitempty"`     // TTL (template) for KV builtins
+	Default string            `yaml:"default,omitempty"` // Default value (template) for KV builtins
 	Env     map[string]string `yaml:"env,omitempty"`     // Environment variables for shell actions
 	Silent  bool              `yaml:"silent,omitempty"`  // Suppress output for shell actions
 }

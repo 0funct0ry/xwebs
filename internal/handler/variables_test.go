@@ -31,7 +31,7 @@ func TestHandlerVariables(t *testing.T) {
 		"user": "alice",
 	}
 
-	d := NewDispatcher(reg, conn, engine, true, globalVars, sessionVars, false, nil, nil, nil)
+	d := NewDispatcher(reg, conn, engine, true, globalVars, sessionVars, false, nil, nil, nil, nil)
 
 	h := &Handler{
 		Name: "var-test",
@@ -56,14 +56,12 @@ func TestHandlerVariables(t *testing.T) {
 	}
 
 	// 1. Test Matching with variables
-	tmplCtx := template.NewContext()
-	d.populateTemplateContext(tmplCtx, msg)
-	matches, err := reg.Match(msg, engine, tmplCtx)
+	matches, err := reg.Match(msg, engine, template.NewContext())
 	require.NoError(t, err)
 	assert.Len(t, matches, 1, "Handler should match because it has access to its own variables")
 
 	// 2. Test Execution with variables
-	err = d.Execute(ctx, matches[0], msg)
+	err = d.Execute(ctx, matches[0].Handler, msg, matches[0].Matches)
 	require.NoError(t, err)
 
 	// Verify the output (which is stored in tmplCtx.Stdout by ExecuteAction/executeShell)
@@ -75,7 +73,7 @@ func TestHandlerVariables(t *testing.T) {
 	h.Run = ""
 	reg.handlers[0] = *h
 
-	err = d.Execute(ctx, &reg.handlers[0], msg)
+	err = d.Execute(ctx, &reg.handlers[0], msg, nil)
 	require.NoError(t, err)
 
 	conn.mu.Lock()
@@ -93,7 +91,7 @@ func TestHandlerVariableOverride(t *testing.T) {
 		"key": "global",
 	}
 
-	d := NewDispatcher(reg, conn, engine, true, globalVars, nil, false, nil, nil, nil)
+	d := NewDispatcher(reg, conn, engine, true, globalVars, nil, false, nil, nil, nil, nil)
 
 	h := &Handler{
 		Name: "override-test",
@@ -111,7 +109,7 @@ func TestHandlerVariableOverride(t *testing.T) {
 		Metadata: ws.MessageMetadata{Direction: "received"},
 	}
 
-	err := d.Execute(ctx, &reg.handlers[0], msg)
+	err := d.Execute(ctx, &reg.handlers[0], msg, nil)
 	require.NoError(t, err)
 
 	conn.mu.Lock()

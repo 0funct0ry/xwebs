@@ -15,7 +15,7 @@ func TestEchoBuiltin_Behavior(t *testing.T) {
 	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
-	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil)
+	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil)
 
 	t.Run("Verbatim Echo", func(t *testing.T) {
 		conn.mu.Lock()
@@ -33,7 +33,7 @@ func TestEchoBuiltin_Behavior(t *testing.T) {
 			Metadata: ws.MessageMetadata{Direction: "received"},
 		}
 
-		err := d.Execute(context.Background(), h, msg)
+		err := d.Execute(context.Background(), h, msg, nil)
 		require.NoError(t, err)
 
 		conn.mu.Lock()
@@ -60,7 +60,7 @@ func TestEchoBuiltin_Behavior(t *testing.T) {
 			Metadata: ws.MessageMetadata{Direction: "received"},
 		}
 
-		err := d.Execute(context.Background(), h, msg)
+		err := d.Execute(context.Background(), h, msg, nil)
 		require.NoError(t, err)
 
 		conn.mu.Lock()
@@ -87,7 +87,7 @@ func TestEchoBuiltin_Behavior(t *testing.T) {
 		}
 
 		start := time.Now()
-		err := d.Execute(context.Background(), h, msg)
+		err := d.Execute(context.Background(), h, msg, nil)
 		require.NoError(t, err)
 		duration := time.Since(start)
 
@@ -115,7 +115,7 @@ func TestEchoBuiltin_Behavior(t *testing.T) {
 			Metadata: ws.MessageMetadata{Direction: "received"},
 		}
 
-		err := d.Execute(context.Background(), h, msg)
+		err := d.Execute(context.Background(), h, msg, nil)
 		require.NoError(t, err)
 
 		conn.mu.Lock()

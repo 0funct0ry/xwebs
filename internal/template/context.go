@@ -155,6 +155,10 @@ type TemplateContext struct {
 	// Key-Value Store
 	KV      map[string]interface{} `json:"kv,omitempty"`       // Global KV store snapshot
 	KvValue interface{}            `json:"kv_value,omitempty"` // Result of kv-get builtin
+	KvKeys  []string               `json:"kv_keys,omitempty"`  // Result of kv-list builtin
+
+	// Pattern Matching
+	Matches []string `json:"matches,omitempty"` // Capture groups from glob/regex matching
 
 	// Upstream Forwarding
 	ForwardReply string `json:"forward_reply,omitempty"` // Result of forward builtin

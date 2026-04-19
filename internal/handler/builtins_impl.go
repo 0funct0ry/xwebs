@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ func init() {
 	MustRegister(&KVSetBuiltin{})
 	MustRegister(&KVGetBuiltin{})
 	MustRegister(&KVDelBuiltin{})
+	MustRegister(&KVListBuiltin{})
 	MustRegister(&NoopBuiltin{})
 	MustRegister(&EchoBuiltin{})
 	MustRegister(&BroadcastBuiltin{})
@@ -172,10 +174,24 @@ func (b *KVSetBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tm
 		return fmt.Errorf("template error in kv value: %w", err)
 	}
 
-	d.kvManager.SetKV(key, val)
+	ttl := time.Duration(0)
+	if a.TTL != "" {
+		ttlStr, err := d.templateEngine.Execute("kv-ttl", a.TTL, tmplCtx)
+		if err == nil {
+			if d, err := time.ParseDuration(ttlStr); err == nil {
+				ttl = d
+			}
+		}
+	}
+
+	d.kvManager.SetKV(key, val, ttl)
 	d.refreshKVSnapshot(tmplCtx)
 	if d.verbose {
-		d.errorf("  [handler] kv-set: %s = %v\n", key, val)
+		if ttl > 0 {
+			d.errorf("  [handler] kv-set: %s = %v (ttl: %v)\n", key, val, ttl)
+		} else {
+			d.errorf("  [handler] kv-set: %s = %v\n", key, val)
+		}
 	}
 	return nil
 }
@@ -202,14 +218,22 @@ func (b *KVGetBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tm
 	if err != nil {
 		return fmt.Errorf("template error in kv key: %w", err)
 	}
+	
+	defaultVal := ""
+	if a.Default != "" {
+		if dVal, err := d.templateEngine.Execute("kv-default", a.Default, tmplCtx); err == nil {
+			defaultVal = dVal
+		}
+	}
+
 	val, ok := d.kvManager.GetKV(key)
 	if ok {
 		tmplCtx.KvValue = val
 	} else {
-		tmplCtx.KvValue = nil
+		tmplCtx.KvValue = defaultVal
 	}
 	if d.verbose {
-		d.errorf("  [handler] kv-get: %s = %v (found=%v)\n", key, val, ok)
+		d.errorf("  [handler] kv-get: %s = %v (found=%v, default=%q)\n", key, tmplCtx.KvValue, ok, defaultVal)
 	}
 	return nil
 }
@@ -240,6 +264,34 @@ func (b *KVDelBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tm
 	d.refreshKVSnapshot(tmplCtx)
 	if d.verbose {
 		d.errorf("  [handler] kv-del: %s\n", key)
+	}
+	return nil
+}
+
+// KVListBuiltin retrieves all keys from the server's shared key-value store.
+type KVListBuiltin struct{}
+
+func (b *KVListBuiltin) Name() string        { return "kv-list" }
+func (b *KVListBuiltin) Description() string { return "Retrieve all keys from the server's shared key-value store into .KvKeys." }
+func (b *KVListBuiltin) Scope() BuiltinScope { return ServerOnly }
+
+func (b *KVListBuiltin) Validate(a Action) error { return nil }
+
+func (b *KVListBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	if d.kvManager == nil {
+		return fmt.Errorf("builtin kv-list: kv manager not available")
+	}
+
+	kvMap := d.kvManager.ListKV()
+	keys := make([]string, 0, len(kvMap))
+	for k := range kvMap {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	
+	tmplCtx.KvKeys = keys
+	if d.verbose {
+		d.errorf("  [handler] kv-list: found %d keys\n", len(keys))
 	}
 	return nil
 }

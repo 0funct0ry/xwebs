@@ -44,6 +44,12 @@ type SlowLogEntry struct {
 	Timestamp   time.Time
 }
 
+// MatchResult contains a matching handler and its captured pattern matches.
+type MatchResult struct {
+	Handler *Handler
+	Matches []string
+}
+
 // RegistryStats tracks global execution statistics.
 type RegistryStats struct {
 	TotalExecutions uint64
@@ -304,9 +310,9 @@ func (r *Registry) sort() {
 	})
 }
 
-// Match returns all handlers that match the given message, in priority order.
-func (r *Registry) Match(msg *ws.Message, engine *template.Engine, ctx *template.TemplateContext) ([]*Handler, error) {
-	var matches []*Handler
+// Match returns all handlers that match the given message, along with their capture groups, in priority order.
+func (r *Registry) Match(msg *ws.Message, engine *template.Engine, ctx *template.TemplateContext) ([]MatchResult, error) {
+	var results []MatchResult
 
 	r.mu.RLock()
 	handlers := r.handlers
@@ -324,12 +330,15 @@ func (r *Registry) Match(msg *ws.Message, engine *template.Engine, ctx *template
 			continue
 		}
 
-		matched, err := r.matchHandler(h, msg, engine, ctx)
+		matched, matches, err := r.matchHandler(h, msg, engine, ctx)
 		if err != nil {
 			return nil, fmt.Errorf("matching handler %q: %w", h.Name, err)
 		}
 		if matched {
-			matches = append(matches, h)
+			results = append(results, MatchResult{
+				Handler: h,
+				Matches: matches,
+			})
 
 			// Record match hit
 			r.RecordMatch(h.Name)
@@ -340,11 +349,10 @@ func (r *Registry) Match(msg *ws.Message, engine *template.Engine, ctx *template
 			}
 		}
 	}
-
-	return matches, nil
+	return results, nil
 }
 
-func (r *Registry) matchHandler(h *Handler, msg *ws.Message, engine *template.Engine, ctx *template.TemplateContext) (bool, error) {
+func (r *Registry) matchHandler(h *Handler, msg *ws.Message, engine *template.Engine, ctx *template.TemplateContext) (bool, []string, error) {
 	if len(h.Variables) > 0 && engine != nil && ctx != nil {
 		// Clone Vars to avoid polluting other handlers
 		originalVars := ctx.Vars
@@ -367,41 +375,47 @@ func (r *Registry) matchHandler(h *Handler, msg *ws.Message, engine *template.En
 	return r.matchMatcher(&h.Match, h.BaseDir, msg, engine, ctx)
 }
 
-func (r *Registry) matchMatcher(m *Matcher, baseDir string, msg *ws.Message, engine *template.Engine, ctx *template.TemplateContext) (bool, error) {
-	// 1. Handle Composite Matchers
+func (r *Registry) matchMatcher(m *Matcher, baseDir string, msg *ws.Message, engine *template.Engine, ctx *template.TemplateContext) (bool, []string, error) {
+	// 1. Handle Composite Matchers (All)
+	var compositeMatches []string
 	if len(m.All) > 0 {
 		for _, sub := range m.All {
-			matched, err := r.matchMatcher(&sub, baseDir, msg, engine, ctx)
+			matched, matches, err := r.matchMatcher(&sub, baseDir, msg, engine, ctx)
 			if err != nil || !matched {
-				return matched, err
+				return matched, nil, err
+			}
+			if len(matches) > 0 && len(compositeMatches) == 0 {
+				compositeMatches = matches
 			}
 		}
-		// If all matched, we still need to check if OTHER fields in this matcher (like binary or regex) also match.
 	}
 
+	// 1b. Handle Composite Matchers (Any)
 	if len(m.Any) > 0 {
 		anyMatched := false
 		for _, sub := range m.Any {
-			matched, err := r.matchMatcher(&sub, baseDir, msg, engine, ctx)
+			matched, matches, err := r.matchMatcher(&sub, baseDir, msg, engine, ctx)
 			if err != nil {
-				return false, err
+				return false, nil, err
 			}
 			if matched {
 				anyMatched = true
+				if len(matches) > 0 && len(compositeMatches) == 0 {
+					compositeMatches = matches
+				}
 				break
 			}
 		}
 		if !anyMatched {
-			return false, nil
+			return false, nil, nil
 		}
-		// If one matched, we still need to check if OTHER fields in this matcher also match.
 	}
 
 	// 2. Handle Binary filter
 	if m.Binary != nil {
 		isBinary := msg.Type == ws.BinaryMessage
 		if *m.Binary != isBinary {
-			return false, nil
+			return false, nil, nil
 		}
 	}
 
@@ -410,47 +424,64 @@ func (r *Registry) matchMatcher(m *Matcher, baseDir string, msg *ws.Message, eng
 		m.JSONPath != "" || m.JSONSchema != "" || m.Template != ""
 
 	if !hasPatternMatch {
-		// If nothing else to check, it's a match if we got this far.
-		// Note: Validation ensures that if a handler has actions, it MUST have at least one match condition.
-		return true, nil
+		return true, compositeMatches, nil
 	}
 
 	msgStr := string(msg.Data)
-	// Trim whitespace for more resilient matching in interactive sessions (e.g. echo servers with newlines)
 	trimmedMsg := strings.TrimSpace(msgStr)
 
-	// Support regex shorthand: match.regex: "pattern"
+	// Support regex shorthand
 	if m.Regex != "" {
-		matched, err := regexp.MatchString(m.Regex, trimmedMsg)
+		re, err := regexp.Compile(m.Regex)
 		if err != nil {
-			return false, fmt.Errorf("regex shorthand error: %w", err)
+			return false, nil, fmt.Errorf("regex shorthand error: %w", err)
 		}
-		return matched, nil
+		matches := re.FindStringSubmatch(trimmedMsg)
+		if matches == nil {
+			return false, nil, nil
+		}
+		// Return submatches including the full match at index 0
+		return true, matches, nil
 	}
 
-	// Support jq shorthand: match.jq: "query"
+	// Support jq shorthand
 	if m.JQ != "" {
-		return r.matchJSON(m.JQ, trimmedMsg)
+		matched, err := r.matchJSON(m.JQ, trimmedMsg)
+		if !matched || err != nil {
+			return matched, nil, err
+		}
+		return true, compositeMatches, nil
 	}
 
-	// Support json_path + equals: match.json_path: "path", match.equals: value
+	// Support json_path + equals
 	if m.JSONPath != "" {
-		return r.matchJSONPath(m.JSONPath, m.Equals, trimmedMsg)
+		matched, err := r.matchJSONPath(m.JSONPath, m.Equals, trimmedMsg)
+		if !matched || err != nil {
+			return matched, nil, err
+		}
+		return true, compositeMatches, nil
 	}
 
-	// Support json_schema: match.json_schema: "path/to/schema.json"
+	// Support json_schema
 	if m.JSONSchema != "" {
-		return r.matchJSONSchema(m.JSONSchema, baseDir, trimmedMsg)
+		matched, err := r.matchJSONSchema(m.JSONSchema, baseDir, trimmedMsg)
+		if !matched || err != nil {
+			return matched, nil, err
+		}
+		return true, compositeMatches, nil
 	}
 
-	// Support template: match.template: "{{ eq .msg.data.type 'alert' }}"
+	// Support template
 	if m.Template != "" {
-		return r.matchTemplate(engine, ctx, m.Template)
+		matched, err := r.matchTemplate(engine, ctx, m.Template)
+		if !matched || err != nil {
+			return matched, nil, err
+		}
+		return true, compositeMatches, nil
 	}
 
 	if m.Pattern == "" {
-		// Should not happen if hasPatternMatch is true, but for safety:
-		return true, nil
+		return true, nil, nil
 	}
 
 	switch strings.ToLower(m.Type) {
@@ -458,45 +489,63 @@ func (r *Registry) matchMatcher(m *Matcher, baseDir string, msg *ws.Message, eng
 		if strings.ContainsAny(m.Pattern, "*?") {
 			return r.matchGlob(m.Pattern, trimmedMsg)
 		}
-		// Trim whitespace for more resilient matching in interactive sessions
-		return strings.TrimSpace(msgStr) == m.Pattern, nil
+		return strings.TrimSpace(msgStr) == m.Pattern, nil, nil
 	case "regex":
-		matched, err := regexp.MatchString(m.Pattern, trimmedMsg)
+		re, err := regexp.Compile(m.Pattern)
 		if err != nil {
-			return false, fmt.Errorf("regex error: %w", err)
+			return false, nil, fmt.Errorf("regex error: %w", err)
 		}
-		return matched, nil
+		matches := re.FindStringSubmatch(trimmedMsg)
+		if matches == nil {
+			return false, nil, nil
+		}
+		if len(matches) > 1 {
+			return true, matches[1:], nil
+		}
+		return true, nil, nil
 	case "glob":
 		return r.matchGlob(m.Pattern, trimmedMsg)
 	case "json", "jq":
-		return r.matchJSON(m.Pattern, trimmedMsg)
+		matched, err := r.matchJSON(m.Pattern, trimmedMsg)
+		return matched, nil, err
 	case "json_schema":
-		return r.matchJSONSchema(m.Pattern, baseDir, trimmedMsg)
+		matched, err := r.matchJSONSchema(m.Pattern, baseDir, trimmedMsg)
+		return matched, nil, err
 	case "template":
-		return r.matchTemplate(engine, ctx, m.Pattern)
+		matched, err := r.matchTemplate(engine, ctx, m.Pattern)
+		return matched, nil, err
 	default:
-		return false, fmt.Errorf("unknown matcher type: %s", m.Type)
+		return false, nil, fmt.Errorf("unknown matcher type: %s", m.Type)
 	}
 }
 
-func (r *Registry) matchGlob(pattern, msg string) (bool, error) {
-	// Convert glob pattern to regex
+func (r *Registry) matchGlob(pattern, msg string) (bool, []string, error) {
+	// Convert glob pattern to regex by wrapping wildcards in capture groups
 	// 1. Quote all regex metacharacters
 	regexStr := regexp.QuoteMeta(pattern)
 
-	// 2. Unescape and convert glob wildcards
+	// 2. Unescape and convert glob wildcards to capture groups: (.*) and (.)
 	// QuoteMeta escapes '*' as '\*' and '?' as '\?'
-	regexStr = strings.ReplaceAll(regexStr, "\\*", ".*")
-	regexStr = strings.ReplaceAll(regexStr, "\\?", ".")
+	regexStr = strings.ReplaceAll(regexStr, "\\*", "(.*)")
+	regexStr = strings.ReplaceAll(regexStr, "\\?", "(.)")
 
-	// 3. Anchor and enable single-line mode (so '.' matches newlines)
+	// 3. Anchor and enable single-line mode
 	regexStr = "^(?s:" + regexStr + ")$"
 
-	matched, err := regexp.MatchString(regexStr, msg)
+	re, err := regexp.Compile(regexStr)
 	if err != nil {
-		return false, fmt.Errorf("glob to regex error: %w", err)
+		return false, nil, fmt.Errorf("glob to regex error: %w", err)
 	}
-	return matched, nil
+
+	matches := re.FindStringSubmatch(msg)
+	if matches == nil {
+		return false, nil, nil
+	}
+
+	if len(matches) > 1 {
+		return true, matches[1:], nil
+	}
+	return true, nil, nil
 }
 
 func (r *Registry) matchJSON(query, msg string) (bool, error) {
