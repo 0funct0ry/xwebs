@@ -40,6 +40,14 @@ type Options struct {
 
 	// Logger for server events
 	Logger Logger
+
+	// Static file serving
+	StaticServeDir   string
+	StaticServeFile  string
+	StaticServePath  string
+	StaticServePort  int
+	StaticGenerate   bool
+	StaticGenerateStyle string
 }
 
 // Logger defines the interface for server logging.
@@ -195,5 +203,47 @@ func WithUI(enabled bool) Option {
 func WithLogger(logger Logger) Option {
 	return func(o *Options) {
 		o.Logger = logger
+	}
+}
+
+// WithStaticServeDir sets the directory to serve static files from.
+func WithStaticServeDir(dir string) Option {
+	return func(o *Options) {
+		o.StaticServeDir = dir
+	}
+}
+
+// WithStaticServeFile sets the single file to serve static content from.
+func WithStaticServeFile(file string) Option {
+	return func(o *Options) {
+		o.StaticServeFile = file
+	}
+}
+
+// WithStaticServePath sets the URL path prefix for static content.
+func WithStaticServePath(path string) Option {
+	return func(o *Options) {
+		o.StaticServePath = path
+	}
+}
+
+// WithStaticServePort sets the port to listen on for static content.
+func WithStaticServePort(port int) Option {
+	return func(o *Options) {
+		o.StaticServePort = port
+	}
+}
+
+// WithStaticGenerate sets whether to generate a high-quality HTML client if the file doesn't exist.
+func WithStaticGenerate(generate bool) Option {
+	return func(o *Options) {
+		o.StaticGenerate = generate
+	}
+}
+
+// WithStaticGenerateStyle sets the style for the generated HTML client.
+func WithStaticGenerateStyle(style string) Option {
+	return func(o *Options) {
+		o.StaticGenerateStyle = style
 	}
 }

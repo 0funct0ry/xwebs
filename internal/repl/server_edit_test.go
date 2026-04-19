@@ -85,6 +85,15 @@ func (m *mockServerContext) Pause()           {}
 func (m *mockServerContext) Resume()          {}
 func (m *mockServerContext) IsPaused() bool   { return false }
 
+func (m *mockServerContext) StartStaticServe(port int, root string, path string, isFile bool, generate bool, generateStyle string) error {
+	return nil
+}
+func (m *mockServerContext) StopStaticServe(port int) error { return nil }
+func (m *mockServerContext) GetStaticConfigs() []map[string]interface{} {
+	return nil
+}
+func (m *mockServerContext) GetAvailableStyles() []string { return nil }
+
 func TestHandlerEdit(t *testing.T) {
 	r, _ := New(ServerMode, &Config{Terminal: false})
 	msc := &mockServerContext{

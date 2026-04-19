@@ -41,6 +41,7 @@ type Server struct {
 	wg          sync.WaitGroup
 	startTime   time.Time
 	securityMgr *SecurityManager
+	staticMgr   *StaticManager
 
 	state     serverState
 	paused    atomic.Bool
@@ -62,6 +63,7 @@ func New(opts ...Option) (*Server, error) {
 		topics:      newTopicStore(),
 		startTime:   time.Now(),
 		state:       serverRunning,
+		staticMgr:   NewStaticManager(options.Logger),
 	}
 	s.pauseCond = sync.NewCond(&s.mu)
 
@@ -175,6 +177,50 @@ func (s *Server) Start(ctx context.Context) error {
 		IdleTimeout:  s.opts.IdleTimeout,
 	}
 
+	// Start initial static serving
+	// Start initial static serving
+	if s.opts.StaticServeDir != "" || s.opts.StaticServeFile != "" || s.opts.StaticGenerate {
+		port := s.opts.StaticServePort
+		if port == 0 {
+			port = 9090
+		}
+		path := s.opts.StaticServePath
+		if path == "" {
+			path = "/"
+		}
+
+		root := s.opts.StaticServeDir
+		serveIsFile := false
+		if root == "" {
+			root = s.opts.StaticServeFile
+			serveIsFile = true
+		}
+		if root == "" && s.opts.StaticGenerate {
+			root = "index.html"
+			serveIsFile = true
+		}
+
+		// Handle generation logic
+		if s.opts.StaticGenerate {
+			if _, err := os.Stat(root); os.IsNotExist(err) {
+				wsURL := s.GetURL(s.opts.Paths[0])
+				if err := s.staticMgr.GenerateMinimalHTML(root, wsURL, s.opts.StaticGenerateStyle); err != nil {
+					return fmt.Errorf("generating minimal HTML: %w", err)
+				}
+				s.logf("✓ Generated minimal HTML at %s\n", root)
+			}
+		}
+
+		if err := s.staticMgr.Start(StaticConfig{
+			Port:  port,
+			Root:  root,
+			Path:  path,
+			IsDir: !serveIsFile,
+		}); err != nil {
+			return fmt.Errorf("starting initial static server: %w", err)
+		}
+	}
+
 	errChan := make(chan error, 1)
 	go func() {
 		if s.opts.TLSEnabled {
@@ -232,6 +278,9 @@ func (s *Server) Stop() error {
 		_ = conn.Close()
 	}
 	s.mu.Unlock()
+
+	// Close all managed static servers
+	s.staticMgr.StopAll()
 
 	// Wait for all connections to finish cleaning up
 	s.wg.Wait()
@@ -772,4 +821,69 @@ func (s *Server) errorf(format string, a ...interface{}) {
 	} else {
 		fmt.Fprintf(os.Stderr, format, a...)
 	}
+}
+
+// GetPort returns the server's listening port.
+func (s *Server) GetPort() int {
+	return s.opts.Port
+}
+
+// GetPaths returns the server's WebSocket paths.
+func (s *Server) GetPaths() []string {
+	return s.opts.Paths
+}
+
+// GetURL returns a full WebSocket URL for a given path.
+func (s *Server) GetURL(path string) string {
+	scheme := "ws"
+	if s.opts.TLSEnabled {
+		scheme = "wss"
+	}
+	return fmt.Sprintf("%s://localhost:%d%s", scheme, s.opts.Port, path)
+}
+
+// StartStaticServe starts a new static file server on the given port.
+func (s *Server) StartStaticServe(port int, root string, path string, isFile bool, generate bool, generateStyle string) error {
+	if generate {
+		wsURL := s.GetURL(s.opts.Paths[0])
+		if err := s.staticMgr.GenerateMinimalHTML(root, wsURL, generateStyle); err != nil {
+			return err
+		}
+	}
+
+	return s.staticMgr.Start(StaticConfig{
+		Port:  port,
+		Root:  root,
+		Path:  path,
+		IsDir: !isFile,
+	})
+}
+
+// StopStaticServe stops the static server on the given port.
+func (s *Server) StopStaticServe(port int) error {
+	return s.staticMgr.Stop(port)
+}
+
+// GetStaticConfigs returns all active static server configurations.
+func (s *Server) GetStaticConfigs() []map[string]interface{} {
+	configs := s.staticMgr.GetConfigs()
+	maps := make([]map[string]interface{}, 0, len(configs))
+	for _, c := range configs {
+		maps = append(maps, map[string]interface{}{
+			"port":     c.Port,
+			"root":     c.Root,
+			"path":     c.Path,
+			"isDir":    c.IsDir,
+			"requests": c.Requests,
+		})
+	}
+	return maps
+}
+
+// GenerateMinimalHTML creates a boilerplate HTML client.
+func (s *Server) GenerateMinimalHTML(targetPath string, wsURL string, style string) error {
+	return s.staticMgr.GenerateMinimalHTML(targetPath, wsURL, style)
+}
+func (s *Server) GetAvailableStyles() []string {
+	return GetAvailableStyles()
 }

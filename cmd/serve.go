@@ -34,6 +34,12 @@ var (
 	serveUI         bool
 	serveInteractive bool
 	serveNoInteract  bool
+	staticDir        string
+	staticFile       string
+	staticPath       string
+	staticPort       int
+	staticGenerate       bool
+	staticGenerateStyle string
 )
 
 type serveContext struct {
@@ -62,6 +68,18 @@ func (c *serveContext) ApplyHandlers(handlers []handler.Handler, variables map[s
 	return c.srv.ReloadHandlers(handlers, variables)
 }
 
+func (c *serveContext) StartStaticServe(port int, root string, path string, isFile bool, generate bool, generateStyle string) error {
+	return c.srv.StartStaticServe(port, root, path, isFile, generate, generateStyle)
+}
+
+func (c *serveContext) StopStaticServe(port int) error {
+	return c.srv.StopStaticServe(port)
+}
+
+func (c *serveContext) GetStaticConfigs() []map[string]interface{} {
+	return c.srv.GetStaticConfigs()
+}
+
 func (c *serveContext) EnableHandler(name string) error {
 	return c.srv.EnableHandler(name)
 }
@@ -76,6 +94,10 @@ func (c *serveContext) GetHandlerStats(name string) (uint64, time.Duration, uint
 
 func (c *serveContext) IsHandlerDisabled(name string) bool {
 	return c.srv.IsHandlerDisabled(name)
+}
+
+func (c *serveContext) GetAvailableStyles() []string {
+	return c.srv.GetAvailableStyles()
 }
 
 func (c *serveContext) GetTopics() []template.TopicInfo {
@@ -243,7 +265,34 @@ Available Builtin Actions (Server):
 			}
 		}
 
-		srv, err := server.New(
+		// Validate static serving exclusivity
+		var staticRoot string
+		isStaticFile := false
+		doGenerate := false
+
+		if staticDir != "" {
+			staticRoot = staticDir
+		}
+
+		if staticFile != "" {
+			if staticRoot != "" {
+				return fmt.Errorf("flags --serve-dir and --serve-file are mutually exclusive")
+			}
+			staticRoot = staticFile
+			isStaticFile = true
+		}
+
+		if staticGenerate {
+			doGenerate = true
+			if staticRoot == "" {
+				staticRoot = "index.html"
+				isStaticFile = true
+			} else if !isStaticFile {
+				return fmt.Errorf("cannot use --generate with --serve-dir")
+			}
+		}
+
+		srvOpts := []server.Option{
 			server.WithPort(servePort),
 			server.WithPaths(servePaths),
 			server.WithHandlers(handlers),
@@ -262,7 +311,21 @@ Available Builtin Actions (Server):
 			server.WithDenyIPs(denyIPs),
 			server.WithRateLimit(rateLimit),
 			server.WithUI(serveUI),
-		)
+			server.WithStaticServePath(staticPath),
+			server.WithStaticServePort(staticPort),
+			server.WithStaticGenerate(doGenerate),
+			server.WithStaticGenerateStyle(staticGenerateStyle),
+		}
+
+		if staticRoot != "" {
+			if isStaticFile {
+				srvOpts = append(srvOpts, server.WithStaticServeFile(staticRoot))
+			} else {
+				srvOpts = append(srvOpts, server.WithStaticServeDir(staticRoot))
+			}
+		}
+
+		srv, err := server.New(srvOpts...)
 		if err != nil {
 			return fmt.Errorf("initializing server: %w", err)
 		}
@@ -356,4 +419,11 @@ func init() {
 	serveCmd.Flags().BoolVar(&serveUI, "ui", false, "enable web UI")
 	serveCmd.Flags().BoolVarP(&serveInteractive, "interactive", "i", false, "enable interactive admin REPL")
 	serveCmd.Flags().BoolVarP(&serveNoInteract, "no-interact", "I", false, "disable interactive admin REPL (same as --interactive=false)")
+
+	serveCmd.Flags().StringVarP(&staticDir, "serve-dir", "D", "", "directory to serve static files from")
+	serveCmd.Flags().StringVarP(&staticFile, "serve-file", "F", "", "single file to serve")
+	serveCmd.Flags().StringVarP(&staticPath, "serve-path", "A", "/", "URL path prefix for static content")
+	serveCmd.Flags().IntVarP(&staticPort, "serve-port", "L", 9090, "port to listen on for static content")
+	serveCmd.Flags().BoolVarP(&staticGenerate, "generate", "g", false, "generate a high-quality HTML client if it doesn't exist and serve it")
+	serveCmd.Flags().StringVarP(&staticGenerateStyle, "generate-style", "S", "", "style for the generated HTML client (e.g., modern, terminal, cyberpunk)")
 }

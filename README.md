@@ -331,6 +331,12 @@ The `serve` command transforms `xwebs` into a WebSocket server. You can host mul
 | `--deny-ip` | Denied IP addresses or CIDR ranges | `--deny-ip 1.2.3.4` |
 | `--rate-limit` | Rate limit (per-client[,global]) | `--rate-limit 10/s` or `--rate-limit 10/s,100/s` |
 | `--ui` | Enable the embedded React web UI at `/` | `--ui` |
+| `--serve-dir`, `-D` | Directory to serve static files from | `-D ./dist` |
+| `--serve-file`, `-F` | Single file to serve | `-F index.html` |
+| `--serve-path`, `-A` | URL path prefix for static content | `-A /client` |
+| `--serve-port`, `-L` | Port to listen on for static content | `-L 9090` |
+| `--generate`, `-g` | Generate a high-quality HTML client if it doesn't exist | `-g client.html` |
+| `--generate-style`, `-S` | Style for generating the HTML client | `-S cyberpunk` |
 | `--interactive`, `-i` | Enable interactive admin REPL | `--interactive` |
 | `--no-interact`, `-I` | Disable interactive admin REPL | `--no-interact` |
 
@@ -469,6 +475,12 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `:disable <name>`| Disable a handler at runtime to stop it from matching incoming messages |
 | `:stats` | Show global server observability statistics (connections, messages, handler hits) |
 | `:slow [n]` | Show the top `n` slowest handler executions (default 10) |
+| `:serve` | Manage static serving. Subcommands: `:serve` (show status), `:serve [flags]` (start new), `:serve off [port]` (stop) |
+
+**`:serve` flags:** `-D` (dir), `-F` (file), `-A` (path), `-L` (port), `-g` (generate), `-S` (style).
+
+**Available Styles for Generation:**
+`modern`, `terminal`, `glass`, `minimal`, `iot`, `trading`, `social`, `cyberpunk`, `neumorphism`, `hacker`, `ios`, `saas`, `lab`, `space`, `gallery`, `corporate`, `material`, `retro`, `minimal_neon`, `terminal_amber`.
 
 > [!NOTE]
 > Session-variable commands (`:set`, `:get`, `:vars`) are not available in server mode as there is no single client session context. Use [Key-Value Store commands](#key-value-store-commands) (e.g., `:kv set`, `:kv get`) for shared administrative state.

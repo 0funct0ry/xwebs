@@ -47,6 +47,7 @@ type ServerContext interface {
 	DeleteHandler(name string) error
 	RenameHandler(oldName, newName string) error
 	ApplyHandlers(handlers []handler.Handler, variables map[string]interface{}) error
+	GetAvailableStyles() []string
 
 	// Topic / pub-sub operations
 	GetTopics() []template.TopicInfo
@@ -72,6 +73,20 @@ type ServerContext interface {
 	Pause()
 	Resume()
 	IsPaused() bool
+
+	// Static serving
+	StartStaticServe(port int, root string, path string, isFile bool, generate bool, generateStyle string) error
+	StopStaticServe(port int) error
+	GetStaticConfigs() []map[string]interface{}
+}
+
+// StaticServeInfo mirrors server.StaticConfig but is defined here to avoid circular dependencies.
+type StaticServeInfo struct {
+	Port     int
+	Root     string
+	Path     string
+	IsDir    bool
+	Requests uint64
 }
 
 // RegisterServerCommands adds WebSocket server-specific commands to the REPL.
@@ -836,7 +851,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("    Run:       %s\n", target.Run)
 			}
 			if target.Respond != "" {
-				r.Printf("    Respond:   %s\n", target.Respond)
+				r.Printf("  Respond:   %s\n", target.Respond)
 			}
 			if len(target.Pipeline) > 0 {
 				r.Printf("  Pipeline:\n")
@@ -1272,6 +1287,134 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					pluralise(remaining2, "subscriber", "subscribers"),
 				)
 			}
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "serve",
+		help: "Manage static file serving: :serve [flags] | :serve off [port]",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if len(args) > 0 && args[0] == "off" {
+				if len(args) > 1 {
+					port, err := strconv.Atoi(args[1])
+					if err != nil {
+						return fmt.Errorf("invalid port: %s", args[1])
+					}
+					if err := sc.StopStaticServe(port); err != nil {
+						return err
+					}
+					r.Printf("✓ Static serving stopped on port %d.\n", port)
+				} else {
+					configs := sc.GetStaticConfigs()
+					if len(configs) == 0 {
+						r.Printf("No static servers are currently running.\n")
+						return nil
+					}
+					for _, cfg := range configs {
+						portVal, _ := cfg["port"].(int)
+						_ = sc.StopStaticServe(portVal)
+					}
+					r.Printf("✓ All static serving stopped.\n")
+				}
+				return nil
+			}
+
+			// Parse flags for starting a new server
+			fs := pflag.NewFlagSet("serve", pflag.ContinueOnError)
+			fs.SetOutput(r.Stdout())
+
+			var serveDir, serveFile, servePath, serveGenerateStyle string
+			var serveGenerate bool
+			var servePort int
+
+			styles := sc.GetAvailableStyles()
+			stylesHelp := fmt.Sprintf("Style for the generated HTML client. Available: %s", strings.Join(styles, ", "))
+
+			fs.StringVarP(&serveDir, "serve-dir", "D", "", "directory to serve")
+			fs.StringVarP(&serveFile, "serve-file", "F", "", "single file to serve")
+			fs.StringVarP(&servePath, "serve-path", "A", "/", "URL path prefix")
+			fs.IntVarP(&servePort, "serve-port", "L", 9090, "port to listen on")
+			fs.BoolVarP(&serveGenerate, "generate", "g", false, "generate a high-quality HTML client")
+			fs.StringVarP(&serveGenerateStyle, "generate-style", "S", "", stylesHelp)
+
+			if err := fs.Parse(args); err != nil {
+				return nil // Error/Help already handled by pflag
+			}
+
+			// If no flags are set and no args, show status table
+			if !fs.Changed("serve-dir") && !fs.Changed("serve-file") && !fs.Changed("serve-path") && !fs.Changed("serve-port") && !fs.Changed("generate") && !fs.Changed("generate-style") && len(fs.Args()) == 0 {
+				configs := sc.GetStaticConfigs()
+				if len(configs) == 0 {
+					r.Printf("Static serving is OFF. Use :serve -D <dir> or -g <file> to start.\n")
+					return nil
+				}
+
+				tw := table.NewWriter()
+				tw.AppendHeader(table.Row{"PORT", "TYPE", "ROOT", "URL PATH", "SERVED"})
+				for _, c := range configs {
+					stype := "Dir"
+					if isDir, _ := c["isDir"].(bool); !isDir {
+						stype = "File"
+					}
+					tw.AppendRow(table.Row{c["port"], stype, c["root"], c["path"], c["requests"]})
+				}
+				tw.SetStyle(table.StyleColoredDark)
+				r.Printf("\nActive Static Servers:\n%s\n", tw.Render())
+				return nil
+			}
+
+			// Support positional shorthand if no flags were explicitly set but we have args
+			// :serve <port> <path-or-dir>
+			if !fs.Changed("serve-dir") && !fs.Changed("serve-file") && !fs.Changed("generate") && len(fs.Args()) >= 2 {
+				p, err := strconv.Atoi(fs.Arg(0))
+				if err == nil {
+					servePort = p
+					root := fs.Arg(1)
+					if info, err := os.Stat(root); err == nil && info.IsDir() {
+						serveDir = root
+					} else {
+						serveFile = root
+					}
+				}
+			}
+
+			// Validation
+			root := ""
+			isFile := false
+			doGenerate := false
+
+			if serveDir != "" {
+				root = serveDir
+			}
+
+			if serveFile != "" {
+				if root != "" {
+					return fmt.Errorf("flags -D and -F are mutually exclusive")
+				}
+				root = serveFile
+				isFile = true
+			}
+
+			if serveGenerate {
+				doGenerate = true
+				if root == "" {
+					root = "index.html"
+					isFile = true
+				} else if !isFile {
+					return fmt.Errorf("cannot use -g with -D (directory serving)")
+				}
+			}
+
+			if root == "" {
+				return fmt.Errorf("one of -D, -F, or -g must be specified to start serving")
+			}
+
+			if err := sc.StartStaticServe(servePort, root, servePath, isFile, doGenerate, serveGenerateStyle); err != nil {
+				return err
+			}
+
+			r.Printf("✓ Serving %s at http://localhost:%d%s\n", root, servePort, servePath)
 			return nil
 		},
 	})
