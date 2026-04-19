@@ -480,27 +480,27 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 **`:serve` flags:** `-D` (dir), `-F` (file), `-A` (path), `-L` (port), `-g` (generate), `-S` (style).
 
 **Available Styles for Generation:**
-`modern`, `terminal`, `glass`, `minimal`, `iot`, `trading`, `social`, `cyberpunk`, `neumorphism`, `hacker`, `ios`, `saas`, `lab`, `space`, `gallery`, `corporate`, `material`, `retro`, `minimal_neon`, `terminal_amber`.
+`modern`, `terminal`, `glass`, `minimal`, `iot`, `trading`, `social`, `cyberpunk`, `neumorphism`, `hacker`, `ios`, `win95`, `saas`, `lab`, `space`, `gallery`, `corporate`, `material`, `retro`, `minimal_neon`, `terminal_amber`, `blueprint`, `newspaper`, `console_pro`, `dark_matter`, `nature`, `brutalist`, `gaming`, `simple_text`, `minimal_white`, `dashboard_v2`, `chat_bubbles`, `monokai`, `ghost`, `pixel_art`, `glitch`, `sunset`, `midnight`, `arctic`, `steampunk`, `minimalist_black`.
 
 > [!NOTE]
 > Session-variable commands (`:set`, `:get`, `:vars`) are not available in server mode as there is no single client session context. Use [Key-Value Store commands](#key-value-store-commands) (e.g., `:kv set`, `:kv get`) for shared administrative state.
 
 **`:handler add` flags:**
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--name <name>` | `-n` | Unique handler name (auto-generated if omitted) |
-| `--match <pattern>` | `-m` | **(required)** Match pattern |
-| `--match-type <type>` | `-t` | Match type: `glob`, `regex`, `jq`, `text`, etc. |
-| `--priority <n>` | `-p` | Execution priority (higher runs first) |
-| `--run <cmd>` | `-r` | Shell command to execute on match |
-| `--respond <tmpl>` | `-R` | Response template sent back to the client |
-| `--builtin <name>` | `-B` | Builtin action: `subscribe`, `unsubscribe`, or `publish` |
-| `--topic <template>` | | Topic name template for builtin actions (required when `--builtin` is set) |
-| `--exclusive` | `-e` | Stop further handler matching after this one fires |
-| `--sequential` | `-s` | Run handler actions sequentially (default: concurrent) |
-| `--rate-limit <limit>` | `-l` | Per-handler rate limit (e.g. `10/s`) |
-| `--debounce <duration>` | `-d` | Debounce window (e.g. `500ms`) |
+| Flag                    | Short | Description                                                                |
+|-------------------------|-------|----------------------------------------------------------------------------|
+| `--name <name>`         | `-n`  | Unique handler name (auto-generated if omitted)                            |
+| `--match <pattern>`     | `-m`  | **(required)** Match pattern                                               |
+| `--match-type <type>`   | `-t`  | Match type: `glob`, `regex`, `jq`, `text`, etc.                            |
+| `--priority <n>`        | `-p`  | Execution priority (higher runs first)                                     |
+| `--run <cmd>`           | `-r`  | Shell command to execute on match                                          |
+| `--respond <tmpl>`      | `-R`  | Response template sent back to the client                                  |
+| `--builtin <name>`      | `-B`  | Builtin action: `subscribe`, `unsubscribe`, or `publish`                   |
+| `--topic <template>`    |       | Topic name template for builtin actions (required when `--builtin` is set) |
+| `--exclusive`           | `-e`  | Stop further handler matching after this one fires                         |
+| `--sequential`          | `-s`  | Run handler actions sequentially (default: concurrent)                     |
+| `--rate-limit <limit>`  | `-l`  | Per-handler rate limit (e.g. `10/s`)                                       |
+| `--debounce <duration>` | `-d`  | Debounce window (e.g. `500ms`)                                             |
 
 Example — add pub-sub handlers directly from the REPL:
 
@@ -859,6 +859,7 @@ handlers:
       - action: log
         message: "ALERT DETECTED via template matching!"
 
+  - name: "state_update"
     match:
       type: "text"
       pattern: "update_state"

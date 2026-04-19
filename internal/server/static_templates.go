@@ -21,7 +21,7 @@ func GetAvailableStyles() []string {
 	return keys
 }
 
-// CannedTemplates contains 20 diverse, high-quality HTML templates.
+// CannedTemplates contains diverse, high-quality HTML templates.
 var CannedTemplates = map[string]string{
 	"modern": `<!DOCTYPE html>
 <html lang="en">
@@ -944,6 +944,488 @@ var CannedTemplates = map[string]string{
         }
         input.onkeypress = e => { if (e.key==='Enter' && input.value) { socket.send(input.value); print('>>> ' + input.value); input.value=''; } };
         connect();
+    </script>
+</body>
+</html>`,
+
+	"blueprint": `<!DOCTYPE html>
+<html>
+<head>
+    <title>xwebs - Blueprint</title>
+    <style>
+        body { background-color: #004a99; background-image: linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px); background-size: 20px 20px; color: #fff; font-family: 'Segoe UI', Tahoma, sans-serif; padding: 2rem; }
+        .box { border: 2px solid #fff; padding: 1rem; background: rgba(0,74,153,0.8); }
+        #out { height: 300px; overflow-y: auto; border-bottom: 1px solid #fff; margin-bottom: 1rem; font-family: monospace; }
+        input { background: none; border: 1px solid #fff; color: #fff; width: 100%; padding: 0.5rem; outline: none; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h3>SPECIFICATION_LOADER_v1.0</h3>
+        <div id="out"></div>
+        <input id="in" placeholder="ENTER_COMMAND">
+    </div>
+    <script>
+        const ws = new WebSocket("{{.WSURL}}");
+        ws.onmessage = e => { const d = document.createElement('div'); d.textContent = '> ' + e.data; document.getElementById('out').appendChild(d); };
+        document.getElementById('in').onkeypress = e => { if(e.key==='Enter') { ws.send(e.target.value); e.target.value=''; } };
+    </script>
+</body>
+</html>`,
+
+	"newspaper": `<!DOCTYPE html>
+<html>
+<head>
+    <title>xwebs - The Daily Bugle</title>
+    <style>
+        body { background: #f4f1ea; color: #333; font-family: 'Times New Roman', serif; padding: 3rem; }
+        .paper { max-width: 800px; margin: auto; border: 1px solid #ccc; padding: 2rem; box-shadow: 5px 5px 15px rgba(0,0,0,0.1); }
+        h1 { text-align: center; border-bottom: 4px double #333; font-size: 3rem; margin: 0; }
+        #feed { margin-top: 2rem; column-count: 2; column-gap: 2rem; }
+        .article { break-inside: avoid; margin-bottom: 1rem; border-bottom: 1px solid #eee; padding-bottom: 1rem; }
+        input { width: 100%; border: 1px solid #333; padding: 0.5rem; background: transparent; font-family: inherit; margin-top: 2rem; }
+    </style>
+</head>
+<body>
+    <div class="paper">
+        <h1>XWEBS GAZETTE</h1>
+        <div id="feed"></div>
+        <input id="in" placeholder="Write a headline...">
+    </div>
+    <script>
+        const ws = new WebSocket("{{.WSURL}}");
+        ws.onmessage = e => { const a = document.createElement('div'); a.className='article'; a.textContent = e.data; document.getElementById('feed').prepend(a); };
+        document.getElementById('in').onkeypress = e => { if(e.key==='Enter') { ws.send(e.target.value); e.target.value=''; } };
+    </script>
+</body>
+</html>`,
+
+	"console_pro": `<!DOCTYPE html>
+<html>
+<head>
+    <title>xwebs - Console Pro</title>
+    <style>
+        body { background: #121212; color: #e0e0e0; font-family: 'Cascadia Code', monospace; margin: 0; display: flex; height: 100vh; }
+        .sidebar { width: 200px; background: #1e1e1e; border-right: 1px solid #333; padding: 1rem; font-size: 0.8rem; }
+        .main { flex: 1; display: flex; flex-direction: column; }
+        #term { flex: 1; padding: 1rem; overflow-y: auto; background: #000; color: #0f0; }
+        .input-bar { background: #1e1e1e; padding: 0.5rem 1rem; display: flex; align-items: center; }
+        input { background: none; border: none; color: #fff; flex: 1; margin-left: 0.5rem; outline: none; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">Active Processes<br>---<br>xwebs-core<br>ws-relay</div>
+    <div class="main">
+        <div id="term"></div>
+        <div class="input-bar"><span>$</span><input id="in" autofocus></div>
+    </div>
+    <script>
+        const ws = new WebSocket("{{.WSURL}}");
+        ws.onmessage = e => { const d = document.createElement('div'); d.textContent = 'RX: ' + e.data; document.getElementById('term').appendChild(d); document.getElementById('term').scrollTop = 999999; };
+        document.getElementById('in').onkeypress = e => { if(e.key==='Enter') { ws.send(e.target.value); e.target.value=''; } };
+    </script>
+</body>
+</html>`,
+
+	"dark_matter": `<!DOCTYPE html>
+<html>
+<head>
+    <title>xwebs - Dark Matter</title>
+    <style>
+        body { background: radial-gradient(circle at center, #1a1a2e, #0f0f1b); color: #b088f9; font-family: sans-serif; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0; }
+        #msg { font-size: 2rem; text-shadow: 0 0 15px #b088f9; margin-bottom: 2rem; text-align: center; }
+        input { background: rgba(255,255,255,0.05); border: 1px solid #b088f9; color: #fff; padding: 1rem 2rem; border-radius: 50px; outline: none; width: 300px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="msg">Awaiting Singularity...</div>
+    <input id="in" placeholder="Send Pulse">
+    <script>
+        const ws = new WebSocket("{{.WSURL}}");
+        ws.onmessage = e => { document.getElementById('msg').textContent = e.data; };
+        document.getElementById('in').onkeypress = e => { if(e.key==='Enter') { ws.send(e.target.value); e.target.value=''; } };
+    </script>
+</body>
+</html>`,
+
+	"nature": `<!DOCTYPE html>
+<html>
+<head>
+    <title>xwebs - Forest</title>
+    <style>
+        body { background: #f0f4f0; color: #2d4a22; font-family: 'Segoe UI', serif; padding: 2rem; }
+        .leaf { background: #fff; border-radius: 0 50px 0 50px; padding: 2rem; box-shadow: 10px 10px 0 #d4e0d4; max-width: 600px; margin: auto; }
+        #logs { height: 200px; overflow-y: auto; margin-bottom: 1rem; border-left: 3px solid #78a75a; padding-left: 1rem; }
+        input { border: 2px solid #78a75a; border-radius: 20px; padding: 0.5rem 1rem; width: 100%; box-sizing: border-box; outline: none; }
+    </style>
+</head>
+<body>
+    <div class="leaf">
+        <h2>EcoStream</h2>
+        <div id="logs"></div>
+        <input id="in" placeholder="Sow a seed...">
+    </div>
+    <script>
+        const ws = new WebSocket("{{.WSURL}}");
+        ws.onmessage = e => { const d = document.createElement('div'); d.textContent = '☘ ' + e.data; document.getElementById('logs').appendChild(d); };
+        document.getElementById('in').onkeypress = e => { if(e.key==='Enter') { ws.send(e.target.value); e.target.value=''; } };
+    </script>
+</body>
+</html>`,
+
+	"brutalist": `<!DOCTYPE html>
+<html>
+<head>
+    <title>xwebs - Brutalist</title>
+    <style>
+        body { background: #eee; color: #000; font-family: 'Arial Black', sans-serif; padding: 0; margin: 0; }
+        .container { border: 10px solid #000; margin: 2rem; background: #fff; padding: 0; }
+        .head { background: #000; color: #fff; padding: 1rem; font-size: 3rem; }
+        #list { padding: 2rem; font-size: 2rem; border-bottom: 10px solid #000; min-height: 200px; }
+        input { width: 100%; border: none; padding: 2rem; font-size: 2rem; font-family: inherit; text-transform: uppercase; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="head">RAW FEED</div>
+        <div id="list"></div>
+        <input id="in" placeholder="TYPE HERE">
+    </div>
+    <script>
+        const ws = new WebSocket("{{.WSURL}}");
+        ws.onmessage = e => { const d = document.createElement('div'); d.textContent = e.data; document.getElementById('list').prepend(d); };
+        document.getElementById('in').onkeypress = e => { if(e.key==='Enter') { ws.send(e.target.value); e.target.value=''; } };
+    </script>
+</body>
+</html>`,
+
+	"gaming": `<!DOCTYPE html>
+<html>
+<head>
+    <title>xwebs - RGB</title>
+    <style>
+        body { background: #111; color: #fff; font-family: 'Orbitron', sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .rig { border: 4px solid #f0f; box-shadow: 0 0 20px #f0f, inset 0 0 10px #0ff; width: 400px; padding: 2rem; background: #000; }
+        #chat { height: 200px; overflow-y: auto; color: #0ff; margin-bottom: 1rem; }
+        input { width: 100%; background: #222; border: 1px solid #f0f; color: #fff; padding: 0.5rem; outline: none; }
+        @keyframes rgb { 0% { border-color: #f0f; } 50% { border-color: #0ff; } 100% { border-color: #f0f; } }
+        .rig { animation: rgb 2s infinite; }
+    </style>
+</head>
+<body>
+    <div class="rig">
+        <div style="margin-bottom: 1rem; font-weight: bold;">GamerStream_v4</div>
+        <div id="chat"></div>
+        <input id="in" placeholder="Message chat...">
+    </div>
+    <script>
+        const ws = new WebSocket("{{.WSURL}}");
+        ws.onmessage = e => { const d = document.createElement('div'); d.textContent = '[USER]: ' + e.data; document.getElementById('chat').appendChild(d); };
+        document.getElementById('in').onkeypress = e => { if(e.key==='Enter') { ws.send(e.target.value); e.target.value=''; } };
+    </script>
+</body>
+</html>`,
+
+	"simple_text": `<!DOCTYPE html>
+<html>
+<head><title>Simple</title></head>
+<body>
+    <pre id="out"></pre>
+    <input id="in" placeholder="type and enter" style="position:fixed; bottom:10px;">
+    <script>
+        const ws = new WebSocket("{{.WSURL}}");
+        ws.onmessage = e => { document.getElementById('out').textContent += e.data + '\n'; };
+        document.getElementById('in').onkeypress = e => { if(e.key==='Enter') { ws.send(e.target.value); e.target.value=''; } };
+    </script>
+</body>
+</html>`,
+
+	"minimal_white": `<!DOCTYPE html>
+<html>
+<head>
+    <title>xwebs - Pure</title>
+    <style>
+        body { background: #fff; color: #333; font-family: -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        #out { font-size: 1.5rem; font-weight: 200; }
+        input { border: none; border-bottom: 1px solid #ddd; padding: 0.5rem; position: fixed; bottom: 50px; outline: none; text-align: center; width: 200px; }
+    </style>
+</head>
+<body>
+    <div id="out">Connect</div>
+    <input id="in" placeholder="...">
+    <script>
+        const ws = new WebSocket("{{.WSURL}}");
+        ws.onmessage = e => { document.getElementById('out').textContent = e.data; };
+        document.getElementById('in').onkeypress = e => { if(e.key==='Enter') { ws.send(e.target.value); e.target.value=''; } };
+    </script>
+</body>
+</html>`,
+
+	"dashboard_v2": `<!DOCTYPE html>
+<html>
+<head>
+    <title>xwebs - Dash V2</title>
+    <style>
+        body { background: #f8fafc; font-family: sans-serif; padding: 2rem; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+        .card { background: #fff; border: 1px solid #e2e8f0; padding: 1.5rem; border-radius: 8px; }
+        .label { color: #64748b; font-size: 0.8rem; text-transform: uppercase; }
+        .val { font-size: 2rem; font-weight: bold; margin-top: 0.5rem; color: #0f172a; }
+        input { margin-top: 2rem; width: 100%; padding: 1rem; border: 1px solid #cbd5e1; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <div class="grid">
+        <div class="card"><div class="label">Stream Status</div><div class="val" id="status" style="color: #ef4444">Offline</div></div>
+        <div class="card"><div class="label">Latest Message</div><div class="val" id="msg">--</div></div>
+        <div class="card"><div class="label">Event Count</div><div class="val" id="count">0</div></div>
+    </div>
+    <input id="in" placeholder="Broadcast to dashboard...">
+    <script>
+        const ws = new WebSocket("{{.WSURL}}");
+        let c = 0;
+        ws.onopen = () => document.getElementById('status').textContent = 'Live';
+        ws.onopen = () => document.getElementById('status').style.color = '#22c55e';
+        ws.onmessage = e => { document.getElementById('msg').textContent = e.data; c++; document.getElementById('count').textContent = c; };
+        document.getElementById('in').onkeypress = e => { if(e.key==='Enter') { ws.send(e.target.value); e.target.value=''; } };
+    </script>
+</body>
+</html>`,
+
+	"chat_bubbles": `<!DOCTYPE html>
+<html>
+<head>
+    <title>xwebs - Bubbles</title>
+    <style>
+        body { background: #74ebd5; background: linear-gradient(to right, #74ebd5, #acb6e5); height: 100vh; margin: 0; font-family: sans-serif; }
+        #wrap { height: 100%; display: flex; flex-direction: column; }
+        #chats { flex: 1; padding: 2rem; overflow-y: auto; }
+        .b { background: #fff; padding: 1rem; border-radius: 20px; margin-bottom: 1rem; width: fit-content; max-width: 70%; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .in { border-bottom-left-radius: 2px; }
+        .input-area { background: #fff; padding: 1rem; }
+        input { width: 100%; border: none; background: #f0f0f0; padding: 1rem; border-radius: 25px; box-sizing: border-box; outline: none; }
+    </style>
+</head>
+<body>
+    <div id="wrap">
+        <div id="chats"></div>
+        <div class="input-area"><input id="in" placeholder="Send bubble..."></div>
+    </div>
+    <script>
+        const ws = new WebSocket("{{.WSURL}}");
+        ws.onmessage = e => { const d = document.createElement('div'); d.className='b in'; d.textContent = e.data; document.getElementById('chats').appendChild(d); document.getElementById('chats').scrollTop = 9999; };
+        document.getElementById('in').onkeypress = e => { if(e.key==='Enter') { ws.send(e.target.value); e.target.value=''; } };
+    </script>
+</body>
+</html>`,
+
+	"monokai": `<!DOCTYPE html>
+<html>
+<head>
+    <title>xwebs - Monokai</title>
+    <style>
+        body { background: #272822; color: #f8f8f2; font-family: 'Consolas', monospace; padding: 2rem; }
+        .kw { color: #f92672; } .str { color: #e6db74; } .fn { color: #a6e22e; }
+        #out { margin-top: 1rem; }
+        input { background: none; border: none; color: #ae81ff; font-family: inherit; font-size: 1.2rem; outline: none; width: 100%; border-top: 1px solid #49483e; padding-top: 1rem; }
+    </style>
+</head>
+<body>
+    <div><span class="kw">const</span> <span class="fn">xwebs</span> = <span class="str">"connected"</span>;</div>
+    <div id="out"></div>
+    <input id="in" placeholder="// send message...">
+    <script>
+        const ws = new WebSocket("{{.WSURL}}");
+        ws.onmessage = e => { const d = document.createElement('div'); d.innerHTML = '<span class="kw">received</span>(<span class="str">"' + e.data + '"</span>);'; document.getElementById('out').appendChild(d); };
+        document.getElementById('in').onkeypress = e => { if(e.key==='Enter') { ws.send(e.target.value); e.target.value=''; } };
+    </script>
+</body>
+</html>`,
+
+	"ghost": `<!DOCTYPE html>
+<html>
+<head>
+    <title>xwebs - Ghost</title>
+    <style>
+        body { background: #000; color: #fff; font-family: sans-serif; height: 100vh; margin: 0; overflow: hidden; }
+        #canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; z-index: 1; }
+        .msg { font-size: 4rem; opacity: 0.1; filter: blur(5px); transition: all 1s; }
+        input { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: none; border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 1rem; z-index: 2; outline: none; }
+    </style>
+</head>
+<body>
+    <div id="canvas"><div class="msg" id="msg">VOICE</div></div>
+    <input id="in" placeholder="Whisper...">
+    <script>
+        const ws = new WebSocket("{{.WSURL}}");
+        ws.onmessage = e => { const m = document.getElementById('msg'); m.textContent = e.data; m.style.opacity = 1; m.style.filter = 'blur(0px)'; setTimeout(() => { m.style.opacity = 0.1; m.style.filter = 'blur(5px)'; }, 2000); };
+        document.getElementById('in').onkeypress = e => { if(e.key==='Enter') { ws.send(e.target.value); e.target.value=''; } };
+    </script>
+</body>
+</html>`,
+
+	"pixel_art": `<!DOCTYPE html>
+<html>
+<head>
+    <title>xwebs - 8-Bit</title>
+    <style>
+        body { background: #000; color: #fff; font-family: 'Courier New', monospace; image-rendering: pixelated; padding: 2rem; }
+        .box { border: 4px solid #fff; padding: 1rem; background: #333; box-shadow: 8px 8px 0 #888; }
+        #out { height: 150px; overflow-y: auto; margin-bottom: 1rem; border-bottom: 4px solid #fff; }
+        input { background: #000; border: none; color: #0f0; width: 100%; font-family: inherit; font-size: 1.5rem; outline: none; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <div>XWEBS_OS_v0.1</div>
+        <div id="out"></div>
+        <input id="in" placeholder="[ENTER]">
+    </div>
+    <script>
+        const ws = new WebSocket("{{.WSURL}}");
+        ws.onmessage = e => { const d = document.createElement('div'); d.textContent = '>' + e.data; document.getElementById('out').appendChild(d); };
+        document.getElementById('in').onkeypress = e => { if(e.key==='Enter') { ws.send(e.target.value); e.target.value=''; } };
+    </script>
+</body>
+</html>`,
+
+	"glitch": `<!DOCTYPE html>
+<html>
+<head>
+    <title>xwebs - Glitch</title>
+    <style>
+        body { background: #111; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .glitch { font-size: 5rem; font-weight: bold; position: relative; text-shadow: 2px 0 red, -2px 0 blue; animation: glitch 1s infinite; }
+        @keyframes glitch { 0% { transform: translate(0); } 20% { transform: translate(-5px, 5px); } 40% { transform: translate(-5px, -5px); } 60% { transform: translate(5px, 5px); } 80% { transform: translate(5px, -5px); } 100% { transform: translate(0); } }
+        input { margin-top: 2rem; background: none; border: 1px solid #fff; color: #fff; padding: 1rem; outline: none; }
+    </style>
+</head>
+<body>
+    <div class="glitch" id="msg">SYSTEM_OK</div>
+    <input id="in" placeholder="CORRUPT DATA...">
+    <script>
+        const ws = new WebSocket("{{.WSURL}}");
+        ws.onmessage = e => { document.getElementById('msg').textContent = e.data; };
+        document.getElementById('in').onkeypress = e => { if(e.key==='Enter') { ws.send(e.target.value); e.target.value=''; } };
+    </script>
+</body>
+</html>`,
+
+	"sunset": `<!DOCTYPE html>
+<html>
+<head>
+    <title>xwebs - Sunset</title>
+    <style>
+        body { background: linear-gradient(#ff512f, #dd2476); color: #fff; font-family: 'Segoe UI', sans-serif; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0; }
+        .card { background: rgba(255,255,255,0.1); backdrop-filter: blur(5px); padding: 3rem; border-radius: 20px; text-align: center; }
+        #out { font-size: 2rem; margin-bottom: 2rem; }
+        input { background: rgba(0,0,0,0.2); border: none; border-radius: 10px; color: #fff; padding: 1rem; width: 100%; outline: none; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div id="out">Waiting for sunset...</div>
+        <input id="in" placeholder="Message to horizon">
+    </div>
+    <script>
+        const ws = new WebSocket("{{.WSURL}}");
+        ws.onmessage = e => { document.getElementById('out').textContent = e.data; };
+        document.getElementById('in').onkeypress = e => { if(e.key==='Enter') { ws.send(e.target.value); e.target.value=''; } };
+    </script>
+</body>
+</html>`,
+
+	"midnight": `<!DOCTYPE html>
+<html>
+<head>
+    <title>xwebs - Midnight</title>
+    <style>
+        body { background: #020617; color: #94a3b8; font-family: 'Inter', sans-serif; padding: 4rem; }
+        .feed { max-width: 600px; margin: auto; }
+        .msg { border-bottom: 1px solid #1e293b; padding: 1rem 0; animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        input { background: #0f172a; border: 1px solid #334155; color: #fff; width: 100%; padding: 1rem; border-radius: 8px; margin-top: 2rem; outline: none; }
+    </style>
+</head>
+<body>
+    <div class="feed" id="feed"></div>
+    <div class="feed"><input id="in" placeholder="Type into the dark..."></div>
+    <script>
+        const ws = new WebSocket("{{.WSURL}}");
+        ws.onmessage = e => { const d = document.createElement('div'); d.className='msg'; d.textContent = e.data; document.getElementById('feed').prepend(d); };
+        document.getElementById('in').onkeypress = e => { if(e.key==='Enter') { ws.send(e.target.value); e.target.value=''; } };
+    </script>
+</body>
+</html>`,
+
+	"arctic": `<!DOCTYPE html>
+<html>
+<head>
+    <title>xwebs - Arctic</title>
+    <style>
+        body { background: #f0f9ff; color: #0369a1; font-family: sans-serif; padding: 2rem; display: flex; flex-direction: column; align-items: center; }
+        .ice { background: #fff; border: 1px solid #bae6fd; padding: 2rem; border-radius: 4px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); width: 400px; }
+        #logs { height: 200px; overflow-y: auto; margin-bottom: 1rem; }
+        input { width: 100%; border: 1px solid #e0f2fe; background: #f8fafc; padding: 0.5rem; outline: none; }
+    </style>
+</head>
+<body>
+    <div class="ice">
+        <h3 style="margin-top:0">Arctic Stream</h3>
+        <div id="logs"></div>
+        <input id="in" placeholder="Freeze frame...">
+    </div>
+    <script>
+        const ws = new WebSocket("{{.WSURL}}");
+        ws.onmessage = e => { const d = document.createElement('div'); d.textContent = '❄ ' + e.data; document.getElementById('logs').appendChild(d); };
+        document.getElementById('in').onkeypress = e => { if(e.key==='Enter') { ws.send(e.target.value); e.target.value=''; } };
+    </script>
+</body>
+</html>`,
+
+	"steampunk": `<!DOCTYPE html>
+<html>
+<head>
+    <title>xwebs - Steampunk</title>
+    <style>
+        body { background: #3d2b1f; color: #d4af37; font-family: 'Garamond', serif; padding: 2rem; }
+        .boiler { border: 10px double #8b4513; background: #4e3629; padding: 2rem; max-width: 500px; margin: auto; box-shadow: 0 0 20px #000; }
+        #pressure { font-size: 3rem; text-align: center; border: 5px solid #d4af37; border-radius: 50%; width: 150px; height: 150px; display: flex; items-center; justify-content: center; margin: 0 auto 2rem; align-items: center; }
+        input { background: #2b1d0e; border: 2px solid #d4af37; color: #d4af37; padding: 0.5rem; width: 100%; box-sizing: border-box; outline: none; }
+    </style>
+</head>
+<body>
+    <div class="boiler">
+        <div id="pressure">00</div>
+        <div style="text-align:center; margin-bottom: 1rem;">DIAL_STATUS</div>
+        <input id="in" placeholder="TURN VALVE...">
+    </div>
+    <script>
+        const ws = new WebSocket("{{.WSURL}}");
+        ws.onmessage = e => { document.getElementById('pressure').textContent = e.data.substring(0,2); };
+        document.getElementById('in').onkeypress = e => { if(e.key==='Enter') { ws.send(e.target.value); e.target.value=''; } };
+    </script>
+</body>
+</html>`,
+
+	"minimalist_black": `<!DOCTYPE html>
+<html>
+<head>
+    <title>xwebs - Noir</title>
+    <style>
+        body { background: #000; color: #fff; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        #out { font-size: 0.8rem; letter-spacing: 0.5rem; text-transform: uppercase; }
+        input { background: none; border: none; border-bottom: 1px solid #333; color: #333; padding: 0.5rem; position: fixed; bottom: 30px; text-align: center; outline: none; transition: color 0.5s; }
+        input:focus { color: #fff; border-color: #fff; }
+    </style>
+</head>
+<body>
+    <div id="out">Silence</div>
+    <input id="in" placeholder="WORD">
+    <script>
+        const ws = new WebSocket("{{.WSURL}}");
+        ws.onmessage = e => { document.getElementById('out').textContent = e.data; };
+        document.getElementById('in').onkeypress = e => { if(e.key==='Enter') { ws.send(e.target.value); e.target.value=''; } };
     </script>
 </body>
 </html>`,
