@@ -536,13 +536,15 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("  -p, --priority <n>        Numeric priority (higher runs first)\n")
 				r.Printf("  -r, --run <cmd>           Shell command to run on match\n")
 				r.Printf("  -R, --respond <tmpl>      Response template to send back\n")
-				r.Printf("  -B, --builtin <name>      Builtin action (subscribe, unsubscribe, publish)\n")
+				r.Printf("  -B, --builtin <name>      Builtin action (subscribe, unsubscribe, publish, forward)\n")
 				r.Printf("      --topic <template>    Topic name template for builtin actions\n")
+				r.Printf("      --target <url>        Upstream target URL for 'forward' builtin\n")
 				r.Printf("  -M, --message <template>  Message template for broadcast or publish\n")
 				r.Printf("  -e, --exclusive           Stop further matching if this handler matches\n")
 				r.Printf("  -s, --sequential          Run handler actions sequentially\n")
 				r.Printf("  -l, --rate-limit <limit>  Rate limit (e.g. '10/s')\n")
 				r.Printf("  -d, --debounce <duration> Debounce time (e.g. '500ms')\n")
+				r.Printf("      --on-error <tmpl>     Response template to send back on error\n")
 				return nil
 			}
 
@@ -551,7 +553,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 				fs.SetOutput(r.Stdout())
 
-				var name, match, matchType, run, respond, builtin, topic, message, rateLimit, debounce string
+				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError string
 				var priority int
 				var exclusive, sequential bool
 
@@ -561,12 +563,14 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.IntVarP(&priority, "priority", "p", 0, "Priority")
 				fs.StringVarP(&run, "run", "r", "", "Shell command")
 				fs.StringVarP(&respond, "respond", "R", "", "Response template")
-				fs.StringVarP(&builtin, "builtin", "B", "", "Builtin action (subscribe, unsubscribe, publish)")
-				fs.StringVar(&topic, "topic", "", "Topic name template for builtin actions")
+				fs.StringVarP(&builtin, "builtin", "B", "", "Builtin action")
+				fs.StringVar(&topic, "topic", "", "Topic name template")
+				fs.StringVar(&target, "target", "", "Upstream target URL for forward")
 				fs.BoolVarP(&exclusive, "exclusive", "e", false, "Short-circuit match")
 				fs.BoolVarP(&sequential, "sequential", "s", false, "Run actions sequentially")
 				fs.StringVarP(&rateLimit, "rate-limit", "l", "", "Rate limit")
 				fs.StringVarP(&debounce, "debounce", "d", "", "Debounce duration")
+				fs.StringVar(&onError, "on-error", "", "Error response template")
 				fs.StringVarP(&message, "message", "M", "", "Message template")
 
 				if err := fs.Parse(args[1:]); err != nil {
@@ -589,13 +593,15 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					Respond:   respond,
 					Builtin:   builtin,
 					Topic:     topic,
+					Target:    target,
 					Message:   message,
 					Match: handler.Matcher{
 						Pattern: match,
 						Type:    matchType,
 					},
-					RateLimit: rateLimit,
-					Debounce:  debounce,
+					RateLimit:  rateLimit,
+					Debounce:   debounce,
+					OnErrorMsg: onError,
 				}
 
 				if sequential {

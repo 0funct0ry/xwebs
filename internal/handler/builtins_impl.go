@@ -21,6 +21,7 @@ func init() {
 	MustRegister(&EchoBuiltin{})
 	MustRegister(&BroadcastBuiltin{})
 	MustRegister(&BroadcastOthersBuiltin{})
+	MustRegister(&ForwardBuiltin{conns: make(map[string]*ws.Connection)})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.

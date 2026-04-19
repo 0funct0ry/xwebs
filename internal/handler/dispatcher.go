@@ -394,6 +394,7 @@ func (d *Dispatcher) Execute(ctx context.Context, h *Handler, msg *ws.Message) e
 	}
 
 	if lastErr != nil {
+		d.executeHandlerError(ctx, h, tmplCtx, lastErr)
 		d.HandleError(lastErr)
 	}
 	return lastErr
@@ -430,6 +431,7 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 				Topic:   h.Topic,
 				Key:     h.Key,
 				Value:   h.Value,
+				Target:  h.Target,
 				Message: h.Message,
 				Timeout: h.Timeout,
 				Delay:   h.Delay,
@@ -486,6 +488,7 @@ func (d *Dispatcher) executePipeline(ctx context.Context, pipeline []PipelineSte
 			action.Topic = step.Topic
 			action.Key = step.Key
 			action.Value = step.Value
+			action.Target = step.Target
 			action.Message = step.Message
 		}
 
@@ -942,4 +945,32 @@ func (d *Dispatcher) HandlerHits() uint64 {
 // ActiveHandlers returns the number of currently executing handlers.
 func (d *Dispatcher) ActiveHandlers() int32 {
 	return atomic.LoadInt32(&d._activeHandlers)
+}
+// executeHandlerError runs actions defined in OnError or OnErrorMsg for a specific handler.
+func (d *Dispatcher) executeHandlerError(ctx context.Context, h *Handler, tmplCtx *template.TemplateContext, err error) {
+	if h.OnErrorMsg == "" && len(h.OnError) == 0 {
+		return
+	}
+
+	d.log("  [handler] error hook for %q: %v\n", h.Name, err)
+
+	// Ensure error is in context
+	if tmplCtx.Error == "" {
+		tmplCtx.Error = err.Error()
+	}
+
+	// 1. Run OnErrorMsg if present
+	if h.OnErrorMsg != "" {
+		action := Action{Type: "send", Message: h.OnErrorMsg}
+		if err := d.ExecuteAction(ctx, &action, tmplCtx, nil); err != nil {
+			d.errorf("  [handler] error matching OnErrorMsg for %q: %v\n", h.Name, err)
+		}
+	}
+
+	// 2. Run OnError actions
+	for _, a := range h.OnError {
+		if err := d.ExecuteAction(ctx, &a, tmplCtx, nil); err != nil {
+			d.errorf("  [handler] error in OnError action for %q: %v\n", h.Name, err)
+		}
+	}
 }

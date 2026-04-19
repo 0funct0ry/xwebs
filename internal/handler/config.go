@@ -30,6 +30,7 @@ type Handler struct {
 	Topic        string                 `yaml:"topic,omitempty"`      // Topic name (template) for subscribe/unsubscribe/publish builtins
 	Key          string                 `yaml:"key,omitempty"`        // Key (template) for KV builtins
 	Value        string                 `yaml:"value,omitempty"`      // Value (template) for KV builtins
+	Target       string                 `yaml:"target,omitempty"`     // Upstream target URL for forward builtin
 	Pipeline     []PipelineStep         `yaml:"pipeline,omitempty"`   // Multi-step pipeline
 	Timeout      string                 `yaml:"timeout,omitempty"`    // Per-handler timeout
 	Retry        *RetryConfig           `yaml:"retry,omitempty"`      // Automatic retry on failure
@@ -42,7 +43,8 @@ type Handler struct {
 	OnConnect    []Action               `yaml:"on_connect,omitempty"`
 	OnDisconnect []Action               `yaml:"on_disconnect,omitempty"`
 	OnError      []Action               `yaml:"on_error,omitempty"`
-	BaseDir      string                 `yaml:"-"` // Directory from which the handler was loaded
+	OnErrorMsg   string                 `yaml:"on_error_msg,omitempty"` // Shorthand for on_error send: template
+	BaseDir      string                 `yaml:"-"`                      // Directory from which the handler was loaded
 }
 
 // RetryConfig defines the settings for automatic retries.
@@ -60,6 +62,7 @@ type PipelineStep struct {
 	Topic       string `yaml:"topic,omitempty"`       // Topic name (template) for subscribe/unsubscribe/publish builtins
 	Key         string `yaml:"key,omitempty"`         // Key (template) for KV builtins
 	Value       string `yaml:"value,omitempty"`       // Value (template) for KV builtins
+	Target      string `yaml:"target,omitempty"`      // Upstream target URL for forward builtin
 	As          string `yaml:"as,omitempty"`          // Key to store results in .Steps.<name>
 	Timeout     string `yaml:"timeout,omitempty"`
 	Delay       string `yaml:"delay,omitempty"`
@@ -239,6 +242,7 @@ func (c *Config) Validate(mode RegistryMode) error {
 				Topic:   h.Topic,
 				Key:     h.Key,
 				Value:   h.Value,
+				Target:  h.Target,
 				Timeout: h.Timeout,
 				Delay:   h.Delay,
 				Respond: h.Respond,
@@ -246,6 +250,14 @@ func (c *Config) Validate(mode RegistryMode) error {
 			if err := bh.Validate(tmpAction); err != nil {
 				return fmt.Errorf("handler %q: %w", h.Name, err)
 			}
+		}
+
+		// Validate top-level target (shorthand usage)
+		if h.Target != "" && h.Builtin != "forward" {
+			return fmt.Errorf("handler %q: target property is only allowed for 'forward' builtin", h.Name)
+		}
+		if h.Builtin == "forward" && h.Target == "" {
+			return fmt.Errorf("handler %q: 'forward' builtin requires a target", h.Name)
 		}
 	}
 

@@ -155,6 +155,9 @@ type TemplateContext struct {
 	// Key-Value Store
 	KV      map[string]interface{} `json:"kv,omitempty"`       // Global KV store snapshot
 	KvValue interface{}            `json:"kv_value,omitempty"` // Result of kv-get builtin
+
+	// Upstream Forwarding
+	ForwardReply string `json:"forward_reply,omitempty"` // Result of forward builtin
 }
 
 // NewContext creates a new TemplateContext with initialized maps.
