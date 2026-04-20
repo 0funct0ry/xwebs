@@ -40,6 +40,9 @@ type Handler struct {
 	Message      string                 `yaml:"message,omitempty"`    // Message content (template) for broadcast/publish builtins
 	TTL          string                 `yaml:"ttl,omitempty"`        // TTL (template) for KV builtins
 	Default      string                 `yaml:"default,omitempty"`    // Default value (template) for KV builtins
+	Responses    []string               `yaml:"responses,omitempty"`  // For sequence builtin
+	Loop         bool                   `yaml:"loop,omitempty"`       // For sequence builtin
+	PerClient    bool                   `yaml:"per_client,omitempty"` // For sequence builtin
 	Actions      []Action               `yaml:"actions,omitempty"`
 	Variables    map[string]interface{} `yaml:"variables,omitempty"`
 	OnConnect    []Action               `yaml:"on_connect,omitempty"`
@@ -72,7 +75,10 @@ type PipelineStep struct {
 	Message     string `yaml:"message,omitempty"` // Message content (template) for broadcast/publish builtins
 	TTL         string `yaml:"ttl,omitempty"`         // TTL (template) for KV builtins
 	Default     string `yaml:"default,omitempty"`     // Default value (template) for KV builtins
-	IgnoreError bool   `yaml:"ignore_error,omitempty"`
+	Responses   []string `yaml:"responses,omitempty"`  // For sequence builtin
+	Loop        bool     `yaml:"loop,omitempty"`       // For sequence builtin
+	PerClient   bool     `yaml:"per_client,omitempty"` // For sequence builtin
+	IgnoreError bool     `yaml:"ignore_error,omitempty"`
 }
 
 // Matcher specifies how to match an incoming WebSocket message.
@@ -127,8 +133,12 @@ type Action struct {
 	Respond string            `yaml:"respond,omitempty"` // Override response for echo or generic follow-up
 	TTL     string            `yaml:"ttl,omitempty"`     // TTL (template) for KV builtins
 	Default string            `yaml:"default,omitempty"` // Default value (template) for KV builtins
-	Env     map[string]string `yaml:"env,omitempty"`     // Environment variables for shell actions
-	Silent  bool              `yaml:"silent,omitempty"`  // Suppress output for shell actions
+	Env       map[string]string `yaml:"env,omitempty"`     // Environment variables for shell actions
+	Silent    bool              `yaml:"silent,omitempty"`  // Suppress output for shell actions
+	Responses   []string          `yaml:"responses,omitempty"`
+	Loop        bool              `yaml:"loop,omitempty"`
+	PerClient   bool              `yaml:"per_client,omitempty"`
+	HandlerName string            `yaml:"-"` // Internal use only
 }
 
 // UnmarshalYAML implements custom unmarshaling for Action to support shorthand keys.
@@ -249,9 +259,12 @@ func (c *Config) Validate(mode RegistryMode) error {
 				Key:     h.Key,
 				Value:   h.Value,
 				Target:  h.Target,
-				Timeout: h.Timeout,
-				Delay:   h.Delay,
-				Respond: h.Respond,
+				Timeout:   h.Timeout,
+				Delay:     h.Delay,
+				Respond:   h.Respond,
+				Responses: h.Responses,
+				Loop:      h.Loop,
+				PerClient: h.PerClient,
 			}
 			if err := bh.Validate(tmpAction); err != nil {
 				return fmt.Errorf("handler %q: %w", h.Name, err)

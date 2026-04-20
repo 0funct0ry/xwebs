@@ -408,32 +408,39 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 		}
 	} else if len(h.Pipeline) > 0 {
 		// New pipeline model
-		return d.executePipeline(ctx, h.Pipeline, tmplCtx, msg)
+		return d.executePipeline(ctx, h.Name, h.Pipeline, tmplCtx, msg)
 	} else {
 		// Concise top-level model (run or builtin)
 		if h.Run != "" {
 			action := Action{
-				Type:    "shell", 
-				Run:     h.Run, 
-				Timeout: h.Timeout,
-				Delay:   h.Delay,
-				Respond: h.Respond,
+				Type:        "shell",
+				Run:         h.Run,
+				Timeout:     h.Timeout,
+				Delay:       h.Delay,
+				Respond:     h.Respond,
+				Loop:        h.Loop,
+				PerClient:   h.PerClient,
+				HandlerName: h.Name,
 			}
 			return d.ExecuteAction(ctx, &action, tmplCtx, msg)
 		} else if h.Builtin != "" {
 			action := Action{
-				Type:    "builtin",
-				Command: h.Builtin,
-				Topic:   h.Topic,
-				Key:     h.Key,
-				Value:   h.Value,
-				Target:  h.Target,
-				Message: h.Message,
-				Timeout: h.Timeout,
-				Delay:   h.Delay,
-				Respond: h.Respond,
-				TTL:     h.TTL,
-				Default: h.Default,
+				Type:        "builtin",
+				Command:     h.Builtin,
+				Topic:       h.Topic,
+				Key:         h.Key,
+				Value:       h.Value,
+				Target:      h.Target,
+				Message:     h.Message,
+				Timeout:     h.Timeout,
+				Delay:       h.Delay,
+				Respond:     h.Respond,
+				TTL:         h.TTL,
+				Default:     h.Default,
+				Responses:   h.Responses,
+				Loop:        h.Loop,
+				PerClient:   h.PerClient,
+				HandlerName: h.Name,
 			}
 			return d.ExecuteAction(ctx, &action, tmplCtx, msg)
 		}
@@ -470,7 +477,7 @@ func (d *Dispatcher) calculateBackoff(cfg *RetryConfig, attempt int) time.Durati
 }
 
 // executePipeline runs a sequence of steps.
-func (d *Dispatcher) executePipeline(ctx context.Context, pipeline []PipelineStep, tmplCtx *template.TemplateContext, msg *ws.Message) error {
+func (d *Dispatcher) executePipeline(ctx context.Context, handlerName string, pipeline []PipelineStep, tmplCtx *template.TemplateContext, msg *ws.Message) error {
 	for i, step := range pipeline {
 		action := Action{
 			Timeout: step.Timeout,
@@ -490,6 +497,10 @@ func (d *Dispatcher) executePipeline(ctx context.Context, pipeline []PipelineSte
 			action.Message = step.Message
 			action.TTL = step.TTL
 			action.Default = step.Default
+			action.Responses = step.Responses
+			action.Loop = step.Loop
+			action.PerClient = step.PerClient
+			action.HandlerName = handlerName
 		}
 
 		if err := d.ExecuteAction(ctx, &action, tmplCtx, msg); err != nil {

@@ -279,7 +279,7 @@ func (r *REPL) completeArguments(line string) ([][]rune, int) {
 	case "handler":
 		if r.serverCtx != nil {
 			handlers := r.serverCtx.GetHandlers()
-			subCommands := []string{"add", "delete", "edit", "rename", "save"}
+			subCommands := []string{"add", "delete", "edit", "rename", "reset", "save"}
 
 			// If we are on the first argument
 			if len(parts) == 1 || (len(parts) == 2 && !strings.HasSuffix(line, " ")) {
@@ -295,7 +295,7 @@ func (r *REPL) completeArguments(line string) ([][]rune, int) {
 						suggestions = append(suggestions, []rune(h.Name[len(currentWord):]))
 					}
 				}
-			} else if len(parts) >= 2 && (parts[1] == "delete" || parts[1] == "edit" || parts[1] == "rename") {
+			} else if len(parts) >= 2 && (parts[1] == "delete" || parts[1] == "edit" || parts[1] == "rename" || parts[1] == "reset") {
 				// We are on the second argument of :handler delete <name>, :handler edit <name>, or :handler rename <old-name>
 				// but only if we are typing or just after a space
 				if len(parts) == 2 || (len(parts) == 3 && !strings.HasSuffix(line, " ")) {
@@ -308,7 +308,7 @@ func (r *REPL) completeArguments(line string) ([][]rune, int) {
 			}
 		} else {
 			// Client mode completion for :handler
-			subCommands := []string{"add", "delete", "edit", "save"}
+			subCommands := []string{"add", "delete", "edit", "reset", "save"}
 			if len(parts) == 1 || (len(parts) == 2 && !strings.HasSuffix(line, " ")) {
 				for _, sc := range subCommands {
 					if strings.HasPrefix(strings.ToLower(sc), strings.ToLower(currentWord)) {
@@ -322,7 +322,7 @@ func (r *REPL) completeArguments(line string) ([][]rune, int) {
 						}
 					}
 				}
-			} else if len(parts) >= 2 && (parts[1] == "delete" || parts[1] == "edit") {
+			} else if len(parts) >= 2 && (parts[1] == "delete" || parts[1] == "edit" || parts[1] == "reset") {
 				if r.Handlers != nil {
 					if len(parts) == 2 || (len(parts) == 3 && !strings.HasSuffix(line, " ")) {
 						for _, h := range r.Handlers.Handlers() {

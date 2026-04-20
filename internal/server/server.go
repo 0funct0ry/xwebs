@@ -750,6 +750,11 @@ func (s *Server) DisableHandler(name string) error {
 	return s.registry.DisableHandler(name)
 }
 
+// ResetSequence clears sequence indices for a handler.
+func (s *Server) ResetSequence(name string) {
+	s.registry.ResetSequence(name)
+}
+
 // ListKV returns all entries in the key-value store.
 func (s *Server) ListKV() map[string]interface{} {
 	if s.kvStore == nil {

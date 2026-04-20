@@ -23,6 +23,8 @@ type mockServerContext struct {
 	handlersFile string
 }
 
+func (m *mockServerContext) ResetSequence(name string) {}
+
 func (m *mockServerContext) GetClientCount() int                            { return 0 }
 func (m *mockServerContext) GetUptime() time.Duration                       { return 0 }
 func (m *mockServerContext) GetClients() []template.ClientInfo              { return nil }

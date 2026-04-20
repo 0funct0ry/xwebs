@@ -468,7 +468,7 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `:broadcast [flags] <msg>` | Send message to all connected clients (`-j`, `-t`, `-b`) |
 | `:kick <id> [c] [r]`| Disconnect a client with optional close code and reason |
 | `:handlers` | List all registered server-side handlers with execution statistics (Matches, Latency, Errors) |
-| `:handler (add\|delete\|edit\|rename\|save\|<name>)` | Manage handlers: `add <flags>` (see flags below), `delete <name>`, `edit [name]`, `rename <old> <new>`, `save [file] [--force\|-f]`, or show details for `<name>` |
+| `:handler (add|delete|edit|rename|reset|save|<name>)` | Manage handlers: `add <flags>`, `delete <name>`, `edit [name]`, `rename <old> <new>`, `reset <name>`, `save [file] [--force|-f]`, or show details for `<name>` |
 | `:kv (list\|get\|set\|del)` | Manage the server-side key-value store. Subcommands: `list` (or `ls`), `get <key>`, `set <key> [-t\|-j] <val>`, `del <key>` |
 | `:reload` | Hot-reload the handler configuration file and variables from disk without restarting the server |
 | `:enable <name>` | Enable a previously disabled handler at runtime |
@@ -501,6 +501,9 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `--sequential`          | `-s`  | Run handler actions sequentially (default: concurrent)                     |
 | `--rate-limit <limit>`  | `-l`  | Per-handler rate limit (e.g. `10/s`)                                       |
 | `--debounce <duration>` | `-d`  | Debounce window (e.g. `500ms`)                                             |
+| `--responses <val>`     |       | Add a response to the `sequence` builtin (repeat for multiple steps)       |
+| `--loop`               |       | Loop the sequence (restart after last item)                               |
+| `--per-client`         |       | Track sequence position independently per client connection                |
 
 Example — add pub-sub handlers directly from the REPL:
 
@@ -538,6 +541,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `kv-get` | Server | Retrieves a value from the KV store into `.KvValue`. |
 | `kv-del` | Server | Deletes a key from the KV store. |
 | `kv-list` | Server | Lists all keys in the KV store into `.KvKeys`. |
+| `sequence`| Shared | Cycles through a list of responses in order. |
 
 **Validation Features:**
 - **Unknown Builtins**: Using an unknown builtin name in handler configuration causes an immediate startup error.
@@ -592,6 +596,17 @@ handlers:
     builtin: kv-del
     key: 'last:price:{{.Message | jq ".symbol"}}'
     respond: '{"deleted":true}'
+
+  # Sequence Example with Templates
+  - name: multistep-handshake
+    match: "start"
+    builtin: sequence
+    responses:
+      - "Step 1: Welcome to {{.Conn.URL}}"
+      - "Step 2: Processing for client {{.Conn.ID}}"
+      - "Step 3: Done at {{now | formatTime \"15:04:05\"}}"
+    loop: false
+    per_client: true
 ```
 
 Topic pub-sub example session:

@@ -68,9 +68,11 @@ type Registry struct {
 	debouncers map[string]*debouncer
 	stats      map[string]*HandlerStats
 	global     RegistryStats
-	disabled   map[string]bool
-	Mode       RegistryMode
-	mu         sync.RWMutex
+	disabled              map[string]bool
+	sequenceIndices      map[string]int              // handlerName -> index
+	sequenceClientIndices map[string]map[string]int   // handlerName -> connID -> index
+	Mode                 RegistryMode
+	mu                   sync.RWMutex
 }
 
 type debouncer struct {
@@ -89,6 +91,8 @@ func NewRegistry(mode RegistryMode) *Registry {
 		debouncers: make(map[string]*debouncer),
 		stats:      make(map[string]*HandlerStats),
 		disabled:   make(map[string]bool),
+		sequenceIndices:      make(map[string]int),
+		sequenceClientIndices: make(map[string]map[string]int),
 		Mode:       mode,
 		global: RegistryStats{
 			maxSlowLog: 50,
@@ -212,6 +216,8 @@ func (r *Registry) ReplaceHandlers(handlers []Handler) error {
 	r.schemas = make(map[string]*gojsonschema.Schema)
 	r.stats = make(map[string]*HandlerStats)
 	r.disabled = make(map[string]bool)
+	r.sequenceIndices = make(map[string]int)
+	r.sequenceClientIndices = make(map[string]map[string]int)
 
 	r.handlers = handlers
 	r.sort()
@@ -239,6 +245,8 @@ func (r *Registry) Delete(name string) error {
 	// Clean up associated resources
 	delete(r.handlerMu, name)
 	delete(r.limiters, name)
+	delete(r.sequenceIndices, name)
+	delete(r.sequenceClientIndices, name)
 
 	if d, ok := r.debouncers[name]; ok {
 		d.mu.Lock()
@@ -298,6 +306,14 @@ func (r *Registry) RenameHandler(oldName, newName string) error {
 	if dis, ok := r.disabled[oldName]; ok {
 		r.disabled[newName] = dis
 		delete(r.disabled, oldName)
+	}
+	if idx, ok := r.sequenceIndices[oldName]; ok {
+		r.sequenceIndices[newName] = idx
+		delete(r.sequenceIndices, oldName)
+	}
+	if cIdx, ok := r.sequenceClientIndices[oldName]; ok {
+		r.sequenceClientIndices[newName] = cIdx
+		delete(r.sequenceClientIndices, oldName)
 	}
 
 	return nil
@@ -1000,4 +1016,50 @@ func (r *Registry) IsDisabled(name string) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.disabled[name]
+}
+// GetNextSequenceIndex returns the next index for a sequence builtin, potentially tracking it per-client.
+func (r *Registry) GetNextSequenceIndex(handlerName, connID string, count int, loop, perClient bool) int {
+	if count <= 0 {
+		return 0
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	var current int
+	if perClient {
+		if r.sequenceClientIndices[handlerName] == nil {
+			r.sequenceClientIndices[handlerName] = make(map[string]int)
+		}
+		current = r.sequenceClientIndices[handlerName][connID]
+	} else {
+		current = r.sequenceIndices[handlerName]
+	}
+
+	idx := current % count
+	next := current + 1
+
+	// Handle loop behavior
+	if !loop && next >= count {
+		next = count - 1 // Stay on last item
+	} else {
+		next = next % count
+	}
+
+	if perClient {
+		r.sequenceClientIndices[handlerName][connID] = next
+	} else {
+		r.sequenceIndices[handlerName] = next
+	}
+
+	return idx
+}
+
+// ResetSequence clears the sequence index for a specific handler.
+func (r *Registry) ResetSequence(name string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	delete(r.sequenceIndices, name)
+	delete(r.sequenceClientIndices, name)
 }

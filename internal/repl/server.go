@@ -46,6 +46,7 @@ type ServerContext interface {
 	UpdateHandler(h handler.Handler) error
 	DeleteHandler(name string) error
 	RenameHandler(oldName, newName string) error
+	ResetSequence(name string)
 	ApplyHandlers(handlers []handler.Handler, variables map[string]interface{}) error
 	GetAvailableStyles() []string
 
@@ -541,6 +542,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("  :handler add <flags>  Add a new handler\n")
 				r.Printf("  :handler delete <name> Remove an existing handler\n")
 				r.Printf("  :handler rename <old> <new> Rename a handler\n")
+				r.Printf("  :handler reset <name> Reset sequence indices for a handler\n")
 				r.Printf("  :handler edit [name]  Edit a handler or full configuration\n")
 				r.Printf("  :handler save [file] [--force|-f] Save handlers to YAML file\n")
 				r.Printf("  :handler <name>       Show detailed information about a handler\n")
@@ -559,6 +561,9 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("  -s, --sequential          Run handler actions sequentially\n")
 				r.Printf("  -l, --rate-limit <limit>  Rate limit (e.g. '10/s')\n")
 				r.Printf("  -d, --debounce <duration> Debounce time (e.g. '500ms')\n")
+				r.Printf("      --responses <list>    Comma-separated list of responses for 'sequence'\n")
+				r.Printf("      --loop                Cycle 'sequence' responses (default false)\n")
+				r.Printf("      --per-client          Track 'sequence' index per client (default false)\n")
 				r.Printf("      --on-error <tmpl>     Response template to send back on error\n")
 				return nil
 			}
@@ -569,8 +574,9 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.SetOutput(r.Stdout())
 
 				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError string
+				var responses []string
 				var priority int
-				var exclusive, sequential bool
+				var exclusive, sequential, loop, perClient bool
 
 				fs.StringVarP(&name, "name", "n", "", "Name of the handler")
 				fs.StringVarP(&match, "match", "m", "", "Match pattern")
@@ -587,6 +593,9 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.StringVarP(&debounce, "debounce", "d", "", "Debounce duration")
 				fs.StringVar(&onError, "on-error", "", "Error response template")
 				fs.StringVarP(&message, "message", "M", "", "Message template")
+				fs.StringArrayVar(&responses, "responses", nil, "Responses for sequence builtin")
+				fs.BoolVar(&loop, "loop", false, "Loop sequence")
+				fs.BoolVar(&perClient, "per-client", false, "Track per client")
 
 				if err := fs.Parse(args[1:]); err != nil {
 					return fmt.Errorf("parsing flags: %w", err)
@@ -617,6 +626,9 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					RateLimit:  rateLimit,
 					Debounce:   debounce,
 					OnErrorMsg: onError,
+					Responses:  responses,
+					Loop:       loop,
+					PerClient:  perClient,
 				}
 
 				if sequential {
@@ -655,6 +667,27 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					return err
 				}
 				r.Printf("✓ Handler %q renamed to %q\n", oldName, newName)
+				return nil
+			}
+
+			if args[0] == "reset" {
+				if len(args) < 2 {
+					return fmt.Errorf("usage: :handler reset <name>")
+				}
+				name := args[1]
+				// Verify handler exists
+				found := false
+				for _, h := range sc.GetHandlers() {
+					if h.Name == name {
+						found = true
+						break
+					}
+				}
+				if !found {
+					return fmt.Errorf("handler %q not found", name)
+				}
+				sc.ResetSequence(name)
+				r.Printf("✓ Sequence state for handler %q reset successfully\n", name)
 				return nil
 			}
 

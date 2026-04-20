@@ -24,6 +24,7 @@ func init() {
 	MustRegister(&BroadcastBuiltin{})
 	MustRegister(&BroadcastOthersBuiltin{})
 	MustRegister(&ForwardBuiltin{conns: make(map[string]*ws.Connection)})
+	MustRegister(&SequenceBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -477,4 +478,46 @@ func (b *BroadcastOthersBuiltin) Execute(ctx context.Context, d *Dispatcher, a *
 	}
 
 	return nil
+}
+
+// SequenceBuiltin cycles through a list of responses.
+type SequenceBuiltin struct{}
+
+func (b *SequenceBuiltin) Name() string        { return "sequence" }
+func (b *SequenceBuiltin) Description() string { return "Cycle through a list of responses in order." }
+func (b *SequenceBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *SequenceBuiltin) Validate(a Action) error {
+	if len(a.Responses) == 0 {
+		return fmt.Errorf("builtin sequence: responses list is required and cannot be empty")
+	}
+	return nil
+}
+
+func (b *SequenceBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	key := a.HandlerName
+	if key == "" {
+		key = "anonymous-sequence"
+	}
+
+	idx := d.registry.GetNextSequenceIndex(key, d.conn.GetID(), len(a.Responses), a.Loop, a.PerClient)
+	respTmpl := a.Responses[idx]
+
+	resp, err := d.templateEngine.Execute("sequence", respTmpl, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("rendering sequence response template: %w", err)
+	}
+
+	if d.verbose {
+		d.errorf("  [handler] sequence: sending item %d/%d (handler=%q): %q\n", idx+1, len(a.Responses), key, resp)
+	}
+
+	return d.conn.Write(&ws.Message{
+		Type: ws.TextMessage,
+		Data: []byte(resp),
+		Metadata: ws.MessageMetadata{
+			Direction: "sent",
+			Timestamp: time.Now(),
+		},
+	})
 }
