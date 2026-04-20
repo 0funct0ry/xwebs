@@ -49,6 +49,7 @@ type Handler struct {
 	OnDisconnect []Action               `yaml:"on_disconnect,omitempty"`
 	OnError      []Action               `yaml:"on_error,omitempty"`
 	OnErrorMsg   string                 `yaml:"on_error_msg,omitempty"` // Shorthand for on_error send: template
+	File         string                 `yaml:"file,omitempty"`         // For template builtin
 	BaseDir      string                 `yaml:"-"`                      // Directory from which the handler was loaded
 }
 
@@ -78,6 +79,7 @@ type PipelineStep struct {
 	Responses   []string `yaml:"responses,omitempty"`  // For sequence builtin
 	Loop        bool     `yaml:"loop,omitempty"`       // For sequence builtin
 	PerClient   bool     `yaml:"per_client,omitempty"` // For sequence builtin
+	File        string   `yaml:"file,omitempty"`       // For template builtin
 	IgnoreError bool     `yaml:"ignore_error,omitempty"`
 }
 
@@ -138,7 +140,9 @@ type Action struct {
 	Responses   []string          `yaml:"responses,omitempty"`
 	Loop        bool              `yaml:"loop,omitempty"`
 	PerClient   bool              `yaml:"per_client,omitempty"`
-	HandlerName string            `yaml:"-"` // Internal use only
+	File        string            `yaml:"file,omitempty"` // For template builtin
+	BaseDir     string            `yaml:"-"`              // For relative path resolution in builtins
+	HandlerName string            `yaml:"-"`              // Internal use only
 }
 
 // UnmarshalYAML implements custom unmarshaling for Action to support shorthand keys.
@@ -265,6 +269,7 @@ func (c *Config) Validate(mode RegistryMode) error {
 				Responses: h.Responses,
 				Loop:      h.Loop,
 				PerClient: h.PerClient,
+				File:      h.File,
 			}
 			if err := bh.Validate(tmpAction); err != nil {
 				return fmt.Errorf("handler %q: %w", h.Name, err)

@@ -420,6 +420,7 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 				Respond:     h.Respond,
 				Loop:        h.Loop,
 				PerClient:   h.PerClient,
+				BaseDir:     h.BaseDir,
 				HandlerName: h.Name,
 			}
 			return d.ExecuteAction(ctx, &action, tmplCtx, msg)
@@ -440,6 +441,8 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 				Responses:   h.Responses,
 				Loop:        h.Loop,
 				PerClient:   h.PerClient,
+				File:        h.File,
+				BaseDir:     h.BaseDir,
 				HandlerName: h.Name,
 			}
 			return d.ExecuteAction(ctx, &action, tmplCtx, msg)
@@ -500,6 +503,8 @@ func (d *Dispatcher) executePipeline(ctx context.Context, handlerName string, pi
 			action.Responses = step.Responses
 			action.Loop = step.Loop
 			action.PerClient = step.PerClient
+			action.File = step.File
+			action.BaseDir = d.registry.GetHandlerBaseDir(handlerName)
 			action.HandlerName = handlerName
 		}
 

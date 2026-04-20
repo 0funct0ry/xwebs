@@ -3,6 +3,8 @@ package handler
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -25,6 +27,7 @@ func init() {
 	MustRegister(&BroadcastOthersBuiltin{})
 	MustRegister(&ForwardBuiltin{conns: make(map[string]*ws.Connection)})
 	MustRegister(&SequenceBuiltin{})
+	MustRegister(&TemplateBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -512,6 +515,67 @@ func (b *SequenceBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action,
 		d.errorf("  [handler] sequence: sending item %d/%d (handler=%q): %q\n", idx+1, len(a.Responses), key, resp)
 	}
 
+	return d.conn.Write(&ws.Message{
+		Type: ws.TextMessage,
+		Data: []byte(resp),
+		Metadata: ws.MessageMetadata{
+			Direction: "sent",
+			Timestamp: time.Now(),
+		},
+	})
+}
+
+// TemplateBuiltin renders a response from an external template file.
+type TemplateBuiltin struct{}
+
+func (b *TemplateBuiltin) Name() string        { return "template" }
+func (b *TemplateBuiltin) Description() string { return "Render a response from an external template file." }
+func (b *TemplateBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *TemplateBuiltin) Validate(a Action) error {
+	if a.File == "" {
+		return fmt.Errorf("builtin template missing file path")
+	}
+	return nil
+}
+
+func (b *TemplateBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	// 1. Resolve file path (render if template)
+	filePath, err := d.templateEngine.Execute("file-path", a.File, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in file path expression: %w", err)
+	}
+	filePath = strings.TrimSpace(filePath)
+	if filePath == "" {
+		return fmt.Errorf("builtin template: file path evaluates to empty string")
+	}
+
+	// 2. Resolve relative path using BaseDir from Action (calculated in Dispatcher)
+	resolvedPath := filePath
+	if !filepath.IsAbs(filePath) && a.BaseDir != "" {
+		resolvedPath = filepath.Join(a.BaseDir, filePath)
+	}
+
+	// 3. Read file content at execution time
+	content, err := os.ReadFile(resolvedPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("builtin template: file not found: %s (resolved: %s)", filePath, resolvedPath)
+		}
+		return fmt.Errorf("builtin template: error reading file %s: %w", resolvedPath, err)
+	}
+
+	// 4. Render file content as a template
+	resp, err := d.templateEngine.Execute(filePath, string(content), tmplCtx)
+	if err != nil {
+		return fmt.Errorf("rendering template file %s: %w", filePath, err)
+	}
+
+	if d.verbose {
+		d.errorf("  [handler] template: rendered %s (resolved: %s)\n", filePath, resolvedPath)
+	}
+
+	// 5. Send response
 	return d.conn.Write(&ws.Message{
 		Type: ws.TextMessage,
 		Data: []byte(resp),

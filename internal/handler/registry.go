@@ -135,6 +135,17 @@ func (r *Registry) GetHandler(name string) (Handler, bool) {
 	return Handler{}, false
 }
 
+func (r *Registry) GetHandlerBaseDir(name string) string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, h := range r.handlers {
+		if h.Name == name {
+			return h.BaseDir
+		}
+	}
+	return ""
+}
+
 // UpdateHandler replaces an existing handler with the same name.
 func (r *Registry) UpdateHandler(h Handler) error {
 	r.mu.Lock()

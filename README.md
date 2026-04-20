@@ -495,8 +495,9 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `--priority <n>`        | `-p`  | Execution priority (higher runs first)                                     |
 | `--run <cmd>`           | `-r`  | Shell command to execute on match                                          |
 | `--respond <tmpl>`      | `-R`  | Response template sent back to the client                                  |
-| `--builtin <name>`      | `-B`  | Builtin action: `subscribe`, `unsubscribe`, or `publish`                   |
-| `--topic <template>`    |       | Topic name template for builtin actions (required when `--builtin` is set) |
+| `--builtin <name>`      | `-B`  | Builtin action: `subscribe`, `unsubscribe`, `publish`, `template`, `kv-*`, `sequence`. |
+| `--topic <template>`    |       | Topic name template for builtin actions (required for `subscribe`, `unsubscribe`, `publish`) |
+| `--file <path>`         |       | Template file path for `template` builtin (can include template expressions) |
 | `--exclusive`           | `-e`  | Stop further handler matching after this one fires                         |
 | `--sequential`          | `-s`  | Run handler actions sequentially (default: concurrent)                     |
 | `--rate-limit <limit>`  | `-l`  | Per-handler rate limit (e.g. `10/s`)                                       |
@@ -542,6 +543,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `kv-del` | Server | Deletes a key from the KV store. |
 | `kv-list` | Server | Lists all keys in the KV store into `.KvKeys`. |
 | `sequence`| Shared | Cycles through a list of responses in order. |
+| `template`| Shared | Renders a response from an external template file (supports live-reload). |
 
 **Validation Features:**
 - **Unknown Builtins**: Using an unknown builtin name in handler configuration causes an immediate startup error.
@@ -607,6 +609,12 @@ handlers:
       - "Step 3: Done at {{now | formatTime \"15:04:05\"}}"
     loop: false
     per_client: true
+
+  # Template Example with Live-Reload
+  - name: dynamic-response
+    match: "info"
+    builtin: template
+    file: "responses/info_{{kv \"env\"}}.tmpl"
 ```
 
 Topic pub-sub example session:

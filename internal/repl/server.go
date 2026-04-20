@@ -564,6 +564,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("      --responses <list>    Comma-separated list of responses for 'sequence'\n")
 				r.Printf("      --loop                Cycle 'sequence' responses (default false)\n")
 				r.Printf("      --per-client          Track 'sequence' index per client (default false)\n")
+				r.Printf("      --file <path>         Template file path for 'template' builtin\n")
 				r.Printf("      --on-error <tmpl>     Response template to send back on error\n")
 				return nil
 			}
@@ -573,7 +574,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 				fs.SetOutput(r.Stdout())
 
-				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError string
+				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file string
 				var responses []string
 				var priority int
 				var exclusive, sequential, loop, perClient bool
@@ -596,6 +597,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.StringArrayVar(&responses, "responses", nil, "Responses for sequence builtin")
 				fs.BoolVar(&loop, "loop", false, "Loop sequence")
 				fs.BoolVar(&perClient, "per-client", false, "Track per client")
+				fs.StringVar(&file, "file", "", "Template file path for template builtin")
 
 				if err := fs.Parse(args[1:]); err != nil {
 					return fmt.Errorf("parsing flags: %w", err)
@@ -629,6 +631,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					Responses:  responses,
 					Loop:       loop,
 					PerClient:  perClient,
+					File:       file,
 				}
 
 				if sequential {
