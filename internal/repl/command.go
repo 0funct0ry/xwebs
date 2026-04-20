@@ -1313,6 +1313,11 @@ func (r *REPL) RegisterCommonCommands() {
 				r.Printf("  --sequential          Run handler actions sequentially (disable concurrency)\n")
 				r.Printf("  --rate-limit <limit>  Rate limit (e.g. '10/s')\n")
 				r.Printf("  --debounce <duration> Debounce time (e.g. '500ms')\n")
+				r.Printf("  --file <path>         File path for 'file-send' or 'template' builtin\n")
+				r.Printf("  --mode <type>         Mode for 'file-send' (text|binary)\n")
+				r.Printf("  --responses <list>    Responses for 'sequence' builtin (repeatable)\n")
+				r.Printf("  --loop                Loop the sequence\n")
+				r.Printf("  --per-client          Track sequence position independently per client\n")
 				return nil
 			}
 
@@ -1492,6 +1497,14 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.BoolVarP(&sequential, "sequential", "s", false, "Run actions sequentially")
 			fs.StringVarP(&rateLimit, "rate-limit", "l", "", "Rate limit")
 			fs.StringVarP(&debounce, "debounce", "d", "", "Debounce duration")
+			var file, mode string
+			var responses []string
+			var loop, perClient bool
+			fs.StringVar(&file, "file", "", "File path")
+			fs.StringVar(&mode, "mode", "", "File mode (text|binary)")
+			fs.StringArrayVar(&responses, "responses", nil, "Sequence responses")
+			fs.BoolVar(&loop, "loop", false, "Loop sequence")
+			fs.BoolVar(&perClient, "per-client", false, "Track per client")
 
 			if err := fs.Parse(args[1:]); err != nil {
 				return fmt.Errorf("parsing flags: %w", err)
@@ -1522,6 +1535,11 @@ func (r *REPL) RegisterCommonCommands() {
 				},
 				RateLimit: rateLimit,
 				Debounce:  debounce,
+				File:      file,
+				Mode:      mode,
+				Responses: responses,
+				Loop:      loop,
+				PerClient: perClient,
 			}
 
 			if sequential {

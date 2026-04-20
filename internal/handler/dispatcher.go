@@ -442,6 +442,7 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 				Loop:        h.Loop,
 				PerClient:   h.PerClient,
 				File:        h.File,
+				Mode:        h.Mode,
 				BaseDir:     h.BaseDir,
 				HandlerName: h.Name,
 			}
@@ -504,6 +505,7 @@ func (d *Dispatcher) executePipeline(ctx context.Context, handlerName string, pi
 			action.Loop = step.Loop
 			action.PerClient = step.PerClient
 			action.File = step.File
+			action.Mode = step.Mode
 			action.BaseDir = d.registry.GetHandlerBaseDir(handlerName)
 			action.HandlerName = handlerName
 		}

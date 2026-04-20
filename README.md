@@ -544,6 +544,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `kv-list` | Server | Lists all keys in the KV store into `.KvKeys`. |
 | `sequence`| Shared | Cycles through a list of responses in order. |
 | `template`| Shared | Renders a response from an external template file (supports live-reload). |
+| `file-send`| Client | Sends a local file as a WebSocket message (text or binary). |
 
 **Validation Features:**
 - **Unknown Builtins**: Using an unknown builtin name in handler configuration causes an immediate startup error.
@@ -569,12 +570,13 @@ handlers:
     topic: '{{.Message | trimPrefix "unsub:"}}'
     respond: 'unsubscribed:{{.Message | trimPrefix "unsub:"}}'
 
-  # JSON-style: client sends {"type":"subscribe","channel":"trades"}
-  - name: static-file
+  # JSON-style: client sends {"type":"download","file":"firmware.bin"}
+  - name: send-firmware
     match:
       jq: '.type == "download"'
     builtin: file-send                   # Send file as binary frame
-    path: '{{.Message | jq ".path"}}'
+    file: '{{.Message | jq ".file"}}'
+    mode: binary
 
   # Key-Value Store Examples
   - name: track-price
@@ -615,6 +617,13 @@ handlers:
     match: "info"
     builtin: template
     file: "responses/info_{{kv \"env\"}}.tmpl"
+
+  # File-Send Example (Client Mode)
+  - name: upload-log
+    match: "upload"
+    builtin: file-send
+    file: "logs/session_{{now | formatTime \"20060102\"}}.log"
+    mode: text
 ```
 
 Topic pub-sub example session:

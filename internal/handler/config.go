@@ -50,6 +50,7 @@ type Handler struct {
 	OnError      []Action               `yaml:"on_error,omitempty"`
 	OnErrorMsg   string                 `yaml:"on_error_msg,omitempty"` // Shorthand for on_error send: template
 	File         string                 `yaml:"file,omitempty"`         // For template builtin
+	Mode         string                 `yaml:"mode,omitempty"`         // For file-send builtin
 	BaseDir      string                 `yaml:"-"`                      // Directory from which the handler was loaded
 }
 
@@ -80,6 +81,7 @@ type PipelineStep struct {
 	Loop        bool     `yaml:"loop,omitempty"`       // For sequence builtin
 	PerClient   bool     `yaml:"per_client,omitempty"` // For sequence builtin
 	File        string   `yaml:"file,omitempty"`       // For template builtin
+	Mode        string   `yaml:"mode,omitempty"`       // For file-send builtin
 	IgnoreError bool     `yaml:"ignore_error,omitempty"`
 }
 
@@ -141,6 +143,7 @@ type Action struct {
 	Loop        bool              `yaml:"loop,omitempty"`
 	PerClient   bool              `yaml:"per_client,omitempty"`
 	File        string            `yaml:"file,omitempty"` // For template builtin
+	Mode        string            `yaml:"mode,omitempty"` // For file-send builtin
 	BaseDir     string            `yaml:"-"`              // For relative path resolution in builtins
 	HandlerName string            `yaml:"-"`              // Internal use only
 }
@@ -270,6 +273,7 @@ func (c *Config) Validate(mode RegistryMode) error {
 				Loop:      h.Loop,
 				PerClient: h.PerClient,
 				File:      h.File,
+				Mode:      h.Mode,
 			}
 			if err := bh.Validate(tmpAction); err != nil {
 				return fmt.Errorf("handler %q: %w", h.Name, err)

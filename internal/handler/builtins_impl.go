@@ -28,6 +28,7 @@ func init() {
 	MustRegister(&ForwardBuiltin{conns: make(map[string]*ws.Connection)})
 	MustRegister(&SequenceBuiltin{})
 	MustRegister(&TemplateBuiltin{})
+	MustRegister(&FileSendBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -585,3 +586,72 @@ func (b *TemplateBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action,
 		},
 	})
 }
+
+// FileSendBuiltin sends the contents of a local file as a WebSocket message.
+type FileSendBuiltin struct{}
+
+func (b *FileSendBuiltin) Name() string        { return "file-send" }
+func (b *FileSendBuiltin) Description() string { return "Send the contents of a local file as a WebSocket message." }
+func (b *FileSendBuiltin) Scope() BuiltinScope { return ClientOnly }
+
+func (b *FileSendBuiltin) Validate(a Action) error {
+	if a.File == "" {
+		return fmt.Errorf("builtin file-send missing file path")
+	}
+	if a.Mode != "" {
+		m := strings.ToLower(a.Mode)
+		if m != "text" && m != "binary" {
+			return fmt.Errorf("builtin file-send: invalid mode %q (must be 'text' or 'binary')", a.Mode)
+		}
+	}
+	return nil
+}
+
+func (b *FileSendBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	// 1. Resolve file path (render if template)
+	filePath, err := d.templateEngine.Execute("file-path", a.File, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in file path expression: %w", err)
+	}
+	filePath = strings.TrimSpace(filePath)
+	if filePath == "" {
+		return fmt.Errorf("builtin file-send: file path evaluates to empty string")
+	}
+
+	// 2. Resolve relative path using BaseDir from Action
+	resolvedPath := filePath
+	if !filepath.IsAbs(filePath) && a.BaseDir != "" {
+		resolvedPath = filepath.Join(a.BaseDir, filePath)
+	}
+
+	// 3. Read file content
+	content, err := os.ReadFile(resolvedPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("builtin file-send: file not found: %s (resolved: %s)", filePath, resolvedPath)
+		}
+		return fmt.Errorf("builtin file-send: error reading file %s: %w", resolvedPath, err)
+	}
+
+	// 4. Determine message type
+	mt := ws.TextMessage
+	if strings.ToLower(a.Mode) == "binary" {
+		mt = ws.BinaryMessage
+	}
+
+	if d.verbose {
+		d.errorf("  [handler] file-send: sending %s as %s (resolved: %s, size: %d bytes)\n", 
+			filePath, strings.ToLower(a.Mode), resolvedPath, len(content))
+	}
+
+	// 5. Send message
+	return d.conn.Write(&ws.Message{
+		Type: mt,
+		Data: content,
+		Metadata: ws.MessageMetadata{
+			Direction: "sent",
+			Timestamp: time.Now(),
+		},
+	})
+}
+
