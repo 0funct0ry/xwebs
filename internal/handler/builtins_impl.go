@@ -29,6 +29,7 @@ func init() {
 	MustRegister(&SequenceBuiltin{})
 	MustRegister(&TemplateBuiltin{})
 	MustRegister(&FileSendBuiltin{})
+	MustRegister(&FileWriteBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -654,4 +655,90 @@ func (b *FileSendBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action,
 		},
 	})
 }
+
+// FileWriteBuiltin writes a message (or a rendered template) to a local file.
+type FileWriteBuiltin struct{}
+
+func (b *FileWriteBuiltin) Name() string { return "file-write" }
+func (b *FileWriteBuiltin) Description() string {
+	return "Write the message or a template-rendered variant to a file."
+}
+func (b *FileWriteBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *FileWriteBuiltin) Validate(a Action) error {
+	if a.Path == "" {
+		return fmt.Errorf("builtin file-write missing path")
+	}
+	if a.Mode != "" {
+		m := strings.ToLower(a.Mode)
+		if m != "overwrite" && m != "append" {
+			return fmt.Errorf("builtin file-write: invalid mode %q (must be 'overwrite' or 'append')", a.Mode)
+		}
+	}
+	return nil
+}
+
+func (b *FileWriteBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	// 1. Resolve path (render if template)
+	filePath, err := d.templateEngine.Execute("file-path", a.Path, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in file path expression: %w", err)
+	}
+	filePath = strings.TrimSpace(filePath)
+	if filePath == "" {
+		return fmt.Errorf("builtin file-write: file path evaluates to empty string")
+	}
+
+	// 2. Resolve relative path using BaseDir from Action
+	resolvedPath := filePath
+	if !filepath.IsAbs(filePath) && a.BaseDir != "" {
+		resolvedPath = filepath.Join(a.BaseDir, filePath)
+	}
+
+	// 3. Resolve content
+	var content []byte
+	if a.Content != "" {
+		res, err := d.templateEngine.Execute("file-content", a.Content, tmplCtx)
+		if err != nil {
+			return fmt.Errorf("template error in file content expression: %w", err)
+		}
+		content = []byte(res)
+	} else {
+		// Use original message content
+		content = tmplCtx.MessageBytes
+	}
+
+	// 4. Create parent directories
+	dir := filepath.Dir(resolvedPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("creating directory %s: %w", dir, err)
+	}
+
+	// 5. Open file
+	flags := os.O_CREATE | os.O_WRONLY
+	if strings.ToLower(a.Mode) == "append" {
+		flags |= os.O_APPEND
+	} else {
+		flags |= os.O_TRUNC
+	}
+
+	f, err := os.OpenFile(resolvedPath, flags, 0644)
+	if err != nil {
+		return fmt.Errorf("opening file %s: %w", resolvedPath, err)
+	}
+	defer f.Close()
+
+	// 6. Write content
+	if _, err := f.Write(content); err != nil {
+		return fmt.Errorf("writing to file %s: %w", resolvedPath, err)
+	}
+
+	if d.verbose {
+		d.errorf("  [handler] file-write: wrote %d bytes to %s (mode=%s, resolved=%s)\n",
+			len(content), filePath, strings.ToLower(a.Mode), resolvedPath)
+	}
+
+	return nil
+}
+
 

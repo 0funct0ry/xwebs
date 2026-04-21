@@ -561,11 +561,11 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("  -s, --sequential          Run handler actions sequentially\n")
 				r.Printf("  -l, --rate-limit <limit>  Rate limit (e.g. '10/s')\n")
 				r.Printf("  -d, --debounce <duration> Debounce time (e.g. '500ms')\n")
-				r.Printf("      --responses <list>    Comma-separated list of responses for 'sequence'\n")
-				r.Printf("      --loop                Cycle 'sequence' responses (default false)\n")
-				r.Printf("      --per-client          Track 'sequence' index per client (default false)\n")
 				r.Printf("      --file <path>         File path for 'template' builtin\n")
-				r.Printf("      --mode <type>         Mode for builtin actions (text|binary)\n")
+				r.Printf("      --path <path>         File path for 'file-write' builtin\n")
+				r.Printf("      --content <template>  Content template for 'file-write' builtin\n")
+				r.Printf("      --mode <type>         Mode for 'file-send' (text|binary) or 'file-write' (overwrite|append)\n")
+				r.Printf("      --responses <list>    Responses for 'sequence' builtin (repeatable)\n")
 				r.Printf("      --on-error <tmpl>     Response template to send back on error\n")
 				return nil
 			}
@@ -575,7 +575,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 				fs.SetOutput(r.Stdout())
 
-				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, mode string
+				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode string
 				var responses []string
 				var priority int
 				var exclusive, sequential, loop, perClient bool
@@ -599,7 +599,9 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.BoolVar(&loop, "loop", false, "Loop sequence")
 				fs.BoolVar(&perClient, "per-client", false, "Track per client")
 				fs.StringVar(&file, "file", "", "Template file path for template builtin")
-				fs.StringVar(&mode, "mode", "", "Mode for builtin actions")
+				fs.StringVar(&path, "path", "", "Path for file-write")
+				fs.StringVar(&content, "content", "", "Content for file-write")
+				fs.StringVar(&mode, "mode", "", "Mode (text|binary or overwrite|append)")
 
 				if err := fs.Parse(args[1:]); err != nil {
 					return fmt.Errorf("parsing flags: %w", err)
@@ -634,6 +636,8 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					Loop:       loop,
 					PerClient:  perClient,
 					File:       file,
+					Path:       path,
+					Content:    content,
 					Mode:       mode,
 				}
 

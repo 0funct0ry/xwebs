@@ -43,6 +43,8 @@ type Handler struct {
 	Responses    []string               `yaml:"responses,omitempty"`  // For sequence builtin
 	Loop         bool                   `yaml:"loop,omitempty"`       // For sequence builtin
 	PerClient    bool                   `yaml:"per_client,omitempty"` // For sequence builtin
+	Path         string                 `yaml:"path,omitempty"`       // For file-write builtin
+	Content      string                 `yaml:"content,omitempty"`    // For file-write builtin
 	Actions      []Action               `yaml:"actions,omitempty"`
 	Variables    map[string]interface{} `yaml:"variables,omitempty"`
 	OnConnect    []Action               `yaml:"on_connect,omitempty"`
@@ -81,6 +83,8 @@ type PipelineStep struct {
 	Loop        bool     `yaml:"loop,omitempty"`       // For sequence builtin
 	PerClient   bool     `yaml:"per_client,omitempty"` // For sequence builtin
 	File        string   `yaml:"file,omitempty"`       // For template builtin
+	Path        string   `yaml:"path,omitempty"`       // For file-write builtin
+	Content     string   `yaml:"content,omitempty"`    // For file-write builtin
 	Mode        string   `yaml:"mode,omitempty"`       // For file-send builtin
 	IgnoreError bool     `yaml:"ignore_error,omitempty"`
 }
@@ -143,6 +147,8 @@ type Action struct {
 	Loop        bool              `yaml:"loop,omitempty"`
 	PerClient   bool              `yaml:"per_client,omitempty"`
 	File        string            `yaml:"file,omitempty"` // For template builtin
+	Path        string            `yaml:"path,omitempty"` // For file-write builtin
+	Content     string            `yaml:"content,omitempty"` // For file-write builtin
 	Mode        string            `yaml:"mode,omitempty"` // For file-send builtin
 	BaseDir     string            `yaml:"-"`              // For relative path resolution in builtins
 	HandlerName string            `yaml:"-"`              // Internal use only
@@ -273,6 +279,8 @@ func (c *Config) Validate(mode RegistryMode) error {
 				Loop:      h.Loop,
 				PerClient: h.PerClient,
 				File:      h.File,
+				Path:      h.Path,
+				Content:   h.Content,
 				Mode:      h.Mode,
 			}
 			if err := bh.Validate(tmpAction); err != nil {

@@ -545,6 +545,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `sequence`| Shared | Cycles through a list of responses in order. |
 | `template`| Shared | Renders a response from an external template file (supports live-reload). |
 | `file-send`| Client | Sends a local file as a WebSocket message (text or binary). |
+| `file-write`| Shared | Persists a message or rendered template to a local file. |
 
 **Validation Features:**
 - **Unknown Builtins**: Using an unknown builtin name in handler configuration causes an immediate startup error.
@@ -624,6 +625,16 @@ handlers:
     builtin: file-send
     file: "logs/session_{{now | formatTime \"20060102\"}}.log"
     mode: text
+
+  # File-Write Example (Shared)
+  - name: archive-trades
+    match:
+      jq: '.type == "trade"'
+    builtin: file-write
+    path: "archive/trades_{{.Timestamp.Format \"2006-01-02\"}}.jsonl"
+    content: "{{.Message}}\n"
+    mode: append
+
 ```
 
 Topic pub-sub example session:

@@ -1314,7 +1314,9 @@ func (r *REPL) RegisterCommonCommands() {
 				r.Printf("  --rate-limit <limit>  Rate limit (e.g. '10/s')\n")
 				r.Printf("  --debounce <duration> Debounce time (e.g. '500ms')\n")
 				r.Printf("  --file <path>         File path for 'file-send' or 'template' builtin\n")
-				r.Printf("  --mode <type>         Mode for 'file-send' (text|binary)\n")
+				r.Printf("  --path <path>         File path for 'file-write' builtin\n")
+				r.Printf("  --content <template>  Content template for 'file-write' builtin\n")
+				r.Printf("  --mode <type>         Mode for 'file-send' (text|binary) or 'file-write' (overwrite|append)\n")
 				r.Printf("  --responses <list>    Responses for 'sequence' builtin (repeatable)\n")
 				r.Printf("  --loop                Loop the sequence\n")
 				r.Printf("  --per-client          Track sequence position independently per client\n")
@@ -1497,11 +1499,13 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.BoolVarP(&sequential, "sequential", "s", false, "Run actions sequentially")
 			fs.StringVarP(&rateLimit, "rate-limit", "l", "", "Rate limit")
 			fs.StringVarP(&debounce, "debounce", "d", "", "Debounce duration")
-			var file, mode string
+			var file, path, content, mode string
 			var responses []string
 			var loop, perClient bool
 			fs.StringVar(&file, "file", "", "File path")
-			fs.StringVar(&mode, "mode", "", "File mode (text|binary)")
+			fs.StringVar(&path, "path", "", "Path for file-write")
+			fs.StringVar(&content, "content", "", "Content for file-write")
+			fs.StringVar(&mode, "mode", "", "Mode (text|binary or overwrite|append)")
 			fs.StringArrayVar(&responses, "responses", nil, "Sequence responses")
 			fs.BoolVar(&loop, "loop", false, "Loop sequence")
 			fs.BoolVar(&perClient, "per-client", false, "Track per client")
@@ -1536,6 +1540,8 @@ func (r *REPL) RegisterCommonCommands() {
 				RateLimit: rateLimit,
 				Debounce:  debounce,
 				File:      file,
+				Path:      path,
+				Content:   content,
 				Mode:      mode,
 				Responses: responses,
 				Loop:      loop,
