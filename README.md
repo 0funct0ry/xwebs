@@ -509,6 +509,8 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `--burst <n>`          |       | Burst size for 'rate-limit' builtin                                        |
 | `--scope <type>`        |       | Scope for 'rate-limit' builtin (client, global, handler)                   |
 | `--on-limit <tmpl>`     |       | Response template for rate limit rejection                                 |
+| `--duration <dur>`     |       | Duration for `delay` builtin (supports templates, e.g. `1s`, `{{.Msg.Data.wait}}`) |
+| `--max <dur>`          |       | Max cap for `delay` builtin duration                                       |
 
 Example — add pub-sub handlers directly from the REPL:
 
@@ -551,6 +553,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `file-send`| Client | Sends a local file as a WebSocket message (text or binary). |
 | `file-write`| Shared | Persists a message or rendered template to a local file. |
 | `rate-limit`| Shared | Enforces a per-client, global, or handler-level message rate. |
+| `delay`| Shared | Pauses handler execution for a configurable duration (supports templates and max cap). |
 
 **Validation Features:**
 - **Unknown Builtins**: Using an unknown builtin name in handler configuration causes an immediate startup error.
@@ -649,6 +652,14 @@ handlers:
         scope: client
         on_limit: "Too fast! Wait {{.RetryAfter | printf \"%.1f\"}}s"
       - builtin: echo
+
+  # Delay Example
+  - name: simulate-latency
+    match: "slow-request"
+    builtin: delay
+    duration: "{{.Message | jq \".latency\" | default \"1s\"}}"
+    max: "5s"
+    respond: "Response after simulated delay"
 
 ```
 

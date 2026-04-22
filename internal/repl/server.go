@@ -571,6 +571,8 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("      --mode <type>         Mode for 'file-send' (text|binary) or 'file-write' (overwrite|append)\n")
 				r.Printf("      --responses <list>    Responses for 'sequence' builtin (repeatable)\n")
 				r.Printf("      --on-error <tmpl>     Response template to send back on error\n")
+				r.Printf("      --duration <duration> Duration for 'delay' builtin (e.g. '2s', '500ms', template)\n")
+				r.Printf("      --max <duration>      Max cap for 'delay' builtin duration\n")
 				return nil
 			}
 
@@ -579,7 +581,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 				fs.SetOutput(r.Stdout())
 
-				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit string
+				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max string
 				var responses []string
 				var priority, burst int
 				var exclusive, sequential, loop, perClient bool
@@ -610,6 +612,8 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.IntVar(&burst, "burst", 0, "Burst size for rate-limit builtin")
 				fs.StringVar(&scope, "scope", "", "Scope for rate-limit builtin")
 				fs.StringVar(&onLimit, "on-limit", "", "Response template for rate limit")
+				fs.StringVar(&duration, "duration", "", "Duration for delay builtin (e.g. '2s', '500ms', template)")
+				fs.StringVar(&max, "max", "", "Max cap for delay builtin duration")
 
 				if err := fs.Parse(args[1:]); err != nil {
 					return fmt.Errorf("parsing flags: %w", err)
@@ -651,6 +655,8 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					Burst:      burst,
 					Scope:      scope,
 					OnLimit:    onLimit,
+					Duration:   duration,
+					Max:        max,
 				}
 
 				if sequential {

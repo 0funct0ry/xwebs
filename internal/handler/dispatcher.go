@@ -457,6 +457,8 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 				Burst:       h.Burst,
 				Scope:       h.Scope,
 				OnLimit:     h.OnLimit,
+				Duration:    h.Duration,
+				Max:         h.Max,
 				BaseDir:     h.BaseDir,
 				HandlerName: h.Name,
 			}
@@ -526,6 +528,8 @@ func (d *Dispatcher) executePipeline(ctx context.Context, handlerName string, pi
 			action.Burst = step.Burst
 			action.Scope = step.Scope
 			action.OnLimit = step.OnLimit
+			action.Duration = step.Duration
+			action.Max = step.Max
 			action.BaseDir = d.registry.GetHandlerBaseDir(handlerName)
 			action.HandlerName = handlerName
 		}

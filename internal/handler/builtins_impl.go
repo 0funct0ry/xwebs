@@ -31,6 +31,7 @@ func init() {
 	MustRegister(&FileSendBuiltin{})
 	MustRegister(&FileWriteBuiltin{})
 	MustRegister(&RateLimitBuiltin{})
+	MustRegister(&DelayBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -849,4 +850,78 @@ func (b *RateLimitBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action
 	return nil
 }
 
+// DelayBuiltin pauses handler execution for a configurable duration, optionally
+// capped by a max: value to guard against malicious or misconfigured inputs.
+// After the delay, any respond: template is sent naturally by ExecuteAction.
+type DelayBuiltin struct{}
 
+func (b *DelayBuiltin) Name() string        { return "delay" }
+func (b *DelayBuiltin) Description() string { return "Pause handler execution for a configurable duration before sending a response." }
+func (b *DelayBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *DelayBuiltin) Validate(a Action) error {
+	if a.Duration == "" {
+		return fmt.Errorf("builtin delay: missing 'duration'")
+	}
+	// Static duration strings are validated at config-load time.
+	// Template expressions are only resolvable at runtime, so we skip them here.
+	if !strings.Contains(a.Duration, "{{") {
+		if _, err := time.ParseDuration(a.Duration); err != nil {
+			return fmt.Errorf("builtin delay: invalid duration %q: %w", a.Duration, err)
+		}
+	}
+	if a.Max != "" && !strings.Contains(a.Max, "{{") {
+		if _, err := time.ParseDuration(a.Max); err != nil {
+			return fmt.Errorf("builtin delay: invalid max %q: %w", a.Max, err)
+		}
+	}
+	return nil
+}
+
+func (b *DelayBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	// 1. Render the duration field (may be a template expression)
+	durStr, err := d.templateEngine.Execute("delay-duration", a.Duration, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("builtin delay: template error in duration: %w", err)
+	}
+	durStr = strings.TrimSpace(durStr)
+	if durStr == "" {
+		return fmt.Errorf("builtin delay: duration evaluates to empty string")
+	}
+
+	dur, err := time.ParseDuration(durStr)
+	if err != nil {
+		return fmt.Errorf("builtin delay: invalid duration %q: %w", durStr, err)
+	}
+	if dur < 0 {
+		return fmt.Errorf("builtin delay: duration must be non-negative, got %v", dur)
+	}
+
+	// 2. Apply the max cap if specified
+	if a.Max != "" {
+		maxStr, err := d.templateEngine.Execute("delay-max", a.Max, tmplCtx)
+		if err == nil {
+			maxStr = strings.TrimSpace(maxStr)
+			if maxDur, err := time.ParseDuration(maxStr); err == nil && maxDur > 0 && dur > maxDur {
+				if d.verbose {
+					d.errorf("  [handler] builtin delay: capping %v to max %v\n", dur, maxDur)
+				}
+				dur = maxDur
+			}
+		}
+	}
+
+	if d.verbose {
+		d.errorf("  [handler] builtin delay: sleeping for %v\n", dur)
+	}
+
+	// 3. Sleep, honouring context cancellation so other connections are not affected
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(dur):
+		// Delay elapsed — respond: (if any) is handled by ExecuteAction
+	}
+
+	return nil
+}

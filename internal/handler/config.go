@@ -45,6 +45,8 @@ type Handler struct {
 	PerClient    bool                   `yaml:"per_client,omitempty"` // For sequence builtin
 	Path         string                 `yaml:"path,omitempty"`       // For file-write builtin
 	Content      string                 `yaml:"content,omitempty"`    // For file-write builtin
+	Duration     string                 `yaml:"duration,omitempty"`   // For delay builtin (supports templates)
+	Max          string                 `yaml:"max,omitempty"`        // For delay builtin — cap on dynamic duration
 	Actions      []Action               `yaml:"actions,omitempty"`
 	Variables    map[string]interface{} `yaml:"variables,omitempty"`
 	OnConnect    []Action               `yaml:"on_connect,omitempty"`
@@ -95,6 +97,8 @@ type PipelineStep struct {
 	Burst       int      `yaml:"burst,omitempty"`      // For rate-limit builtin
 	Scope       string   `yaml:"scope,omitempty"`      // For rate-limit builtin
 	OnLimit     string   `yaml:"on_limit,omitempty"`   // For rate-limit builtin
+	Duration    string   `yaml:"duration,omitempty"`   // For delay builtin (supports templates)
+	Max         string   `yaml:"max,omitempty"`        // For delay builtin — cap on dynamic duration
 }
 
 // Matcher specifies how to match an incoming WebSocket message.
@@ -162,6 +166,8 @@ type Action struct {
 	Burst       int               `yaml:"burst,omitempty"` // For rate-limit builtin
 	Scope       string            `yaml:"scope,omitempty"` // For rate-limit builtin
 	OnLimit     string            `yaml:"on_limit,omitempty"` // For rate-limit builtin
+	Duration    string            `yaml:"duration,omitempty"` // For delay builtin (supports templates)
+	Max         string            `yaml:"max,omitempty"`      // For delay builtin — cap on dynamic duration
 	BaseDir     string            `yaml:"-"`              // For relative path resolution in builtins
 	HandlerName string            `yaml:"-"`              // Internal use only
 }
@@ -298,6 +304,8 @@ func (c *Config) Validate(mode RegistryMode) error {
 				Burst:     h.Burst,
 				Scope:     h.Scope,
 				OnLimit:   h.OnLimit,
+				Duration:  h.Duration,
+				Max:       h.Max,
 			}
 			if err := bh.Validate(tmpAction); err != nil {
 				return fmt.Errorf("handler %q: %w", h.Name, err)
