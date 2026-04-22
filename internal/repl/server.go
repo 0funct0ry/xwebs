@@ -575,6 +575,11 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("      --max <duration>      Max cap for 'delay' builtin duration\n")
 				r.Printf("      --code <code>         Close code for 'close' builtin (e.g. 1000, template)\n")
 				r.Printf("      --reason <reason>     Close reason for 'close' builtin (supports templates)\n")
+				r.Printf("      --url <url>           URL for 'http' builtin\n")
+				r.Printf("      --method <method>     Method for 'http' builtin (GET, POST, etc.)\n")
+				r.Printf("      --header <key:val>    Headers for 'http' builtin (repeatable)\n")
+				r.Printf("      --body <template>     Body for 'http' builtin\n")
+				r.Printf("      --timeout <duration>  Timeout for 'http' builtin (e.g. '5s')\n")
 				return nil
 			}
 
@@ -583,8 +588,8 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 				fs.SetOutput(r.Stdout())
 
-				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason string
-				var responses []string
+				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout string
+				var responses, headers []string
 				var priority, burst int
 				var exclusive, sequential, loop, perClient bool
 
@@ -618,6 +623,11 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.StringVar(&max, "max", "", "Max cap for delay builtin duration")
 				fs.StringVar(&code, "code", "", "Close code for close builtin")
 				fs.StringVar(&reason, "reason", "", "Close reason for close builtin")
+				fs.StringVar(&url, "url", "", "URL for http builtin")
+				fs.StringVar(&method, "method", "", "Method for http builtin")
+				fs.StringArrayVar(&headers, "header", nil, "Headers for http builtin (key:value)")
+				fs.StringVar(&body, "body", "", "Body for http builtin")
+				fs.StringVar(&timeout, "timeout", "", "Timeout for http builtin")
 
 				if err := fs.Parse(args[1:]); err != nil {
 					return fmt.Errorf("parsing flags: %w", err)
@@ -663,6 +673,20 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					Max:        max,
 					Code:       code,
 					Reason:     reason,
+					URL:        url,
+					Method:     method,
+					Body:       body,
+					Timeout:    timeout,
+				}
+
+				if len(headers) > 0 {
+					h.Headers = make(map[string]string)
+					for _, hdr := range headers {
+						parts := strings.SplitN(hdr, ":", 2)
+						if len(parts) == 2 {
+							h.Headers[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+						}
+					}
 				}
 
 				if sequential {

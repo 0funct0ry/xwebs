@@ -513,6 +513,11 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `--max <dur>`          |       | Max cap for `delay` builtin duration                                       |
 | `--code <code>`        |       | Close code for `close` builtin (e.g. 1000, 4000, template)                 |
 | `--reason <tmpl>`      |       | Close reason for `close` builtin (supports templates)                      |
+| `--url <url>`          |       | URL for `http` builtin (supports templates)                                |
+| `--method <method>`    |       | Method for `http` builtin (GET, POST, etc., supports templates)           |
+| `--header <key:val>`   |       | HTTP headers for `http` builtin (repeatable, supports templates)           |
+| `--body <template>`    |       | Request body for `http` builtin (supports templates)                       |
+| `--timeout <dur>`      |       | Request timeout for `http` builtin (e.g. `5s`)                             |
 
 Example — add pub-sub handlers directly from the REPL:
 
@@ -558,6 +563,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `delay`| Shared | Pauses handler execution for a configurable duration (supports templates and max cap). |
 | `drop` | Shared | Silently discards the current message and stops further processing. |
 | `close` | Shared | Terminates the current connection with an optional code and reason. |
+| `http` | Shared | Makes an outbound HTTP request; response status/body are available in context. |
 
 **Validation Features:**
 - **Unknown Builtins**: Using an unknown builtin name in handler configuration causes an immediate startup error.
@@ -675,6 +681,19 @@ handlers:
     builtin: close
     code: 4001
     reason: "Evicted for abuse from {{.Conn.RemoteAddr}}"
+
+  # HTTP Integration Example
+  - name: webhook-notify
+    match:
+      jq: '.event == "alert"'
+    builtin: http
+    url: "https://api.notify.me/webhook"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+      X-API-Key: "{{kv \"api_key\"}}"
+    body: '{"alert": "{{.Message | jq ".data"}}", "from": "{{.Conn.ID}}"}'
+    respond: "Webhook sent! Status: {{.HttpStatus}}, Response: {{.HttpBody}}"
 
 ```
 

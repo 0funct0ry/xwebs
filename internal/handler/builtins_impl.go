@@ -3,6 +3,8 @@ package handler
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -35,6 +37,7 @@ func init() {
 	MustRegister(&DelayBuiltin{})
 	MustRegister(&DropBuiltin{})
 	MustRegister(&CloseBuiltin{})
+	MustRegister(&HttpBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -1008,4 +1011,108 @@ func (b *CloseBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tm
 	}
 
 	return d.conn.CloseWithCode(code, reason)
+}
+
+// HttpBuiltin makes an outbound HTTP request.
+type HttpBuiltin struct{}
+
+func (b *HttpBuiltin) Name() string { return "http" }
+func (b *HttpBuiltin) Description() string {
+	return "Make an outbound HTTP request."
+}
+func (b *HttpBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *HttpBuiltin) Validate(a Action) error {
+	if a.URL == "" {
+		return fmt.Errorf("builtin http missing url")
+	}
+	return nil
+}
+
+func (b *HttpBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	// 1. Resolve URL
+	urlStr, err := d.templateEngine.Execute("http-url", a.URL, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in url expression: %w", err)
+	}
+	urlStr = strings.TrimSpace(urlStr)
+	if urlStr == "" {
+		return fmt.Errorf("builtin http: url evaluates to empty string")
+	}
+
+	// 2. Resolve Method (default GET)
+	method := "GET"
+	if a.Method != "" {
+		m, err := d.templateEngine.Execute("http-method", a.Method, tmplCtx)
+		if err == nil && m != "" {
+			method = strings.ToUpper(strings.TrimSpace(m))
+		}
+	}
+
+	// 3. Resolve Body
+	var bodyReader io.Reader
+	if a.Body != "" {
+		bodyStr, err := d.templateEngine.Execute("http-body", a.Body, tmplCtx)
+		if err != nil {
+			return fmt.Errorf("template error in body expression: %w", err)
+		}
+		bodyReader = strings.NewReader(bodyStr)
+	}
+
+	// 4. Create Request
+	req, err := http.NewRequestWithContext(ctx, method, urlStr, bodyReader)
+	if err != nil {
+		return fmt.Errorf("failed to create http request: %w", err)
+	}
+
+	// 5. Add Headers
+	if a.Headers != nil {
+		for k, v := range a.Headers {
+			evalK, _ := d.templateEngine.Execute("http-header-key", k, tmplCtx)
+			evalV, _ := d.templateEngine.Execute("http-header-value", v, tmplCtx)
+			if evalK != "" {
+				req.Header.Set(evalK, evalV)
+			}
+		}
+	}
+
+	// 6. Set Timeout
+	timeout := 10 * time.Second
+	if a.Timeout != "" {
+		if t, err := time.ParseDuration(a.Timeout); err == nil {
+			timeout = t
+		}
+	}
+
+	client := &http.Client{
+		Timeout: timeout,
+	}
+
+	// 7. Execute Request
+	if d.verbose {
+		d.errorf("  [handler] http: %s %s (timeout: %v)\n", method, urlStr, timeout)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		// Network errors trigger on_error (by returning error here)
+		return fmt.Errorf("http request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// 8. Read Response Body
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read http response body: %w", err)
+	}
+
+	// 9. Update Context
+	tmplCtx.HttpStatus = resp.StatusCode
+	tmplCtx.HttpBody = string(respBody)
+
+	if d.verbose {
+		d.errorf("  [handler] http: received status %d (%d bytes)\n", resp.StatusCode, len(respBody))
+	}
+
+	return nil
 }

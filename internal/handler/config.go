@@ -57,6 +57,10 @@ type Handler struct {
 	OnErrorMsg   string                 `yaml:"on_error_msg,omitempty"` // Shorthand for on_error send: template
 	File         string                 `yaml:"file,omitempty"`         // For template builtin
 	Mode         string                 `yaml:"mode,omitempty"`         // For file-send builtin
+	URL          string                 `yaml:"url,omitempty"`          // For http builtin
+	Method       string                 `yaml:"method,omitempty"`       // For http builtin
+	Headers      map[string]string      `yaml:"headers,omitempty"`      // For http builtin
+	Body         string                 `yaml:"body,omitempty"`         // For http builtin
 	Rate         string                 `yaml:"rate,omitempty"`         // For rate-limit builtin
 	Burst        int                    `yaml:"burst,omitempty"`        // For rate-limit builtin
 	Scope        string                 `yaml:"scope,omitempty"`        // For rate-limit builtin
@@ -76,33 +80,37 @@ type RetryConfig struct {
 type PipelineStep struct {
 	Run         string   `yaml:"run,omitempty"`
 	Builtin     string   `yaml:"builtin,omitempty"`
-	Topic       string   `yaml:"topic,omitempty"`  // Topic name (template) for subscribe/unsubscribe/publish builtins
-	Key         string   `yaml:"key,omitempty"`    // Key (template) for KV builtins
-	Value       string   `yaml:"value,omitempty"`  // Value (template) for KV builtins
-	Target      string   `yaml:"target,omitempty"` // Upstream target URL for forward builtin
-	As          string   `yaml:"as,omitempty"`     // Key to store results in .Steps.<name>
-	Timeout     string   `yaml:"timeout,omitempty"`
-	Delay       string   `yaml:"delay,omitempty"`
-	Respond     string   `yaml:"respond,omitempty"`
-	Message     string   `yaml:"message,omitempty"`    // Message content (template) for broadcast/publish builtins
-	TTL         string   `yaml:"ttl,omitempty"`        // TTL (template) for KV builtins
-	Default     string   `yaml:"default,omitempty"`    // Default value (template) for KV builtins
-	Responses   []string `yaml:"responses,omitempty"`  // For sequence builtin
-	Loop        bool     `yaml:"loop,omitempty"`       // For sequence builtin
-	PerClient   bool     `yaml:"per_client,omitempty"` // For sequence builtin
-	File        string   `yaml:"file,omitempty"`       // For template builtin
-	Path        string   `yaml:"path,omitempty"`       // For file-write builtin
-	Content     string   `yaml:"content,omitempty"`    // For file-write builtin
-	Mode        string   `yaml:"mode,omitempty"`       // For file-send builtin
-	IgnoreError bool     `yaml:"ignore_error,omitempty"`
-	Rate        string   `yaml:"rate,omitempty"`     // For rate-limit builtin
-	Burst       int      `yaml:"burst,omitempty"`    // For rate-limit builtin
-	Scope       string   `yaml:"scope,omitempty"`    // For rate-limit builtin
-	OnLimit     string   `yaml:"on_limit,omitempty"` // For rate-limit builtin
-	Duration    string   `yaml:"duration,omitempty"` // For delay builtin (supports templates)
-	Max         string   `yaml:"max,omitempty"`      // For delay builtin — cap on dynamic duration
-	Code        string   `yaml:"code,omitempty"`     // For close builtin
-	Reason      string   `yaml:"reason,omitempty"`   // For close builtin
+	Topic       string            `yaml:"topic,omitempty"`  // Topic name (template) for subscribe/unsubscribe/publish builtins
+	Key         string            `yaml:"key,omitempty"`    // Key (template) for KV builtins
+	Value       string            `yaml:"value,omitempty"`  // Value (template) for KV builtins
+	Target      string            `yaml:"target,omitempty"` // Upstream target URL for forward builtin
+	As          string            `yaml:"as,omitempty"`     // Key to store results in .Steps.<name>
+	Timeout     string            `yaml:"timeout,omitempty"`
+	Delay       string            `yaml:"delay,omitempty"`
+	Respond     string            `yaml:"respond,omitempty"`
+	Message     string            `yaml:"message,omitempty"`    // Message content (template) for broadcast/publish builtins
+	TTL         string            `yaml:"ttl,omitempty"`        // TTL (template) for KV builtins
+	Default     string            `yaml:"default,omitempty"`    // Default value (template) for KV builtins
+	Responses   []string          `yaml:"responses,omitempty"`  // For sequence builtin
+	Loop        bool              `yaml:"loop,omitempty"`       // For sequence builtin
+	PerClient   bool              `yaml:"per_client,omitempty"` // For sequence builtin
+	File        string            `yaml:"file,omitempty"`       // For template builtin
+	Path        string            `yaml:"path,omitempty"`       // For file-write builtin
+	Content     string            `yaml:"content,omitempty"`    // For file-write builtin
+	Mode        string            `yaml:"mode,omitempty"`       // For file-send builtin
+	URL         string            `yaml:"url,omitempty"`        // For http builtin
+	Method      string            `yaml:"method,omitempty"`     // For http builtin
+	Headers     map[string]string `yaml:"headers,omitempty"`    // For http builtin
+	Body        string            `yaml:"body,omitempty"`       // For http builtin
+	IgnoreError bool              `yaml:"ignore_error,omitempty"`
+	Rate        string            `yaml:"rate,omitempty"`     // For rate-limit builtin
+	Burst       int               `yaml:"burst,omitempty"`    // For rate-limit builtin
+	Scope       string            `yaml:"scope,omitempty"`    // For rate-limit builtin
+	OnLimit     string            `yaml:"on_limit,omitempty"` // For rate-limit builtin
+	Duration    string            `yaml:"duration,omitempty"` // For delay builtin (supports templates)
+	Max         string            `yaml:"max,omitempty"`      // For delay builtin — cap on dynamic duration
+	Code        string            `yaml:"code,omitempty"`     // For close builtin
+	Reason      string            `yaml:"reason,omitempty"`   // For close builtin
 }
 
 // Matcher specifies how to match an incoming WebSocket message.
@@ -165,6 +173,10 @@ type Action struct {
 	File        string            `yaml:"file,omitempty"`     // For template builtin
 	Path        string            `yaml:"path,omitempty"`     // For file-write builtin
 	Content     string            `yaml:"content,omitempty"`  // For file-write builtin
+	URL         string            `yaml:"url,omitempty"`      // For http builtin
+	Method      string            `yaml:"method,omitempty"`   // For http builtin
+	Headers     map[string]string `yaml:"headers,omitempty"`  // For http builtin
+	Body        string            `yaml:"body,omitempty"`     // For http builtin
 	Mode        string            `yaml:"mode,omitempty"`     // For file-send builtin
 	Rate        string            `yaml:"rate,omitempty"`     // For rate-limit builtin
 	Burst       int               `yaml:"burst,omitempty"`    // For rate-limit builtin
@@ -314,6 +326,10 @@ func (c *Config) Validate(mode RegistryMode) error {
 				Max:       h.Max,
 				Code:      h.Code,
 				Reason:    h.Reason,
+				URL:       h.URL,
+				Method:    h.Method,
+				Headers:   h.Headers,
+				Body:      h.Body,
 			}
 			if err := bh.Validate(tmpAction); err != nil {
 				return fmt.Errorf("handler %q: %w", h.Name, err)

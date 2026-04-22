@@ -1322,6 +1322,11 @@ func (r *REPL) RegisterCommonCommands() {
 				r.Printf("  --per-client          Track sequence position independently per client\n")
 				r.Printf("  --code <code>         Close code for 'close' builtin (e.g. 1000, template)\n")
 				r.Printf("  --reason <reason>     Close reason for 'close' builtin (supports templates)\n")
+				r.Printf("  --url <url>           URL for 'http' builtin\n")
+				r.Printf("  --method <method>     Method for 'http' builtin (GET, POST, etc.)\n")
+				r.Printf("  --header <key:val>    Headers for 'http' builtin (repeatable)\n")
+				r.Printf("  --body <template>     Body for 'http' builtin\n")
+				r.Printf("  --timeout <duration>  Timeout for 'http' builtin (e.g. '5s')\n")
 				return nil
 			}
 
@@ -1513,6 +1518,13 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.StringArrayVar(&responses, "responses", nil, "Sequence responses")
 			fs.BoolVar(&loop, "loop", false, "Loop sequence")
 			fs.BoolVar(&perClient, "per-client", false, "Track per client")
+			var url, method, body, timeout string
+			var headers []string
+			fs.StringVar(&url, "url", "", "URL for http builtin")
+			fs.StringVar(&method, "method", "", "Method for http builtin")
+			fs.StringArrayVar(&headers, "header", nil, "Headers for http builtin (key:value)")
+			fs.StringVar(&body, "body", "", "Body for http builtin")
+			fs.StringVar(&timeout, "timeout", "", "Timeout for http builtin")
 
 			if err := fs.Parse(args[1:]); err != nil {
 				return fmt.Errorf("parsing flags: %w", err)
@@ -1548,10 +1560,24 @@ func (r *REPL) RegisterCommonCommands() {
 				File:      file,
 				Path:      path,
 				Content:   content,
+				URL:       url,
+				Method:    method,
+				Body:      body,
+				Timeout:   timeout,
 				Mode:      mode,
 				Responses: responses,
 				Loop:      loop,
 				PerClient: perClient,
+			}
+
+			if len(headers) > 0 {
+				h.Headers = make(map[string]string)
+				for _, hdr := range headers {
+					parts := strings.SplitN(hdr, ":", 2)
+					if len(parts) == 2 {
+						h.Headers[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+					}
+				}
 			}
 
 			if sequential {
