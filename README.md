@@ -505,6 +505,10 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `--responses <val>`     |       | Add a response to the `sequence` builtin (repeat for multiple steps)       |
 | `--loop`               |       | Loop the sequence (restart after last item)                               |
 | `--per-client`         |       | Track sequence position independently per client connection                |
+| `--rate <template>`    |       | Rate for 'rate-limit' builtin (e.g. '10/s', '{{kv "limit"}}')              |
+| `--burst <n>`          |       | Burst size for 'rate-limit' builtin                                        |
+| `--scope <type>`        |       | Scope for 'rate-limit' builtin (client, global, handler)                   |
+| `--on-limit <tmpl>`     |       | Response template for rate limit rejection                                 |
 
 Example — add pub-sub handlers directly from the REPL:
 
@@ -546,6 +550,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `template`| Shared | Renders a response from an external template file (supports live-reload). |
 | `file-send`| Client | Sends a local file as a WebSocket message (text or binary). |
 | `file-write`| Shared | Persists a message or rendered template to a local file. |
+| `rate-limit`| Shared | Enforces a per-client, global, or handler-level message rate. |
 
 **Validation Features:**
 - **Unknown Builtins**: Using an unknown builtin name in handler configuration causes an immediate startup error.
@@ -634,6 +639,16 @@ handlers:
     path: "archive/trades_{{.Timestamp.Format \"2006-01-02\"}}.jsonl"
     content: "{{.Message}}\n"
     mode: append
+
+  # Rate-Limit Example (Gate Builtin)
+  - name: protected-echo
+    match: "*"
+    pipeline:
+      - builtin: rate-limit
+        rate: "10/s"
+        scope: client
+        on_limit: "Too fast! Wait {{.RetryAfter | printf \"%.1f\"}}s"
+      - builtin: echo
 
 ```
 

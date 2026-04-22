@@ -10,6 +10,9 @@ import (
 	"github.com/0funct0ry/xwebs/internal/template"
 )
 
+// ErrLimitExceeded is returned by the rate-limit builtin when a message is rejected.
+var ErrLimitExceeded = fmt.Errorf("rate limit exceeded")
+
 // BuiltinScope defines where a builtin action is allowed to run.
 type BuiltinScope string
 

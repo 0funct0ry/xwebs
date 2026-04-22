@@ -71,6 +71,9 @@ type Registry struct {
 	disabled              map[string]bool
 	sequenceIndices      map[string]int              // handlerName -> index
 	sequenceClientIndices map[string]map[string]int   // handlerName -> connID -> index
+	scopedLimiters        map[string]*rate.Limiter    // key -> limiter
+	scopedLimiterRates    map[string]string          // key -> rateStr
+	scopedLimiterBursts   map[string]int             // key -> burst
 	Mode                 RegistryMode
 	mu                   sync.RWMutex
 }
@@ -93,6 +96,9 @@ func NewRegistry(mode RegistryMode) *Registry {
 		disabled:   make(map[string]bool),
 		sequenceIndices:      make(map[string]int),
 		sequenceClientIndices: make(map[string]map[string]int),
+		scopedLimiters:        make(map[string]*rate.Limiter),
+		scopedLimiterRates:    make(map[string]string),
+		scopedLimiterBursts:   make(map[string]int),
 		Mode:       mode,
 		global: RegistryStats{
 			maxSlowLog: 50,
@@ -180,6 +186,15 @@ func (r *Registry) UpdateHandler(h Handler) error {
 		d.mu.Unlock()
 		delete(r.debouncers, h.Name)
 	}
+	
+	// Clean up scoped limiters for this handler
+	for k := range r.scopedLimiters {
+		if strings.HasPrefix(k, "handler:"+h.Name+":") || strings.HasPrefix(k, "client:"+h.Name+":") {
+			delete(r.scopedLimiters, k)
+			delete(r.scopedLimiterRates, k)
+			delete(r.scopedLimiterBursts, k)
+		}
+	}
 
 	r.handlers[index] = h
 	r.sort()
@@ -229,6 +244,9 @@ func (r *Registry) ReplaceHandlers(handlers []Handler) error {
 	r.disabled = make(map[string]bool)
 	r.sequenceIndices = make(map[string]int)
 	r.sequenceClientIndices = make(map[string]map[string]int)
+	r.scopedLimiters = make(map[string]*rate.Limiter)
+	r.scopedLimiterRates = make(map[string]string)
+	r.scopedLimiterBursts = make(map[string]int)
 
 	r.handlers = handlers
 	r.sort()
@@ -1073,4 +1091,52 @@ func (r *Registry) ResetSequence(name string) {
 
 	delete(r.sequenceIndices, name)
 	delete(r.sequenceClientIndices, name)
+}
+
+// GetScopedLimiter returns or creates a limiter based on the given key and rate parameters.
+func (r *Registry) GetScopedLimiter(key, rateStr string, burst int) *rate.Limiter {
+	r.mu.RLock()
+	limiter, ok := r.scopedLimiters[key]
+	oldRate := r.scopedLimiterRates[key]
+	oldBurst := r.scopedLimiterBursts[key]
+	r.mu.RUnlock()
+
+	if ok && oldRate == rateStr && oldBurst == burst {
+		return limiter
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Double check after lock
+	if limiter, ok = r.scopedLimiters[key]; ok {
+		if r.scopedLimiterRates[key] == rateStr && r.scopedLimiterBursts[key] == burst {
+			return limiter
+		}
+	}
+
+	// Parse and create/update
+	perSec, burstVal, err := ParseRateLimit(rateStr)
+	if err != nil {
+		return nil
+	}
+
+	// Use provided burst if positive, otherwise use parsed burst
+	if burst > 0 {
+		burstVal = burst
+	}
+
+	if limiter != nil {
+		// Update existing limiter
+		limiter.SetLimit(rate.Limit(perSec))
+		limiter.SetBurst(burstVal)
+	} else {
+		// Create new limiter
+		limiter = rate.NewLimiter(rate.Limit(perSec), burstVal)
+		r.scopedLimiters[key] = limiter
+	}
+	
+	r.scopedLimiterRates[key] = rateStr
+	r.scopedLimiterBursts[key] = burst
+	return limiter
 }

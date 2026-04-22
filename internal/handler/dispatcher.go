@@ -336,6 +336,14 @@ func (d *Dispatcher) Execute(ctx context.Context, h *Handler, msg *ws.Message, m
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		lastErr = d.executeMainActions(ctx, h, tmplCtx, msg)
 
+		// Short-circuit on rate limit exceeded
+		if lastErr == ErrLimitExceeded {
+			if d.verbose {
+				d.errorf("  [handler] short-circuiting %q due to rate limit\n", h.Name)
+			}
+			return nil
+		}
+
 		// Check for failure to trigger retry or HandleError
 		isFailure := lastErr != nil
 		// For concise models (run/builtin), we must manually check ExitCode
@@ -445,6 +453,10 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 				Path:        h.Path,
 				Content:     h.Content,
 				Mode:        h.Mode,
+				Rate:        h.Rate,
+				Burst:       h.Burst,
+				Scope:       h.Scope,
+				OnLimit:     h.OnLimit,
 				BaseDir:     h.BaseDir,
 				HandlerName: h.Name,
 			}
@@ -510,6 +522,10 @@ func (d *Dispatcher) executePipeline(ctx context.Context, handlerName string, pi
 			action.Path = step.Path
 			action.Content = step.Content
 			action.Mode = step.Mode
+			action.Rate = step.Rate
+			action.Burst = step.Burst
+			action.Scope = step.Scope
+			action.OnLimit = step.OnLimit
 			action.BaseDir = d.registry.GetHandlerBaseDir(handlerName)
 			action.HandlerName = handlerName
 		}

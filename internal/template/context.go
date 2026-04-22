@@ -162,6 +162,12 @@ type TemplateContext struct {
 
 	// Upstream Forwarding
 	ForwardReply string `json:"forward_reply,omitempty"` // Result of forward builtin
+
+	// Rate Limiting
+	RetryAfter   float64 `json:"retry_after,omitempty"`
+	RetryAfterMs int64   `json:"retry_after_ms,omitempty"`
+	RateLimit    string  `json:"rate_limit,omitempty"`
+	LimitScope   string  `json:"limit_scope,omitempty"`
 }
 
 // NewContext creates a new TemplateContext with initialized maps.

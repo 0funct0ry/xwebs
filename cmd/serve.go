@@ -193,12 +193,21 @@ Example:
   xwebs serve --handlers echo.yaml --port 9000 --path /api --path /chat
 
 Available Builtin Actions (Server):
+  broadcast      Send a message to all connected clients.
+  broadcast-others Send a message to all connected clients except the sender.
+  echo           Reflect the incoming message back to the sender.
+  file-write     Write the message or a template-rendered variant to a file.
+  forward        Forward the current message to an upstream WebSocket server.
   kv-del         Delete a key from the server's shared key-value store.
   kv-get         Retrieve a value from the server's shared key-value store into .KvValue.
+  kv-list        Retrieve all keys from the server's shared key-value store into .KvKeys.
   kv-set         Store a value in the server's shared key-value store.
   noop           A shared builtin that does nothing (useful for testing).
   publish        Publish a message to a pub/sub topic.
+  rate-limit     Enforce a per-client, global, or handler-level message rate.
+  sequence       Cycle through a list of responses in order.
   subscribe      Subscribe the current connection to a pub/sub topic.
+  template       Render a response from an external template file.
   unsubscribe    Unsubscribe the current connection from a pub/sub topic.
 `,
 	RunE: func(cmd *cobra.Command, args []string) error {

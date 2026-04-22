@@ -559,7 +559,11 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("  -M, --message <template>  Message template for broadcast or publish\n")
 				r.Printf("  -e, --exclusive           Stop further matching if this handler matches\n")
 				r.Printf("  -s, --sequential          Run handler actions sequentially\n")
-				r.Printf("  -l, --rate-limit <limit>  Rate limit (e.g. '10/s')\n")
+				r.Printf("  -l, --rate-limit <limit>  Simple rate limit (e.g. '10/s') - applies to whole handler\n")
+				r.Printf("      --rate <template>     Rate for 'rate-limit' builtin (e.g. '5/s')\n")
+				r.Printf("      --burst <n>           Burst size for 'rate-limit' builtin\n")
+				r.Printf("      --scope <type>        Scope for 'rate-limit' builtin (client, global, handler)\n")
+				r.Printf("      --on-limit <tmpl>     Response template for rate limit rejection\n")
 				r.Printf("  -d, --debounce <duration> Debounce time (e.g. '500ms')\n")
 				r.Printf("      --file <path>         File path for 'template' builtin\n")
 				r.Printf("      --path <path>         File path for 'file-write' builtin\n")
@@ -575,9 +579,9 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 				fs.SetOutput(r.Stdout())
 
-				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode string
+				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit string
 				var responses []string
-				var priority int
+				var priority, burst int
 				var exclusive, sequential, loop, perClient bool
 
 				fs.StringVarP(&name, "name", "n", "", "Name of the handler")
@@ -602,6 +606,10 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.StringVar(&path, "path", "", "Path for file-write")
 				fs.StringVar(&content, "content", "", "Content for file-write")
 				fs.StringVar(&mode, "mode", "", "Mode (text|binary or overwrite|append)")
+				fs.StringVar(&rate, "rate", "", "Rate for rate-limit builtin")
+				fs.IntVar(&burst, "burst", 0, "Burst size for rate-limit builtin")
+				fs.StringVar(&scope, "scope", "", "Scope for rate-limit builtin")
+				fs.StringVar(&onLimit, "on-limit", "", "Response template for rate limit")
 
 				if err := fs.Parse(args[1:]); err != nil {
 					return fmt.Errorf("parsing flags: %w", err)
@@ -639,6 +647,10 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					Path:       path,
 					Content:    content,
 					Mode:       mode,
+					Rate:       rate,
+					Burst:      burst,
+					Scope:      scope,
+					OnLimit:    onLimit,
 				}
 
 				if sequential {

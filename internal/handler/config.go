@@ -53,6 +53,10 @@ type Handler struct {
 	OnErrorMsg   string                 `yaml:"on_error_msg,omitempty"` // Shorthand for on_error send: template
 	File         string                 `yaml:"file,omitempty"`         // For template builtin
 	Mode         string                 `yaml:"mode,omitempty"`         // For file-send builtin
+	Rate         string                 `yaml:"rate,omitempty"`         // For rate-limit builtin
+	Burst        int                    `yaml:"burst,omitempty"`        // For rate-limit builtin
+	Scope        string                 `yaml:"scope,omitempty"`        // For rate-limit builtin
+	OnLimit      string                 `yaml:"on_limit,omitempty"`     // For rate-limit builtin
 	BaseDir      string                 `yaml:"-"`                      // Directory from which the handler was loaded
 }
 
@@ -87,6 +91,10 @@ type PipelineStep struct {
 	Content     string   `yaml:"content,omitempty"`    // For file-write builtin
 	Mode        string   `yaml:"mode,omitempty"`       // For file-send builtin
 	IgnoreError bool     `yaml:"ignore_error,omitempty"`
+	Rate        string   `yaml:"rate,omitempty"`       // For rate-limit builtin
+	Burst       int      `yaml:"burst,omitempty"`      // For rate-limit builtin
+	Scope       string   `yaml:"scope,omitempty"`      // For rate-limit builtin
+	OnLimit     string   `yaml:"on_limit,omitempty"`   // For rate-limit builtin
 }
 
 // Matcher specifies how to match an incoming WebSocket message.
@@ -150,6 +158,10 @@ type Action struct {
 	Path        string            `yaml:"path,omitempty"` // For file-write builtin
 	Content     string            `yaml:"content,omitempty"` // For file-write builtin
 	Mode        string            `yaml:"mode,omitempty"` // For file-send builtin
+	Rate        string            `yaml:"rate,omitempty"` // For rate-limit builtin
+	Burst       int               `yaml:"burst,omitempty"` // For rate-limit builtin
+	Scope       string            `yaml:"scope,omitempty"` // For rate-limit builtin
+	OnLimit     string            `yaml:"on_limit,omitempty"` // For rate-limit builtin
 	BaseDir     string            `yaml:"-"`              // For relative path resolution in builtins
 	HandlerName string            `yaml:"-"`              // Internal use only
 }
@@ -282,6 +294,10 @@ func (c *Config) Validate(mode RegistryMode) error {
 				Path:      h.Path,
 				Content:   h.Content,
 				Mode:      h.Mode,
+				Rate:      h.Rate,
+				Burst:     h.Burst,
+				Scope:     h.Scope,
+				OnLimit:   h.OnLimit,
 			}
 			if err := bh.Validate(tmpAction); err != nil {
 				return fmt.Errorf("handler %q: %w", h.Name, err)

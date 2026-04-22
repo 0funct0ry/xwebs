@@ -30,6 +30,7 @@ func init() {
 	MustRegister(&TemplateBuiltin{})
 	MustRegister(&FileSendBuiltin{})
 	MustRegister(&FileWriteBuiltin{})
+	MustRegister(&RateLimitBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -736,6 +737,113 @@ func (b *FileWriteBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action
 	if d.verbose {
 		d.errorf("  [handler] file-write: wrote %d bytes to %s (mode=%s, resolved=%s)\n",
 			len(content), filePath, strings.ToLower(a.Mode), resolvedPath)
+	}
+
+	return nil
+}
+
+// RateLimitBuiltin enforces a per-client, global, or handler-level message rate.
+type RateLimitBuiltin struct{}
+
+func (b *RateLimitBuiltin) Name() string        { return "rate-limit" }
+func (b *RateLimitBuiltin) Description() string { return "Enforce a per-client, global, or handler-level message rate." }
+func (b *RateLimitBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *RateLimitBuiltin) Validate(a Action) error {
+	if a.Rate == "" {
+		return fmt.Errorf("builtin rate-limit: missing 'rate'")
+	}
+	if a.Scope != "" {
+		s := strings.ToLower(a.Scope)
+		if s != "client" && s != "global" && s != "handler" {
+			return fmt.Errorf("builtin rate-limit: invalid scope %q (must be 'client', 'global', or 'handler')", a.Scope)
+		}
+	}
+	return nil
+}
+
+func (b *RateLimitBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	// 1. Evaluate rate template
+	rateStr, err := d.templateEngine.Execute("rate", a.Rate, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in rate expression: %w", err)
+	}
+	rateStr = strings.TrimSpace(rateStr)
+	if rateStr == "" {
+		return fmt.Errorf("builtin rate-limit: rate evaluates to empty string")
+	}
+
+	// 2. Determine scope and key
+	scope := strings.ToLower(a.Scope)
+	if scope == "" {
+		scope = "client"
+	}
+	
+	var key string
+	handlerName := a.HandlerName
+	if handlerName == "" {
+		handlerName = "anon"
+	}
+
+	switch scope {
+	case "global":
+		key = "global:ratelimit" // Shared by all rate-limit actions using "global" scope
+	case "handler":
+		key = "handler:" + handlerName
+	case "client":
+		key = "client:" + handlerName + ":" + d.conn.GetID()
+	}
+
+	// 3. Get or create limiter
+	limiter := d.registry.GetScopedLimiter(key, rateStr, a.Burst)
+	if limiter == nil {
+		return fmt.Errorf("builtin rate-limit: failed to create limiter for %q", key)
+	}
+
+	// 4. Check limit
+	if !limiter.Allow() {
+		// Calculate retry after without consuming a token permanently
+		reserve := limiter.Reserve()
+		delay := reserve.Delay()
+		reserve.Cancel()
+
+		// Populate template variables
+		retryAfter := delay.Seconds()
+		if retryAfter <= 0 {
+			// If not allowed but delay is 0, it means the rate is effectively 0 or something went wrong.
+			// Default to a small value if we can't calculate a future slot.
+			retryAfter = 1.0
+		}
+		
+		tmplCtx.RetryAfter = retryAfter
+		tmplCtx.RetryAfterMs = int64(retryAfter * 1000)
+		tmplCtx.RateLimit = rateStr
+		tmplCtx.LimitScope = scope
+
+		if d.verbose {
+			d.errorf("  [handler] rate-limit triggered: %s (scope=%s, key=%s, retry_after=%.2fs)\n", 
+				rateStr, scope, key, retryAfter)
+		}
+
+		// 5. Handle rejection response
+		if a.OnLimit != "" {
+			resp, err := d.templateEngine.Execute("on-limit", a.OnLimit, tmplCtx)
+			if err != nil {
+				d.errorf("  [handler] rate-limit: error rendering on_limit template: %v\n", err)
+			} else {
+				_ = d.conn.Write(&ws.Message{
+					Type: ws.TextMessage,
+					Data: []byte(resp),
+					Metadata: ws.MessageMetadata{
+						Direction: "sent",
+						Timestamp: time.Now(),
+					},
+				})
+			}
+		}
+
+		// 6. Short-circuit
+		return ErrLimitExceeded
 	}
 
 	return nil

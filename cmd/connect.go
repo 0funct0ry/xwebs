@@ -151,7 +151,13 @@ Example:
   xwebs connect secure-server --cert client.crt --key client.key --ca ca.crt
 
 Available Builtin Actions (Client):
+  echo           Reflect the incoming message back to the sender.
+  file-send      Send the contents of a local file as a WebSocket message.
+  file-write     Write the message or a template-rendered variant to a file.
   noop           A shared builtin that does nothing (useful for testing).
+  rate-limit     Enforce a per-client, global, or handler-level message rate.
+  sequence       Cycle through a list of responses in order.
+  template       Render a response from an external template file.
 `,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
