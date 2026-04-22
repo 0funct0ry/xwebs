@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,13 +33,17 @@ func init() {
 	MustRegister(&FileWriteBuiltin{})
 	MustRegister(&RateLimitBuiltin{})
 	MustRegister(&DelayBuiltin{})
+	MustRegister(&DropBuiltin{})
+	MustRegister(&CloseBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
 type SubscribeBuiltin struct{}
 
-func (b *SubscribeBuiltin) Name() string        { return "subscribe" }
-func (b *SubscribeBuiltin) Description() string { return "Subscribe the current connection to a pub/sub topic." }
+func (b *SubscribeBuiltin) Name() string { return "subscribe" }
+func (b *SubscribeBuiltin) Description() string {
+	return "Subscribe the current connection to a pub/sub topic."
+}
 func (b *SubscribeBuiltin) Scope() BuiltinScope { return ServerOnly }
 
 func (b *SubscribeBuiltin) Validate(a Action) error {
@@ -70,8 +75,10 @@ func (b *SubscribeBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action
 // UnsubscribeBuiltin unsubscribes the current connection from a pub/sub topic.
 type UnsubscribeBuiltin struct{}
 
-func (b *UnsubscribeBuiltin) Name() string        { return "unsubscribe" }
-func (b *UnsubscribeBuiltin) Description() string { return "Unsubscribe the current connection from a pub/sub topic." }
+func (b *UnsubscribeBuiltin) Name() string { return "unsubscribe" }
+func (b *UnsubscribeBuiltin) Description() string {
+	return "Unsubscribe the current connection from a pub/sub topic."
+}
 func (b *UnsubscribeBuiltin) Scope() BuiltinScope { return ServerOnly }
 
 func (b *UnsubscribeBuiltin) Validate(a Action) error {
@@ -155,8 +162,10 @@ func (b *PublishBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, 
 // KVSetBuiltin stores a value in the server's shared key-value store.
 type KVSetBuiltin struct{}
 
-func (b *KVSetBuiltin) Name() string        { return "kv-set" }
-func (b *KVSetBuiltin) Description() string { return "Store a value in the server's shared key-value store." }
+func (b *KVSetBuiltin) Name() string { return "kv-set" }
+func (b *KVSetBuiltin) Description() string {
+	return "Store a value in the server's shared key-value store."
+}
 func (b *KVSetBuiltin) Scope() BuiltinScope { return ServerOnly }
 
 func (b *KVSetBuiltin) Validate(a Action) error {
@@ -207,8 +216,10 @@ func (b *KVSetBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tm
 // KVGetBuiltin retrieves a value from the server's shared key-value store.
 type KVGetBuiltin struct{}
 
-func (b *KVGetBuiltin) Name() string        { return "kv-get" }
-func (b *KVGetBuiltin) Description() string { return "Retrieve a value from the server's shared key-value store into .KvValue." }
+func (b *KVGetBuiltin) Name() string { return "kv-get" }
+func (b *KVGetBuiltin) Description() string {
+	return "Retrieve a value from the server's shared key-value store into .KvValue."
+}
 func (b *KVGetBuiltin) Scope() BuiltinScope { return ServerOnly }
 
 func (b *KVGetBuiltin) Validate(a Action) error {
@@ -226,7 +237,7 @@ func (b *KVGetBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tm
 	if err != nil {
 		return fmt.Errorf("template error in kv key: %w", err)
 	}
-	
+
 	defaultVal := ""
 	if a.Default != "" {
 		if dVal, err := d.templateEngine.Execute("kv-default", a.Default, tmplCtx); err == nil {
@@ -249,8 +260,10 @@ func (b *KVGetBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tm
 // KVDelBuiltin deletes a key from the server's shared key-value store.
 type KVDelBuiltin struct{}
 
-func (b *KVDelBuiltin) Name() string        { return "kv-del" }
-func (b *KVDelBuiltin) Description() string { return "Delete a key from the server's shared key-value store." }
+func (b *KVDelBuiltin) Name() string { return "kv-del" }
+func (b *KVDelBuiltin) Description() string {
+	return "Delete a key from the server's shared key-value store."
+}
 func (b *KVDelBuiltin) Scope() BuiltinScope { return ServerOnly }
 
 func (b *KVDelBuiltin) Validate(a Action) error {
@@ -279,8 +292,10 @@ func (b *KVDelBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tm
 // KVListBuiltin retrieves all keys from the server's shared key-value store.
 type KVListBuiltin struct{}
 
-func (b *KVListBuiltin) Name() string        { return "kv-list" }
-func (b *KVListBuiltin) Description() string { return "Retrieve all keys from the server's shared key-value store into .KvKeys." }
+func (b *KVListBuiltin) Name() string { return "kv-list" }
+func (b *KVListBuiltin) Description() string {
+	return "Retrieve all keys from the server's shared key-value store into .KvKeys."
+}
 func (b *KVListBuiltin) Scope() BuiltinScope { return ServerOnly }
 
 func (b *KVListBuiltin) Validate(a Action) error { return nil }
@@ -296,7 +311,7 @@ func (b *KVListBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, t
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	
+
 	tmplCtx.KvKeys = keys
 	if d.verbose {
 		d.errorf("  [handler] kv-list: found %d keys\n", len(keys))
@@ -307,8 +322,10 @@ func (b *KVListBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, t
 // NoopBuiltin is a shared builtin that does nothing.
 type NoopBuiltin struct{}
 
-func (b *NoopBuiltin) Name() string        { return "noop" }
-func (b *NoopBuiltin) Description() string { return "A shared builtin that does nothing (useful for testing)." }
+func (b *NoopBuiltin) Name() string { return "noop" }
+func (b *NoopBuiltin) Description() string {
+	return "A shared builtin that does nothing (useful for testing)."
+}
 func (b *NoopBuiltin) Scope() BuiltinScope { return Shared }
 
 func (b *NoopBuiltin) Validate(a Action) error { return nil }
@@ -425,8 +442,10 @@ func (b *BroadcastBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action
 // BroadcastOthersBuiltin fouts a message to all connected clients except the sender.
 type BroadcastOthersBuiltin struct{}
 
-func (b *BroadcastOthersBuiltin) Name() string        { return "broadcast-others" }
-func (b *BroadcastOthersBuiltin) Description() string { return "Send a message to all connected clients except the sender." }
+func (b *BroadcastOthersBuiltin) Name() string { return "broadcast-others" }
+func (b *BroadcastOthersBuiltin) Description() string {
+	return "Send a message to all connected clients except the sender."
+}
 func (b *BroadcastOthersBuiltin) Scope() BuiltinScope { return ServerOnly }
 
 func (b *BroadcastOthersBuiltin) Validate(a Action) error { return nil }
@@ -532,8 +551,10 @@ func (b *SequenceBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action,
 // TemplateBuiltin renders a response from an external template file.
 type TemplateBuiltin struct{}
 
-func (b *TemplateBuiltin) Name() string        { return "template" }
-func (b *TemplateBuiltin) Description() string { return "Render a response from an external template file." }
+func (b *TemplateBuiltin) Name() string { return "template" }
+func (b *TemplateBuiltin) Description() string {
+	return "Render a response from an external template file."
+}
 func (b *TemplateBuiltin) Scope() BuiltinScope { return Shared }
 
 func (b *TemplateBuiltin) Validate(a Action) error {
@@ -593,8 +614,10 @@ func (b *TemplateBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action,
 // FileSendBuiltin sends the contents of a local file as a WebSocket message.
 type FileSendBuiltin struct{}
 
-func (b *FileSendBuiltin) Name() string        { return "file-send" }
-func (b *FileSendBuiltin) Description() string { return "Send the contents of a local file as a WebSocket message." }
+func (b *FileSendBuiltin) Name() string { return "file-send" }
+func (b *FileSendBuiltin) Description() string {
+	return "Send the contents of a local file as a WebSocket message."
+}
 func (b *FileSendBuiltin) Scope() BuiltinScope { return ClientOnly }
 
 func (b *FileSendBuiltin) Validate(a Action) error {
@@ -643,7 +666,7 @@ func (b *FileSendBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action,
 	}
 
 	if d.verbose {
-		d.errorf("  [handler] file-send: sending %s as %s (resolved: %s, size: %d bytes)\n", 
+		d.errorf("  [handler] file-send: sending %s as %s (resolved: %s, size: %d bytes)\n",
 			filePath, strings.ToLower(a.Mode), resolvedPath, len(content))
 	}
 
@@ -746,8 +769,10 @@ func (b *FileWriteBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action
 // RateLimitBuiltin enforces a per-client, global, or handler-level message rate.
 type RateLimitBuiltin struct{}
 
-func (b *RateLimitBuiltin) Name() string        { return "rate-limit" }
-func (b *RateLimitBuiltin) Description() string { return "Enforce a per-client, global, or handler-level message rate." }
+func (b *RateLimitBuiltin) Name() string { return "rate-limit" }
+func (b *RateLimitBuiltin) Description() string {
+	return "Enforce a per-client, global, or handler-level message rate."
+}
 func (b *RateLimitBuiltin) Scope() BuiltinScope { return Shared }
 
 func (b *RateLimitBuiltin) Validate(a Action) error {
@@ -779,7 +804,7 @@ func (b *RateLimitBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action
 	if scope == "" {
 		scope = "client"
 	}
-	
+
 	var key string
 	handlerName := a.HandlerName
 	if handlerName == "" {
@@ -815,14 +840,14 @@ func (b *RateLimitBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action
 			// Default to a small value if we can't calculate a future slot.
 			retryAfter = 1.0
 		}
-		
+
 		tmplCtx.RetryAfter = retryAfter
 		tmplCtx.RetryAfterMs = int64(retryAfter * 1000)
 		tmplCtx.RateLimit = rateStr
 		tmplCtx.LimitScope = scope
 
 		if d.verbose {
-			d.errorf("  [handler] rate-limit triggered: %s (scope=%s, key=%s, retry_after=%.2fs)\n", 
+			d.errorf("  [handler] rate-limit triggered: %s (scope=%s, key=%s, retry_after=%.2fs)\n",
 				rateStr, scope, key, retryAfter)
 		}
 
@@ -855,8 +880,10 @@ func (b *RateLimitBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action
 // After the delay, any respond: template is sent naturally by ExecuteAction.
 type DelayBuiltin struct{}
 
-func (b *DelayBuiltin) Name() string        { return "delay" }
-func (b *DelayBuiltin) Description() string { return "Pause handler execution for a configurable duration before sending a response." }
+func (b *DelayBuiltin) Name() string { return "delay" }
+func (b *DelayBuiltin) Description() string {
+	return "Pause handler execution for a configurable duration before sending a response."
+}
 func (b *DelayBuiltin) Scope() BuiltinScope { return Shared }
 
 func (b *DelayBuiltin) Validate(a Action) error {
@@ -924,4 +951,61 @@ func (b *DelayBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tm
 	}
 
 	return nil
+}
+
+// DropBuiltin silently discards the matched message and stops further processing.
+type DropBuiltin struct{}
+
+func (b *DropBuiltin) Name() string { return "drop" }
+func (b *DropBuiltin) Description() string {
+	return "Silently discard the message and stop further handlers."
+}
+func (b *DropBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *DropBuiltin) Validate(a Action) error { return nil }
+
+func (b *DropBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	if d.verbose {
+		d.errorf("  [handler] builtin drop: discarding message\n")
+	}
+	return ErrDrop
+}
+
+// CloseBuiltin terminates the current connection with an optional code and reason.
+type CloseBuiltin struct{}
+
+func (b *CloseBuiltin) Name() string { return "close" }
+func (b *CloseBuiltin) Description() string {
+	return "Terminate the connection with an optional code and reason."
+}
+func (b *CloseBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *CloseBuiltin) Validate(a Action) error { return nil }
+
+func (b *CloseBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	code := 1000
+	if a.Code != "" {
+		codeStr, err := d.templateEngine.Execute("close-code", a.Code, tmplCtx)
+		if err == nil {
+			if c, err := strconv.Atoi(strings.TrimSpace(codeStr)); err == nil {
+				code = c
+			} else {
+				d.errorf("  [handler] warning: invalid close code %q: %v\n", codeStr, err)
+			}
+		}
+	}
+
+	reason := ""
+	if a.Reason != "" {
+		res, err := d.templateEngine.Execute("close-reason", a.Reason, tmplCtx)
+		if err == nil {
+			reason = res
+		}
+	}
+
+	if d.verbose {
+		d.errorf("  [handler] builtin close: closing connection (code=%d, reason=%q)\n", code, reason)
+	}
+
+	return d.conn.CloseWithCode(code, reason)
 }

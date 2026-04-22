@@ -22,6 +22,7 @@ import (
 // Connection defines the required interface for a WebSocket connection.
 type Connection interface {
 	Write(msg *ws.Message) error
+	CloseWithCode(code int, reason string) error
 	Subscribe() <-chan *ws.Message
 	Unsubscribe(ch <-chan *ws.Message)
 	Done() <-chan struct{}
@@ -202,7 +203,7 @@ func (d *Dispatcher) flushBuffer(ctx context.Context) {
 		d.bufferMu.Unlock()
 		return
 	}
-	
+
 	pending := d.buffer
 	d.buffer = nil
 	d.bufferMu.Unlock()
@@ -215,7 +216,6 @@ func (d *Dispatcher) flushBuffer(ctx context.Context) {
 		d.handleMessage(ctx, msg)
 	}
 }
-
 
 func (d *Dispatcher) handleMessage(ctx context.Context, msg *ws.Message) {
 	msgStr := string(msg.Data)
@@ -246,50 +246,67 @@ func (d *Dispatcher) handleMessage(ctx context.Context, msg *ws.Message) {
 		d.errorf("  [handler] debug: found %d matches for %q\n", len(results), msgStr)
 	}
 
-	for _, res := range results {
-		h := res.Handler
-		matches := res.Matches
-		if d.verbose {
-			d.errorf("  [handler] executing handler %q (priority %d)\n", h.Name, h.Priority)
-		}
+	// Execute matching handlers sequentially in a single goroutine per message.
+	// This allows 'drop' actions and 'exclusive' handlers to short-circuit
+	// subsequent handlers for the same message.
+	go func() {
+		for _, res := range results {
+			h := res.Handler
+			matches := res.Matches
 
-		// Apply rate limiting
-		if h.RateLimit != "" {
-			limiter := d.registry.GetLimiter(h.Name, h.RateLimit)
-			if limiter != nil && !limiter.Allow() {
-				if d.verbose {
-					d.errorf("  [handler] warning: rate limit exceeded for %q (%s), dropping message\n", h.Name, h.RateLimit)
+			if d.verbose {
+				d.errorf("  [handler] executing handler %q (priority %d)\n", h.Name, h.Priority)
+			}
+
+			// Apply rate limiting
+			if h.RateLimit != "" {
+				limiter := d.registry.GetLimiter(h.Name, h.RateLimit)
+				if limiter != nil && !limiter.Allow() {
+					if d.verbose {
+						d.errorf("  [handler] warning: rate limit exceeded for %q (%s), dropping message\n", h.Name, h.RateLimit)
+					}
+					continue
 				}
+			}
+
+			// Apply debounce
+			if h.Debounce != "" {
+				dur, _ := time.ParseDuration(h.Debounce)
+				d.registry.Debounce(h.Name, dur, msg, func(m *ws.Message) {
+					if d.verbose {
+						d.errorf("  [handler] executing debounced handler %q\n", h.Name)
+					}
+					// Note: Debounced handlers execute in their own async flow
+					if err := d.Execute(ctx, h, m, matches); err != nil {
+						if err != ErrDrop {
+							d.errorf("  [handler] error executing debounced %q: %v\n", h.Name, err)
+						}
+					}
+				})
+				// Debounce doesn't block the sequence but effectively replaces current execution
 				continue
 			}
-		}
 
-		// Apply debounce
-		if h.Debounce != "" {
-			dur, _ := time.ParseDuration(h.Debounce)
-			d.registry.Debounce(h.Name, dur, msg, func(m *ws.Message) {
+			err := d.Execute(ctx, h, msg, matches)
+			if err == ErrDrop {
 				if d.verbose {
-					d.errorf("  [handler] executing debounced handler %q\n", h.Name)
+					d.errorf("  [handler] short-circuiting handlers: message dropped by %q\n", h.Name)
 				}
-				// Use context from Dispatcher.Start which is passed as ctx
-				if err := d.Execute(ctx, h, m, matches); err != nil {
-					d.errorf("  [handler] error executing debounced %q: %v\n", h.Name, err)
-				}
-			})
-			continue
-		}
-
-		go func(handler Handler, captured []string) {
-			if err := d.Execute(ctx, &handler, msg, captured); err != nil {
-				d.errorf("  [handler] error executing %q: %v\n", handler.Name, err)
+				break
 			}
-		}(*h, matches)
+			if err != nil {
+				d.errorf("  [handler] error executing %q: %v\n", h.Name, err)
+			}
 
-		// If the handler is exclusive, stop processing further handlers.
-		if h.Exclusive {
-			break
+			// If the handler is exclusive, stop processing further handlers.
+			if h.Exclusive {
+				if d.verbose {
+					d.errorf("  [handler] short-circuiting handlers: %q is exclusive\n", h.Name)
+				}
+				break
+			}
 		}
-	}
+	}()
 }
 
 // Execute runs the actions defined in a handler.
@@ -336,12 +353,12 @@ func (d *Dispatcher) Execute(ctx context.Context, h *Handler, msg *ws.Message, m
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		lastErr = d.executeMainActions(ctx, h, tmplCtx, msg)
 
-		// Short-circuit on rate limit exceeded
-		if lastErr == ErrLimitExceeded {
-			if d.verbose {
-				d.errorf("  [handler] short-circuiting %q due to rate limit\n", h.Name)
+		// Short-circuit on rate limit exceeded or drop signal
+		if lastErr == ErrLimitExceeded || lastErr == ErrDrop {
+			if d.verbose && lastErr == ErrDrop {
+				d.errorf("  [handler] short-circuiting actions in %q due to drop signal\n", h.Name)
 			}
-			return nil
+			return lastErr
 		}
 
 		// Check for failure to trigger retry or HandleError
@@ -384,8 +401,8 @@ func (d *Dispatcher) Execute(ctx context.Context, h *Handler, msg *ws.Message, m
 	// Always execute respond if present (after all main actions/retries)
 	// Concise handlers always run respond if present (it acts as a completion hook).
 	// Pipelines and multi-action handlers only run respond if all steps succeeded.
-	// NOTE: For concise handlers (h.Run or h.Builtin), Respond is now handled 
-	// INSIDE ExecuteAction to maintain consistency. We only send here if it's 
+	// NOTE: For concise handlers (h.Run or h.Builtin), Respond is now handled
+	// INSIDE ExecuteAction to maintain consistency. We only send here if it's
 	// NOT a concise handler and we have a top-level Respond to send.
 	isConcise := h.Run != "" || h.Builtin != ""
 	if h.Respond != "" && !isConcise && (lastErr == nil) {
@@ -459,6 +476,8 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 				OnLimit:     h.OnLimit,
 				Duration:    h.Duration,
 				Max:         h.Max,
+				Code:        h.Code,
+				Reason:      h.Reason,
 				BaseDir:     h.BaseDir,
 				HandlerName: h.Name,
 			}
@@ -530,6 +549,8 @@ func (d *Dispatcher) executePipeline(ctx context.Context, handlerName string, pi
 			action.OnLimit = step.OnLimit
 			action.Duration = step.Duration
 			action.Max = step.Max
+			action.Code = step.Code
+			action.Reason = step.Reason
 			action.BaseDir = d.registry.GetHandlerBaseDir(handlerName)
 			action.HandlerName = handlerName
 		}
@@ -775,6 +796,9 @@ func (d *Dispatcher) ExecuteAction(ctx context.Context, a *Action, tmplCtx *temp
 	}
 
 	if err != nil {
+		if err == ErrDrop {
+			return err
+		}
 		return err
 	}
 
@@ -988,6 +1012,7 @@ func (d *Dispatcher) HandlerHits() uint64 {
 func (d *Dispatcher) ActiveHandlers() int32 {
 	return atomic.LoadInt32(&d._activeHandlers)
 }
+
 // executeHandlerError runs actions defined in OnError or OnErrorMsg for a specific handler.
 func (d *Dispatcher) executeHandlerError(ctx context.Context, h *Handler, tmplCtx *template.TemplateContext, err error) {
 	if h.OnErrorMsg == "" && len(h.OnError) == 0 {

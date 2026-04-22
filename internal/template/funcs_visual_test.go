@@ -77,7 +77,7 @@ func TestVisualFuncs(t *testing.T) {
 		tmpl := `{{seq}} {{randomEmoji}} {{sessionAge | duration}}`
 		res, err := e.Execute("test", tmpl, nil)
 		require.NoError(t, err)
-		
+
 		parts := strings.Fields(res)
 		require.Len(t, parts, 3)
 		assert.Equal(t, "2", parts[0]) // seq was 1, now 2

@@ -60,7 +60,7 @@ func (m *StaticManager) Start(config StaticConfig) error {
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddUint64(&config.Requests, 1)
-		
+
 		// Serve file or directory
 		if !config.IsDir {
 			http.ServeFile(w, r, config.Root)
@@ -78,7 +78,7 @@ func (m *StaticManager) Start(config StaticConfig) error {
 	})
 
 	_, cancel := context.WithCancel(context.Background())
-	
+
 	addr := fmt.Sprintf(":%d", config.Port)
 	httpSrv := &http.Server{
 		Addr:    addr,
@@ -192,4 +192,3 @@ func (m *StaticManager) GenerateMinimalHTML(targetPath string, wsURL string, sty
 
 	return tmpl.Execute(f, data)
 }
-

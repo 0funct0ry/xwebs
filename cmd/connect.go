@@ -498,69 +498,69 @@ Available Builtin Actions (Client):
 			r.RegisterClientCommands(cc)
 			r.AddConfigPath(handlersFile)
 
-				// Populate bookmarks and aliases for completion
-				var cfg config.AppConfig
-				if err := viper.Unmarshal(&cfg); err == nil {
-					var targets []string
-					for alias := range cfg.Aliases {
-						targets = append(targets, alias)
-					}
-					for bookmark := range cfg.Bookmarks {
-						targets = append(targets, bookmark)
-					}
-					r.SetCompletionData("bookmarks", targets)
+			// Populate bookmarks and aliases for completion
+			var cfg config.AppConfig
+			if err := viper.Unmarshal(&cfg); err == nil {
+				var targets []string
+				for alias := range cfg.Aliases {
+					targets = append(targets, alias)
 				}
-
-				// Populate template functions for completion
-				r.SetCompletionData("template_funcs", tmplEngine.FuncNames())
-
-				// Initialize Display state from flags/config
-				r.Display.Format = repl.DisplayFormat(formatStr)
-				r.Display.Quiet = quiet
-				r.Display.Verbose = verbose
-				r.Display.Timestamps = timestamps
-				r.Display.Color = color
-
-				// Enable clean output (no indicators) if the interactive REPL loop is not active
-				if !actuallyInteractive {
-					r.Display.NoIndicators = true
-					// Default to quiet if redirected, unless explicitly set
-					if !cmd.Flags().Changed("quiet") && !cmd.Flags().Changed("verbose") {
-						r.Display.Quiet = true
-						quiet = true
-					}
+				for bookmark := range cfg.Bookmarks {
+					targets = append(targets, bookmark)
 				}
-
-				if filterStr != "" {
-					if err := r.Display.SetFilter(filterStr); err != nil {
-						fmt.Fprintf(os.Stderr, "Warning: invalid initial filter: %v\n", err)
-					}
-				}
-
-				// Handle --log and --record flags
-				if logFile != "" {
-					if err := r.Logger.Start(logFile); err != nil {
-						fmt.Fprintf(os.Stderr, "Warning: failed to start logging to %s: %v\n", logFile, err)
-					} else {
-						r.Notify("✓ Logging to %s\n", logFile)
-					}
-				}
-				if recordFile != "" {
-					if err := r.Recorder.Start(recordFile, target); err != nil {
-						fmt.Fprintf(os.Stderr, "Warning: failed to start recording to %s: %v\n", recordFile, err)
-					} else {
-						r.Notify("✓ Recording to %s\n", recordFile)
-					}
-				}
-
-				if reg != nil {
-					// Merge into the already initialized REPL handlers
-					if err := r.Handlers.AddHandlers(reg.Handlers()); err != nil {
-						return err
-					}
-				}
-				defer r.Close()
+				r.SetCompletionData("bookmarks", targets)
 			}
+
+			// Populate template functions for completion
+			r.SetCompletionData("template_funcs", tmplEngine.FuncNames())
+
+			// Initialize Display state from flags/config
+			r.Display.Format = repl.DisplayFormat(formatStr)
+			r.Display.Quiet = quiet
+			r.Display.Verbose = verbose
+			r.Display.Timestamps = timestamps
+			r.Display.Color = color
+
+			// Enable clean output (no indicators) if the interactive REPL loop is not active
+			if !actuallyInteractive {
+				r.Display.NoIndicators = true
+				// Default to quiet if redirected, unless explicitly set
+				if !cmd.Flags().Changed("quiet") && !cmd.Flags().Changed("verbose") {
+					r.Display.Quiet = true
+					quiet = true
+				}
+			}
+
+			if filterStr != "" {
+				if err := r.Display.SetFilter(filterStr); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: invalid initial filter: %v\n", err)
+				}
+			}
+
+			// Handle --log and --record flags
+			if logFile != "" {
+				if err := r.Logger.Start(logFile); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to start logging to %s: %v\n", logFile, err)
+				} else {
+					r.Notify("✓ Logging to %s\n", logFile)
+				}
+			}
+			if recordFile != "" {
+				if err := r.Recorder.Start(recordFile, target); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to start recording to %s: %v\n", recordFile, err)
+				} else {
+					r.Notify("✓ Recording to %s\n", recordFile)
+				}
+			}
+
+			if reg != nil {
+				// Merge into the already initialized REPL handlers
+				if err := r.Handlers.AddHandlers(reg.Handlers()); err != nil {
+					return err
+				}
+			}
+			defer r.Close()
+		}
 
 		if isTerminal && !isInteractive {
 			infoln(r, isInteractive, "\nEnter message to send (Ctrl+C to disconnect):")

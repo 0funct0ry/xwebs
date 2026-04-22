@@ -107,7 +107,7 @@ func (s *Server) UpdateOptions(opts ...Option) {
 // Start launches the server and listens for incoming connections.
 func (s *Server) Start(ctx context.Context) error {
 	mux := http.NewServeMux()
-	
+
 	hasRoot := false
 	for _, path := range s.opts.Paths {
 		pattern := path
@@ -133,7 +133,7 @@ func (s *Server) Start(ctx context.Context) error {
 	if s.opts.APIEnabled {
 		mux.HandleFunc("GET /api/status", s.handleAPIStatus)
 		mux.HandleFunc("GET /api/clients", s.handleAPIClients)
-		
+
 		mux.HandleFunc("GET /api/handlers", s.handleListHandlers)
 		mux.HandleFunc("POST /api/handlers", s.handleCreateHandler)
 		mux.HandleFunc("GET /api/handlers/{name}", s.handleGetHandler)
@@ -153,7 +153,7 @@ func (s *Server) Start(ctx context.Context) error {
 	var handler http.Handler = mux
 	if s.securityMgr != nil {
 		handler = s.securityMgr.Middleware(mux)
-		
+
 		// Start security manager cleanup loop
 		go func() {
 			ticker := time.NewTicker(30 * time.Minute)
@@ -332,9 +332,9 @@ func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
 		Verbose: s.opts.Verbose,
 		// TODO: Map other server options to wsOpts if needed
 	}
-	
+
 	wsConn := ws.NewConnection(conn, r.URL.String(), nil, wsOpts)
-	
+
 	s.mu.Lock()
 	s.connections[wsConn.ID] = wsConn
 	s.mu.Unlock()
@@ -387,25 +387,25 @@ func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
 			s.opts.TemplateEngine,
 			s.opts.Verbose,
 			s.opts.Variables,
-			nil,      // sessionVars
+			nil, // sessionVars
 			s.opts.Sandbox,
 			s.opts.Allowlist,
 			s,        // Server implements ServerStatProvider
 			s.topics, // Server.topics implements TopicManager
 			s,        // Server implements KVManager
 		)
-			
-			// Setup logging/error handlers for dispatcher
-			dispatcher.Log = func(f string, a ...interface{}) {
-				s.logf(f, a...)
-			}
-			dispatcher.Error = func(f string, a ...interface{}) {
-				s.errorf(f, a...)
-			}
 
-			dispatcher.Start(context.Background())
-			dispatcher.HandleConnect()
-			defer dispatcher.HandleDisconnect() // Handle disconnect when read loop exits
+		// Setup logging/error handlers for dispatcher
+		dispatcher.Log = func(f string, a ...interface{}) {
+			s.logf(f, a...)
+		}
+		dispatcher.Error = func(f string, a ...interface{}) {
+			s.errorf(f, a...)
+		}
+
+		dispatcher.Start(context.Background())
+		dispatcher.HandleConnect()
+		defer dispatcher.HandleDisconnect() // Handle disconnect when read loop exits
 
 		// Wait for connection to close
 		<-wsConn.Done()
@@ -693,7 +693,6 @@ func (s *Server) WaitIfPaused() {
 	}
 	s.mu.Unlock()
 }
-
 
 // GetTemplateEngine returns the server's template engine.
 func (s *Server) GetTemplateEngine() *template.Engine {

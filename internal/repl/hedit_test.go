@@ -28,7 +28,7 @@ func TestHeditBlockSelection(t *testing.T) {
 		"line 9",
 		":hedit",
 	}, "\n") + "\n"
-	
+
 	if err := os.WriteFile(historyFile, []byte(historyContent), 0644); err != nil {
 		t.Fatalf("failed to write history file: %v", err)
 	}
@@ -145,7 +145,6 @@ func findHistoryBlockMock(history []string, targetIdx int) (start, end int) {
 	}
 	return targetIdx, targetIdx
 }
-
 
 func TestHistoryGroupingOutput(t *testing.T) {
 	history := []string{

@@ -28,8 +28,8 @@ func TestEchoBuiltin_Behavior(t *testing.T) {
 			Builtin: "echo",
 		}
 		msg := &ws.Message{
-			Data: []byte("verbatim message"),
-			Type: ws.TextMessage,
+			Data:     []byte("verbatim message"),
+			Type:     ws.TextMessage,
 			Metadata: ws.MessageMetadata{Direction: "received"},
 		}
 
@@ -55,8 +55,8 @@ func TestEchoBuiltin_Behavior(t *testing.T) {
 			Respond: "Overridden: {{.Message}}",
 		}
 		msg := &ws.Message{
-			Data: []byte("foo"),
-			Type: ws.TextMessage,
+			Data:     []byte("foo"),
+			Type:     ws.TextMessage,
 			Metadata: ws.MessageMetadata{Direction: "received"},
 		}
 
@@ -81,8 +81,8 @@ func TestEchoBuiltin_Behavior(t *testing.T) {
 			Delay:   "100ms",
 		}
 		msg := &ws.Message{
-			Data: []byte("delayed"),
-			Type: ws.TextMessage,
+			Data:     []byte("delayed"),
+			Type:     ws.TextMessage,
 			Metadata: ws.MessageMetadata{Direction: "received"},
 		}
 
@@ -110,8 +110,8 @@ func TestEchoBuiltin_Behavior(t *testing.T) {
 		}
 		binaryData := []byte{0x00, 0xFF, 0xDE, 0xAD, 0xBE, 0xEF}
 		msg := &ws.Message{
-			Data: binaryData,
-			Type: ws.BinaryMessage,
+			Data:     binaryData,
+			Type:     ws.BinaryMessage,
 			Metadata: ws.MessageMetadata{Direction: "received"},
 		}
 

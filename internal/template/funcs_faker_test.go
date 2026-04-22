@@ -140,29 +140,29 @@ func TestFakerFuncs(t *testing.T) {
 }
 
 func TestFakerFunctionsVariability(t *testing.T) {
-    e := New(false)
-    
-    // Test that multiple calls produce different results
-    // We use a loop to ensure we don't just get lucky with the same name twice
-    // (though in reality the chance of two random names being the same is low)
-    
-    seen := make(map[string]bool)
-    for i := 0; i < 10; i++ {
-        res, err := e.Execute("test", "{{fakeName}}", nil)
-        require.NoError(t, err)
-        seen[res] = true
-    }
-    
-    // We expect to have seen multiple different names
-    assert.Greater(t, len(seen), 1, "Expected varied output from fakeName")
+	e := New(false)
+
+	// Test that multiple calls produce different results
+	// We use a loop to ensure we don't just get lucky with the same name twice
+	// (though in reality the chance of two random names being the same is low)
+
+	seen := make(map[string]bool)
+	for i := 0; i < 10; i++ {
+		res, err := e.Execute("test", "{{fakeName}}", nil)
+		require.NoError(t, err)
+		seen[res] = true
+	}
+
+	// We expect to have seen multiple different names
+	assert.Greater(t, len(seen), 1, "Expected varied output from fakeName")
 }
 
 func TestFakerAvailabilityInJSON(t *testing.T) {
-    e := New(false)
-    tmpl := `{"name": "{{fakeName}}", "email": "{{fakeEmail}}"}`
-    res, err := e.Execute("json", tmpl, nil)
-    require.NoError(t, err)
-    
-    assert.True(t, strings.HasPrefix(res, `{"name": "`))
-    assert.Contains(t, res, `"email": "`)
+	e := New(false)
+	tmpl := `{"name": "{{fakeName}}", "email": "{{fakeEmail}}"}`
+	res, err := e.Execute("json", tmpl, nil)
+	require.NoError(t, err)
+
+	assert.True(t, strings.HasPrefix(res, `{"name": "`))
+	assert.Contains(t, res, `"email": "`)
 }

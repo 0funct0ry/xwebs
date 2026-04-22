@@ -25,21 +25,23 @@ type mockServerContext struct {
 
 func (m *mockServerContext) ResetSequence(name string) {}
 
-func (m *mockServerContext) GetClientCount() int                            { return 0 }
-func (m *mockServerContext) GetUptime() time.Duration                       { return 0 }
-func (m *mockServerContext) GetClients() []template.ClientInfo              { return nil }
-func (m *mockServerContext) GetClient(id string) (template.ClientInfo, bool) { return template.ClientInfo{}, false }
+func (m *mockServerContext) GetClientCount() int               { return 0 }
+func (m *mockServerContext) GetUptime() time.Duration          { return 0 }
+func (m *mockServerContext) GetClients() []template.ClientInfo { return nil }
+func (m *mockServerContext) GetClient(id string) (template.ClientInfo, bool) {
+	return template.ClientInfo{}, false
+}
 func (m *mockServerContext) Broadcast(msg *ws.Message, excludeIDs ...string) int { return 0 }
-func (m *mockServerContext) Send(id string, msg *ws.Message) error          { return nil }
-func (m *mockServerContext) Kick(id string, code int, reason string) error  { return nil }
-func (m *mockServerContext) GetStatus() string                              { return "running" }
-func (m *mockServerContext) GetTemplateEngine() *template.Engine            { return nil }
-func (m *mockServerContext) GetHandlers() []handler.Handler                 { return m.handlers }
-func (m *mockServerContext) GetVariables() map[string]interface{}           { return m.vars }
-func (m *mockServerContext) GetHandlersFile() string                        { return m.handlersFile }
-func (m *mockServerContext) EnableHandler(name string) error                { return nil }
-func (m *mockServerContext) DisableHandler(name string) error               { return nil }
-func (m *mockServerContext) ReloadHandlers() error                          { return nil }
+func (m *mockServerContext) Send(id string, msg *ws.Message) error               { return nil }
+func (m *mockServerContext) Kick(id string, code int, reason string) error       { return nil }
+func (m *mockServerContext) GetStatus() string                                   { return "running" }
+func (m *mockServerContext) GetTemplateEngine() *template.Engine                 { return nil }
+func (m *mockServerContext) GetHandlers() []handler.Handler                      { return m.handlers }
+func (m *mockServerContext) GetVariables() map[string]interface{}                { return m.vars }
+func (m *mockServerContext) GetHandlersFile() string                             { return m.handlersFile }
+func (m *mockServerContext) EnableHandler(name string) error                     { return nil }
+func (m *mockServerContext) DisableHandler(name string) error                    { return nil }
+func (m *mockServerContext) ReloadHandlers() error                               { return nil }
 func (m *mockServerContext) GetHandlerStats(name string) (uint64, time.Duration, uint64, bool) {
 	return 0, 0, 0, false
 }
@@ -67,25 +69,33 @@ func (m *mockServerContext) ApplyHandlers(handlers []handler.Handler, variables 
 	m.vars = variables
 	return nil
 }
-func (m *mockServerContext) GetTopics() []template.TopicInfo                             { return nil }
-func (m *mockServerContext) GetTopic(name string) (template.TopicInfo, bool)             { return template.TopicInfo{}, false }
-func (m *mockServerContext) PublishToTopic(topic string, msg *ws.Message) (int, error)   { return 0, nil }
-func (m *mockServerContext) SubscribeClientToTopic(clientID, topic string) error         { return nil }
-func (m *mockServerContext) UnsubscribeClientFromTopic(clientID, topic string) (int, error) { return 0, nil }
-func (m *mockServerContext) UnsubscribeClientFromAllTopics(clientID string) ([]string, error) { return nil, nil }
-func (m *mockServerContext) ListKV() map[string]interface{} { return nil }
-func (m *mockServerContext) GetKV(key string) (interface{}, bool) { return nil, false }
+func (m *mockServerContext) GetTopics() []template.TopicInfo { return nil }
+func (m *mockServerContext) GetTopic(name string) (template.TopicInfo, bool) {
+	return template.TopicInfo{}, false
+}
+func (m *mockServerContext) PublishToTopic(topic string, msg *ws.Message) (int, error) { return 0, nil }
+func (m *mockServerContext) SubscribeClientToTopic(clientID, topic string) error       { return nil }
+func (m *mockServerContext) UnsubscribeClientFromTopic(clientID, topic string) (int, error) {
+	return 0, nil
+}
+func (m *mockServerContext) UnsubscribeClientFromAllTopics(clientID string) ([]string, error) {
+	return nil, nil
+}
+func (m *mockServerContext) ListKV() map[string]interface{}                       { return nil }
+func (m *mockServerContext) GetKV(key string) (interface{}, bool)                 { return nil, false }
 func (m *mockServerContext) SetKV(key string, val interface{}, ttl time.Duration) {}
-func (m *mockServerContext) DeleteKV(key string) {}
+func (m *mockServerContext) DeleteKV(key string)                                  {}
 
-func (m *mockServerContext) GetGlobalStats() observability.GlobalStats { return observability.GlobalStats{} }
-func (m *mockServerContext) GetRegistryStats() (uint64, uint64) { return 0, 0 }
+func (m *mockServerContext) GetGlobalStats() observability.GlobalStats {
+	return observability.GlobalStats{}
+}
+func (m *mockServerContext) GetRegistryStats() (uint64, uint64)          { return 0, 0 }
 func (m *mockServerContext) GetSlowLog(limit int) []handler.SlowLogEntry { return nil }
 
-func (m *mockServerContext) Drain()           {}
-func (m *mockServerContext) Pause()           {}
-func (m *mockServerContext) Resume()          {}
-func (m *mockServerContext) IsPaused() bool   { return false }
+func (m *mockServerContext) Drain()         {}
+func (m *mockServerContext) Pause()         {}
+func (m *mockServerContext) Resume()        {}
+func (m *mockServerContext) IsPaused() bool { return false }
 
 func (m *mockServerContext) StartStaticServe(port int, root string, path string, isFile bool, generate bool, generateStyle string) error {
 	return nil

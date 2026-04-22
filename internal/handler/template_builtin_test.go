@@ -39,8 +39,8 @@ func TestTemplateBuiltin(t *testing.T) {
 			File:    tmplPath,
 		}
 		msg := &ws.Message{
-			Data: []byte("World"),
-			Type: ws.TextMessage,
+			Data:     []byte("World"),
+			Type:     ws.TextMessage,
 			Metadata: ws.MessageMetadata{Direction: "received"},
 		}
 
@@ -72,8 +72,8 @@ func TestTemplateBuiltin(t *testing.T) {
 
 		// Test with A
 		msgA := &ws.Message{
-			Data: []byte("a"),
-			Type: ws.TextMessage,
+			Data:     []byte("a"),
+			Type:     ws.TextMessage,
 			Metadata: ws.MessageMetadata{Direction: "received"},
 		}
 		err = d.Execute(context.Background(), h, msgA, nil)
@@ -82,8 +82,8 @@ func TestTemplateBuiltin(t *testing.T) {
 
 		// Test with B
 		msgB := &ws.Message{
-			Data: []byte("b"),
-			Type: ws.TextMessage,
+			Data:     []byte("b"),
+			Type:     ws.TextMessage,
 			Metadata: ws.MessageMetadata{Direction: "received"},
 		}
 		err = d.Execute(context.Background(), h, msgB, nil)
@@ -108,8 +108,8 @@ func TestTemplateBuiltin(t *testing.T) {
 			BaseDir: tmpDir,
 		}
 		msg := &ws.Message{
-			Data: []byte("test"),
-			Type: ws.TextMessage,
+			Data:     []byte("test"),
+			Type:     ws.TextMessage,
 			Metadata: ws.MessageMetadata{Direction: "received"},
 		}
 
@@ -129,8 +129,8 @@ func TestTemplateBuiltin(t *testing.T) {
 			BaseDir: tmpDir,
 		}
 		msg := &ws.Message{
-			Data: []byte("test"),
-			Type: ws.TextMessage,
+			Data:     []byte("test"),
+			Type:     ws.TextMessage,
 			Metadata: ws.MessageMetadata{Direction: "received"},
 		}
 
@@ -151,8 +151,8 @@ func TestTemplateBuiltin(t *testing.T) {
 			File:    tmplPath,
 		}
 		msg := &ws.Message{
-			Data: []byte("test"),
-			Type: ws.TextMessage,
+			Data:     []byte("test"),
+			Type:     ws.TextMessage,
 			Metadata: ws.MessageMetadata{Direction: "received"},
 		}
 

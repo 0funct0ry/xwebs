@@ -17,7 +17,7 @@ type Options struct {
 	Verbose        bool
 	Sandbox        bool
 	Allowlist      []string
-	
+
 	APIEnabled     bool
 	MetricsEnabled bool
 	UIEnabled      bool
@@ -42,11 +42,11 @@ type Options struct {
 	Logger Logger
 
 	// Static file serving
-	StaticServeDir   string
-	StaticServeFile  string
-	StaticServePath  string
-	StaticServePort  int
-	StaticGenerate   bool
+	StaticServeDir      string
+	StaticServeFile     string
+	StaticServePath     string
+	StaticServePort     int
+	StaticGenerate      bool
 	StaticGenerateStyle string
 }
 

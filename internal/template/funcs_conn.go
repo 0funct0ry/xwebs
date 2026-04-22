@@ -9,7 +9,7 @@ func (e *Engine) registerConnFuncs() {
 	// These are placeholder functions for the documentation/metadata.
 	// The actual implementation is injected dynamically in Execute()
 	// to ensure thread-safety and context-awareness.
-	
+
 	e.funcs["connID"] = func() string { return "🔌" }
 	e.funcs["shortConnID"] = func() string { return "🔌" }
 	e.funcs["sessionID"] = func() string { return "" }

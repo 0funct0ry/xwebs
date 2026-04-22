@@ -20,31 +20,32 @@ func (m *mockConnection) Write(msg *ws.Message) error {
 	m.CapturedMessages = append(m.CapturedMessages, msg)
 	return nil
 }
-func (m *mockConnection) Subscribe() <-chan *ws.Message { return nil }
-func (m *mockConnection) Unsubscribe(ch <-chan *ws.Message) {}
-func (m *mockConnection) Done() <-chan struct{} { return nil }
-func (m *mockConnection) IsCompressionEnabled() bool { return false }
-func (m *mockConnection) GetID() string { return m.ID }
-func (m *mockConnection) GetURL() string { return "ws://localhost" }
-func (m *mockConnection) GetSubprotocol() string { return "" }
-func (m *mockConnection) RemoteAddr() string { return "127.0.0.1" }
-func (m *mockConnection) LocalAddr() string { return "127.0.0.1" }
-func (m *mockConnection) ConnectedAt() time.Time { return time.Now() }
-func (m *mockConnection) MessageCount() uint64 { return 0 }
-func (m *mockConnection) MsgsIn() uint64 { return 0 }
-func (m *mockConnection) MsgsOut() uint64 { return 0 }
-func (m *mockConnection) LastMsgReceivedAt() time.Time { return time.Now() }
-func (m *mockConnection) LastMsgSentAt() time.Time { return time.Now() }
-func (m *mockConnection) RTT() time.Duration { return 0 }
-func (m *mockConnection) AvgRTT() time.Duration { return 0 }
+func (m *mockConnection) CloseWithCode(code int, reason string) error { return nil }
+func (m *mockConnection) Subscribe() <-chan *ws.Message               { return nil }
+func (m *mockConnection) Unsubscribe(ch <-chan *ws.Message)           {}
+func (m *mockConnection) Done() <-chan struct{}                       { return nil }
+func (m *mockConnection) IsCompressionEnabled() bool                  { return false }
+func (m *mockConnection) GetID() string                               { return m.ID }
+func (m *mockConnection) GetURL() string                              { return "ws://localhost" }
+func (m *mockConnection) GetSubprotocol() string                      { return "" }
+func (m *mockConnection) RemoteAddr() string                          { return "127.0.0.1" }
+func (m *mockConnection) LocalAddr() string                           { return "127.0.0.1" }
+func (m *mockConnection) ConnectedAt() time.Time                      { return time.Now() }
+func (m *mockConnection) MessageCount() uint64                        { return 0 }
+func (m *mockConnection) MsgsIn() uint64                              { return 0 }
+func (m *mockConnection) MsgsOut() uint64                             { return 0 }
+func (m *mockConnection) LastMsgReceivedAt() time.Time                { return time.Now() }
+func (m *mockConnection) LastMsgSentAt() time.Time                    { return time.Now() }
+func (m *mockConnection) RTT() time.Duration                          { return 0 }
+func (m *mockConnection) AvgRTT() time.Duration                       { return 0 }
 
 func TestSequenceBuiltin(t *testing.T) {
 	registry := NewRegistry(ServerMode)
 	engine := template.New(false)
-	
+
 	conn := &mockConnection{ID: "client-1"}
 	dispatcher := NewDispatcher(registry, conn, engine, false, nil, nil, false, nil, nil, nil, nil)
-	
+
 	action := &Action{
 		Command:     "sequence",
 		Responses:   []string{"one", "two", "three"},
@@ -77,7 +78,7 @@ func TestSequenceBuiltin(t *testing.T) {
 
 	// 5. Test Loop = true
 	action.Loop = true
-	// Current is 2. loop is true. 
+	// Current is 2. loop is true.
 	// GetNextSequenceIndex(2, loop=true) returns 2, next = (2+1)%3 = 0.
 	err = bh.Execute(context.Background(), dispatcher, action, tmplCtx)
 	require.NoError(t, err)
@@ -98,13 +99,13 @@ func TestSequenceBuiltin(t *testing.T) {
 func TestSequenceBuiltinPerClient(t *testing.T) {
 	registry := NewRegistry(ServerMode)
 	engine := template.New(false)
-	
+
 	conn1 := &mockConnection{ID: "client-1"}
 	conn2 := &mockConnection{ID: "client-2"}
-	
+
 	d1 := NewDispatcher(registry, conn1, engine, false, nil, nil, false, nil, nil, nil, nil)
 	d2 := NewDispatcher(registry, conn2, engine, false, nil, nil, false, nil, nil, nil, nil)
-	
+
 	action := &Action{
 		Command:     "sequence",
 		Responses:   []string{"one", "two"},

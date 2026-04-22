@@ -16,9 +16,9 @@ import (
 	"github.com/0funct0ry/xwebs/internal/observability"
 	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/0funct0ry/xwebs/internal/ws"
+	"github.com/docker/docker/pkg/namesgenerator"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
-	"github.com/docker/docker/pkg/namesgenerator"
 	"github.com/spf13/pflag"
 	"gopkg.in/yaml.v3"
 )
@@ -57,7 +57,7 @@ type ServerContext interface {
 	SubscribeClientToTopic(clientID, topic string) error
 	UnsubscribeClientFromTopic(clientID, topic string) (int, error)
 	UnsubscribeClientFromAllTopics(clientID string) ([]string, error)
-	
+
 	// KV operations
 	ListKV() map[string]interface{}
 	GetKV(key string) (interface{}, bool)
@@ -68,7 +68,7 @@ type ServerContext interface {
 	GetGlobalStats() observability.GlobalStats
 	GetRegistryStats() (total uint64, errors uint64)
 	GetSlowLog(limit int) []handler.SlowLogEntry
-	
+
 	// Administrative
 	Drain()
 	Pause()
@@ -122,7 +122,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 		handler: func(ctx context.Context, r *REPL, args []string) error {
 			sc.Drain()
 			r.Printf("✓ Server set to DRAINING. No new connections will be accepted.\n")
-			
+
 			// Optional immediate feedback loop in a goroutine
 			count := sc.GetClientCount()
 			if count > 0 {
@@ -573,6 +573,8 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("      --on-error <tmpl>     Response template to send back on error\n")
 				r.Printf("      --duration <duration> Duration for 'delay' builtin (e.g. '2s', '500ms', template)\n")
 				r.Printf("      --max <duration>      Max cap for 'delay' builtin duration\n")
+				r.Printf("      --code <code>         Close code for 'close' builtin (e.g. 1000, template)\n")
+				r.Printf("      --reason <reason>     Close reason for 'close' builtin (supports templates)\n")
 				return nil
 			}
 
@@ -581,7 +583,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 				fs.SetOutput(r.Stdout())
 
-				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max string
+				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason string
 				var responses []string
 				var priority, burst int
 				var exclusive, sequential, loop, perClient bool
@@ -614,6 +616,8 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.StringVar(&onLimit, "on-limit", "", "Response template for rate limit")
 				fs.StringVar(&duration, "duration", "", "Duration for delay builtin (e.g. '2s', '500ms', template)")
 				fs.StringVar(&max, "max", "", "Max cap for delay builtin duration")
+				fs.StringVar(&code, "code", "", "Close code for close builtin")
+				fs.StringVar(&reason, "reason", "", "Close reason for close builtin")
 
 				if err := fs.Parse(args[1:]); err != nil {
 					return fmt.Errorf("parsing flags: %w", err)
@@ -657,6 +661,8 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					OnLimit:    onLimit,
 					Duration:   duration,
 					Max:        max,
+					Code:       code,
+					Reason:     reason,
 				}
 
 				if sequential {

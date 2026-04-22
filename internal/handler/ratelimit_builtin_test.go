@@ -10,7 +10,7 @@ import (
 )
 
 type ratelimitMockConn struct {
-	id string
+	id       string
 	mockConn // Embed to avoid implementing everything
 }
 
@@ -18,7 +18,7 @@ func (m *ratelimitMockConn) GetID() string { return m.id }
 
 func TestRateLimitBuiltin(t *testing.T) {
 	engine := template.New(false)
-	
+
 	conn1 := &ratelimitMockConn{id: "client-1"}
 	conn2 := &ratelimitMockConn{id: "client-2"}
 
@@ -36,7 +36,7 @@ func TestRateLimitBuiltin(t *testing.T) {
 		}
 		tmplCtx1 := template.NewContext()
 		d1.populateTemplateContext(tmplCtx1, nil)
-		
+
 		tmplCtx2 := template.NewContext()
 		d2.populateTemplateContext(tmplCtx2, nil)
 
@@ -65,7 +65,7 @@ func TestRateLimitBuiltin(t *testing.T) {
 		}
 		tmplCtx1 := template.NewContext()
 		d1.populateTemplateContext(tmplCtx1, nil)
-		
+
 		tmplCtx2 := template.NewContext()
 		d2.populateTemplateContext(tmplCtx2, nil)
 
@@ -112,7 +112,7 @@ func TestRateLimitBuiltin(t *testing.T) {
 		registry := NewRegistry(ServerMode)
 		kv := &mockKV{data: make(map[string]interface{})}
 		kv.data["my_rate"] = "10/s"
-		
+
 		d := NewDispatcher(registry, conn1, engine, true, nil, nil, false, nil, nil, nil, kv)
 		action := &Action{
 			HandlerName: "dyn-handler",
@@ -147,10 +147,11 @@ func TestRateLimitBuiltin(t *testing.T) {
 type mockKV struct {
 	data map[string]interface{}
 }
+
 func (m *mockKV) ListKV() map[string]interface{} { return m.data }
-func (m *mockKV) GetKV(key string) (interface{}, bool) { 
+func (m *mockKV) GetKV(key string) (interface{}, bool) {
 	v, ok := m.data[key]
 	return v, ok
 }
 func (m *mockKV) SetKV(key string, val interface{}, ttl time.Duration) { m.data[key] = val }
-func (m *mockKV) DeleteKV(key string) { delete(m.data, key) }
+func (m *mockKV) DeleteKV(key string)                                  { delete(m.data, key) }

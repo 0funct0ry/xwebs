@@ -55,10 +55,10 @@ type ClientInfo struct {
 
 // TopicSubscriberInfo holds per-subscriber metadata for a pub/sub topic.
 type TopicSubscriberInfo struct {
-	ConnID       string        `json:"conn_id"`
-	RemoteAddr   string        `json:"remote_addr"`
-	SubscribedAt time.Time     `json:"subscribed_at"`
-	MsgsSent     uint64        `json:"msgs_sent"`
+	ConnID       string    `json:"conn_id"`
+	RemoteAddr   string    `json:"remote_addr"`
+	SubscribedAt time.Time `json:"subscribed_at"`
+	MsgsSent     uint64    `json:"msgs_sent"`
 }
 
 // TopicInfo holds metadata for a single pub/sub topic.
@@ -147,8 +147,8 @@ type TemplateContext struct {
 	AvgRTT         string `json:"avg_rtt,omitempty"`
 
 	// Server-level (convenience at root)
-	ClientCount     int          `json:"client_count,omitempty"`
-	Clients         []ClientInfo `json:"clients,omitempty"`
+	ClientCount     int           `json:"client_count,omitempty"`
+	Clients         []ClientInfo  `json:"clients,omitempty"`
 	ServerUptime    time.Duration `json:"server_uptime,omitempty"`
 	ServerUptimeStr string        `json:"server_uptime_str,omitempty"`
 

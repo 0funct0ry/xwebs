@@ -68,12 +68,12 @@ func (s *Store) Get(key string) (interface{}, bool) {
 func (s *Store) Set(key string, val interface{}, ttl time.Duration) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	var expiresAt time.Time
 	if ttl > 0 {
 		expiresAt = time.Now().Add(ttl)
 	}
-	
+
 	s.data[key] = item{
 		value:     val,
 		expiresAt: expiresAt,
@@ -91,7 +91,7 @@ func (s *Store) Delete(key string) {
 func (s *Store) List() map[string]interface{} {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	now := time.Now()
 	res := make(map[string]interface{}, len(s.data))
 	for k, v := range s.data {

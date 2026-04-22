@@ -35,7 +35,7 @@ func TestFileWriteBuiltin(t *testing.T) {
 			Content: "new content",
 		}
 		msg := &ws.Message{
-			Data: []byte("trigger"),
+			Data:     []byte("trigger"),
 			Metadata: ws.MessageMetadata{Direction: "received"},
 		}
 
@@ -60,7 +60,7 @@ func TestFileWriteBuiltin(t *testing.T) {
 			Mode:    "append",
 		}
 		msg := &ws.Message{
-			Data: []byte("trigger"),
+			Data:     []byte("trigger"),
 			Metadata: ws.MessageMetadata{Direction: "received"},
 		}
 
@@ -74,7 +74,7 @@ func TestFileWriteBuiltin(t *testing.T) {
 
 	t.Run("Auto-create Directory", func(t *testing.T) {
 		filePath := filepath.Join(tmpDir, "nested/dir/file.txt")
-		
+
 		h := &Handler{
 			Name:    "fwrite-mkdir",
 			Builtin: "file-write",
@@ -82,7 +82,7 @@ func TestFileWriteBuiltin(t *testing.T) {
 			Content: "nested content",
 		}
 		msg := &ws.Message{
-			Data: []byte("trigger"),
+			Data:     []byte("trigger"),
 			Metadata: ws.MessageMetadata{Direction: "received"},
 		}
 
@@ -96,7 +96,7 @@ func TestFileWriteBuiltin(t *testing.T) {
 
 	t.Run("Template Rendering", func(t *testing.T) {
 		filePathTmpl := filepath.Join(tmpDir, "{{.Message}}.txt")
-		
+
 		h := &Handler{
 			Name:    "fwrite-tmpl",
 			Builtin: "file-write",
@@ -104,7 +104,7 @@ func TestFileWriteBuiltin(t *testing.T) {
 			Content: "Content for {{.Message}}",
 		}
 		msg := &ws.Message{
-			Data: []byte("hello"),
+			Data:     []byte("hello"),
 			Metadata: ws.MessageMetadata{Direction: "received"},
 		}
 
@@ -120,7 +120,7 @@ func TestFileWriteBuiltin(t *testing.T) {
 	t.Run("Raw Message Content", func(t *testing.T) {
 		filePath := filepath.Join(tmpDir, "raw.bin")
 		data := []byte{0xDE, 0xAD, 0xBE, 0xEF}
-		
+
 		h := &Handler{
 			Name:    "fwrite-raw",
 			Builtin: "file-write",
@@ -128,7 +128,7 @@ func TestFileWriteBuiltin(t *testing.T) {
 			// Content omitted
 		}
 		msg := &ws.Message{
-			Data: data,
+			Data:     data,
 			Metadata: ws.MessageMetadata{Direction: "received"},
 		}
 
@@ -150,7 +150,7 @@ func TestFileWriteBuiltin(t *testing.T) {
 			BaseDir: tmpDir,
 		}
 		msg := &ws.Message{
-			Data: []byte("test"),
+			Data:     []byte("test"),
 			Metadata: ws.MessageMetadata{Direction: "received"},
 		}
 

@@ -281,9 +281,9 @@ func TestEngine_Execute(t *testing.T) {
 				t.Errorf("Engine.Execute() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if tt.name == "system user" || tt.name == "system home" || 
-			   tt.name == "system cpuUsage" || tt.name == "system memUsage" || 
-			   tt.name == "system diskUsage" {
+			if tt.name == "system user" || tt.name == "system home" ||
+				tt.name == "system cpuUsage" || tt.name == "system memUsage" ||
+				tt.name == "system diskUsage" {
 				if got == "" {
 					t.Errorf("%s returned empty string", tt.name)
 				}

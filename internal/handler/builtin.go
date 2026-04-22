@@ -13,6 +13,13 @@ import (
 // ErrLimitExceeded is returned by the rate-limit builtin when a message is rejected.
 var ErrLimitExceeded = fmt.Errorf("rate limit exceeded")
 
+// ErrDrop is a sentinel error returned by the drop builtin to signal that
+// no further actions or handlers should be executed for the current message.
+var ErrDrop = fmt.Errorf("drop message")
+
+// ErrClose is a sentinel error that can be used to signal connection closure.
+var ErrClose = fmt.Errorf("close connection")
+
 // BuiltinScope defines where a builtin action is allowed to run.
 type BuiltinScope string
 

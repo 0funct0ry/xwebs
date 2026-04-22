@@ -37,7 +37,7 @@ func TestKVBuiltins_Integrated(t *testing.T) {
 	engine := template.New(false)
 	conn := &mockConn{}
 	kvm := &mockKVManager{store: make(map[string]interface{})}
-	
+
 	d := NewDispatcher(reg, conn, engine, true, nil, nil, false, nil, nil, nil, kvm)
 
 	t.Run("KV Set with Capture Groups", func(t *testing.T) {
@@ -48,21 +48,21 @@ func TestKVBuiltins_Integrated(t *testing.T) {
 			},
 			Actions: []Action{
 				{
-					Type: "builtin",
+					Type:    "builtin",
 					Command: "kv-set",
-					Key: "{{index .Matches 1}}",
-					Value: "{{index .Matches 2}}",
+					Key:     "{{index .Matches 1}}",
+					Value:   "{{index .Matches 2}}",
 				},
 			},
 		}
 		err := reg.AddHandlers([]Handler{*h})
 		require.NoError(t, err)
-		
+
 		msg := &ws.Message{
-			Data: []byte("set:user:bob"),
+			Data:     []byte("set:user:bob"),
 			Metadata: ws.MessageMetadata{Direction: "received"},
 		}
-		
+
 		// 1. Match
 		matches, err := reg.Match(msg, engine, template.NewContext())
 		require.NoError(t, err)
@@ -89,9 +89,9 @@ func TestKVBuiltins_Integrated(t *testing.T) {
 			},
 			Actions: []Action{
 				{
-					Type: "builtin",
+					Type:    "builtin",
 					Command: "kv-get",
-					Key: "{{index .Matches 1}}",
+					Key:     "{{index .Matches 1}}",
 					Default: "none",
 				},
 			},
@@ -104,10 +104,10 @@ func TestKVBuiltins_Integrated(t *testing.T) {
 		msg := &ws.Message{Data: []byte("get:color"), Metadata: ws.MessageMetadata{Direction: "received"}}
 		matches, _ := reg.Match(msg, engine, template.NewContext())
 		require.NotEmpty(t, matches, "Should find get:color match")
-		
+
 		err = d.Execute(context.Background(), matches[0].Handler, msg, matches[0].Matches)
 		require.NoError(t, err)
-		
+
 		conn.mu.Lock()
 		assert.Equal(t, "Result: red", conn.lastWritten)
 		conn.mu.Unlock()
@@ -116,7 +116,7 @@ func TestKVBuiltins_Integrated(t *testing.T) {
 		msg = &ws.Message{Data: []byte("get:size"), Metadata: ws.MessageMetadata{Direction: "received"}}
 		matches, _ = reg.Match(msg, engine, template.NewContext())
 		require.NotEmpty(t, matches, "Should find get:size match")
-		
+
 		err = d.Execute(context.Background(), matches[0].Handler, msg, matches[0].Matches)
 		require.NoError(t, err)
 
@@ -129,8 +129,8 @@ func TestKVBuiltins_Integrated(t *testing.T) {
 		kvm.store = map[string]interface{}{"a": "val1", "b": "val2"}
 
 		h := &Handler{
-			Name: "kv-list-test",
-			Match: Matcher{Pattern: "list"},
+			Name:    "kv-list-test",
+			Match:   Matcher{Pattern: "list"},
 			Actions: []Action{{Type: "builtin", Command: "kv-list"}},
 			Respond: "{{range .KvKeys}}{{.}} {{end}}",
 		}
@@ -140,7 +140,7 @@ func TestKVBuiltins_Integrated(t *testing.T) {
 		msg := &ws.Message{Data: []byte("list"), Metadata: ws.MessageMetadata{Direction: "received"}}
 		matches, _ := reg.Match(msg, engine, template.NewContext())
 		require.NotEmpty(t, matches, "Should find list match")
-		
+
 		err = d.Execute(context.Background(), matches[0].Handler, msg, nil)
 		require.NoError(t, err)
 

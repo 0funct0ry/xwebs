@@ -12,9 +12,9 @@ type mockBuiltin struct {
 	scope BuiltinScope
 }
 
-func (m *mockBuiltin) Name() string        { return m.name }
-func (m *mockBuiltin) Description() string { return "Mock description" }
-func (m *mockBuiltin) Scope() BuiltinScope { return m.scope }
+func (m *mockBuiltin) Name() string            { return m.name }
+func (m *mockBuiltin) Description() string     { return "Mock description" }
+func (m *mockBuiltin) Scope() BuiltinScope     { return m.scope }
 func (m *mockBuiltin) Validate(a Action) error { return nil }
 func (m *mockBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
 	return nil
@@ -55,11 +55,11 @@ func TestRegister(t *testing.T) {
 
 func TestIsBuiltinAllowed(t *testing.T) {
 	tests := []struct {
-		name     string
-		mode     RegistryMode
-		allowed  bool
-		exists   bool
-		scope    BuiltinScope
+		name    string
+		mode    RegistryMode
+		allowed bool
+		exists  bool
+		scope   BuiltinScope
 	}{
 		{"subscribe", ServerMode, true, true, ServerOnly},
 		{"subscribe", ClientMode, false, true, ServerOnly},
@@ -93,45 +93,45 @@ func TestBuiltinValidation(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "valid subscribe",
-			action: Action{Type: "builtin", Command: "subscribe", Topic: "foo"},
-			mode: ServerMode,
+			name:    "valid subscribe",
+			action:  Action{Type: "builtin", Command: "subscribe", Topic: "foo"},
+			mode:    ServerMode,
 			wantErr: false,
 		},
 		{
-			name: "missing topic subscribe",
-			action: Action{Type: "builtin", Command: "subscribe"},
-			mode: ServerMode,
+			name:    "missing topic subscribe",
+			action:  Action{Type: "builtin", Command: "subscribe"},
+			mode:    ServerMode,
 			wantErr: true,
 		},
 		{
-			name: "valid kv-set",
-			action: Action{Type: "builtin", Command: "kv-set", Key: "k", Value: "v"},
-			mode: ServerMode,
+			name:    "valid kv-set",
+			action:  Action{Type: "builtin", Command: "kv-set", Key: "k", Value: "v"},
+			mode:    ServerMode,
 			wantErr: false,
 		},
 		{
-			name: "missing key kv-set",
-			action: Action{Type: "builtin", Command: "kv-set", Value: "v"},
-			mode: ServerMode,
+			name:    "missing key kv-set",
+			action:  Action{Type: "builtin", Command: "kv-set", Value: "v"},
+			mode:    ServerMode,
 			wantErr: true,
 		},
 		{
-			name: "valid echo",
-			action: Action{Type: "builtin", Command: "echo"},
-			mode: ServerMode,
+			name:    "valid echo",
+			action:  Action{Type: "builtin", Command: "echo"},
+			mode:    ServerMode,
 			wantErr: false,
 		},
 		{
-			name: "client mode echo (Shared)",
-			action: Action{Type: "builtin", Command: "echo"},
-			mode: ClientMode,
+			name:    "client mode echo (Shared)",
+			action:  Action{Type: "builtin", Command: "echo"},
+			mode:    ClientMode,
 			wantErr: false,
 		},
 		{
-			name: "client mode subscribe (ServerOnly)",
-			action: Action{Type: "builtin", Command: "subscribe", Topic: "foo"},
-			mode: ClientMode,
+			name:    "client mode subscribe (ServerOnly)",
+			action:  Action{Type: "builtin", Command: "subscribe", Topic: "foo"},
+			mode:    ClientMode,
 			wantErr: true,
 		},
 	}

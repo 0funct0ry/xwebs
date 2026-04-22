@@ -142,7 +142,7 @@ func (sm *SecurityManager) CheckRateLimit(remoteAddr string) bool {
 		if host == "" {
 			host = remoteAddr
 		}
-		
+
 		sm.mu.Lock()
 		cl, ok := sm.clientLimits[host]
 		if !ok {
@@ -174,7 +174,7 @@ func (sm *SecurityManager) IsOriginAllowed(r *http.Request) bool {
 	origin := r.Header.Get("Origin")
 	if origin == "" {
 		// If Origin is missing, it's not a browser cross-origin request.
-		// Usually we allow if missing, but if Origins are restricted, 
+		// Usually we allow if missing, but if Origins are restricted,
 		// maybe we should be strict? gorilla/websocket handles this.
 		// We'll follow gorilla's lead and return true if Origin matches Host.
 		// But here we are just checking against our allowed list.

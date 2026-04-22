@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"text/template"
 	"sync"
+	"text/template"
 	"time"
 
 	"github.com/spf13/cast"
@@ -137,7 +137,7 @@ func (e *Engine) registerStringFuncs() {
 		return url.QueryEscape(cast.ToString(s))
 	}
 	e.funcs["quote"] = func(s interface{}) string {
-		return strconv.Quote(cast.ToString(s) )
+		return strconv.Quote(cast.ToString(s))
 	}
 	e.funcs["short"] = func(s interface{}) string {
 		str := cast.ToString(s)

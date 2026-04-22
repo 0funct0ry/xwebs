@@ -17,11 +17,11 @@ import (
 	"github.com/0funct0ry/xwebs/internal/handler"
 	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/docker/docker/pkg/namesgenerator"
+	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/pmezard/go-difflib/difflib"
 	"github.com/spf13/pflag"
 	"golang.design/x/clipboard"
-	"github.com/jedib0t/go-pretty/v6/table"
-	"github.com/jedib0t/go-pretty/v6/text"
 	"gopkg.in/yaml.v3"
 	"runtime"
 )
@@ -148,8 +148,8 @@ func (r *REPL) RegisterCommonCommands() {
 	r.RegisterAlias("sh", "shell")
 
 	r.RegisterCommand(&BuiltinCommand{
-		name: "set",
-		help: "Set a session variable: :set <key> <value>",
+		name:         "set",
+		help:         "Set a session variable: :set <key> <value>",
 		hideInServer: true,
 		handler: func(ctx context.Context, r *REPL, args []string) error {
 			if r.mode == ServerMode {
@@ -165,8 +165,8 @@ func (r *REPL) RegisterCommonCommands() {
 	})
 
 	r.RegisterCommand(&BuiltinCommand{
-		name: "get",
-		help: "Get a session variable: :get <key>",
+		name:         "get",
+		help:         "Get a session variable: :get <key>",
 		hideInServer: true,
 		handler: func(ctx context.Context, r *REPL, args []string) error {
 			if r.mode == ServerMode {
@@ -187,8 +187,8 @@ func (r *REPL) RegisterCommonCommands() {
 	})
 
 	r.RegisterCommand(&BuiltinCommand{
-		name: "vars",
-		help: "List all session variables",
+		name:         "vars",
+		help:         "List all session variables",
 		hideInServer: true,
 		handler: func(ctx context.Context, r *REPL, args []string) error {
 			if r.mode == ServerMode {
@@ -573,14 +573,14 @@ func (r *REPL) RegisterCommonCommands() {
 
 			// Parse flags
 			var (
-				number    int
-				clear     bool
-				search    string
-				filter    string
+				number     int
+				clear      bool
+				search     string
+				filter     string
 				exportFile string
-				unique    bool
-				reverse   bool
-				jsonOut   bool
+				unique     bool
+				reverse    bool
+				jsonOut    bool
 			)
 
 			fs := pflag.NewFlagSet("history", pflag.ContinueOnError)
@@ -1320,6 +1320,8 @@ func (r *REPL) RegisterCommonCommands() {
 				r.Printf("  --responses <list>    Responses for 'sequence' builtin (repeatable)\n")
 				r.Printf("  --loop                Loop the sequence\n")
 				r.Printf("  --per-client          Track sequence position independently per client\n")
+				r.Printf("  --code <code>         Close code for 'close' builtin (e.g. 1000, template)\n")
+				r.Printf("  --reason <reason>     Close reason for 'close' builtin (supports templates)\n")
 				return nil
 			}
 
@@ -1483,7 +1485,7 @@ func (r *REPL) RegisterCommonCommands() {
 			fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 			fs.SetOutput(nil) // Suppress automatic usage printing on error
 
-			var name, match, matchType, run, respond, builtin, topic, rateLimit, debounce string
+			var name, match, matchType, run, respond, builtin, topic, rateLimit, debounce, code, reason string
 			var priority int
 			var exclusive, sequential bool
 
@@ -1498,6 +1500,8 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.BoolVarP(&exclusive, "exclusive", "e", false, "Short-circuit match")
 			fs.BoolVarP(&sequential, "sequential", "s", false, "Run actions sequentially")
 			fs.StringVarP(&rateLimit, "rate-limit", "l", "", "Rate limit")
+			fs.StringVar(&code, "code", "", "Close code for close builtin")
+			fs.StringVar(&reason, "reason", "", "Close reason for close builtin")
 			fs.StringVarP(&debounce, "debounce", "d", "", "Debounce duration")
 			var file, path, content, mode string
 			var responses []string
@@ -1539,6 +1543,8 @@ func (r *REPL) RegisterCommonCommands() {
 				},
 				RateLimit: rateLimit,
 				Debounce:  debounce,
+				Code:      code,
+				Reason:    reason,
 				File:      file,
 				Path:      path,
 				Content:   content,

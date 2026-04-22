@@ -20,25 +20,25 @@ import (
 )
 
 var (
-	servePort  int
-	servePaths []string
-	serveTLS   bool
-	serveCert  string
-	serveKey   string
-	serveAPI   bool
-	serveMetrics bool
-	allowedOrigins []string
-	allowIPs       []string
-	denyIPs        []string
-	rateLimit      string
-	serveUI         bool
-	serveInteractive bool
-	serveNoInteract  bool
-	staticDir        string
-	staticFile       string
-	staticPath       string
-	staticPort       int
-	staticGenerate       bool
+	servePort           int
+	servePaths          []string
+	serveTLS            bool
+	serveCert           string
+	serveKey            string
+	serveAPI            bool
+	serveMetrics        bool
+	allowedOrigins      []string
+	allowIPs            []string
+	denyIPs             []string
+	rateLimit           string
+	serveUI             bool
+	serveInteractive    bool
+	serveNoInteract     bool
+	staticDir           string
+	staticFile          string
+	staticPath          string
+	staticPort          int
+	staticGenerate      bool
 	staticGenerateStyle string
 )
 
@@ -46,24 +46,28 @@ type serveContext struct {
 	srv *server.Server
 }
 
-func (c *serveContext) GetClientCount() int                            { return c.srv.GetClientCount() }
-func (c *serveContext) GetUptime() time.Duration                       { return c.srv.GetUptime() }
-func (c *serveContext) GetClients() []template.ClientInfo              { return c.srv.GetClients() }
+func (c *serveContext) GetClientCount() int                             { return c.srv.GetClientCount() }
+func (c *serveContext) GetUptime() time.Duration                        { return c.srv.GetUptime() }
+func (c *serveContext) GetClients() []template.ClientInfo               { return c.srv.GetClients() }
 func (c *serveContext) GetClient(id string) (template.ClientInfo, bool) { return c.srv.GetClient(id) }
 func (c *serveContext) Broadcast(msg *ws.Message, excludeIDs ...string) int {
 	return c.srv.Broadcast(msg, excludeIDs...)
 }
-func (c *serveContext) Send(id string, msg *ws.Message) error          { return c.srv.Send(id, msg) }
-func (c *serveContext) Kick(id string, code int, reason string) error  { return c.srv.Kick(id, code, reason) }
-func (c *serveContext) GetStatus() string                              { return c.srv.GetStatus() }
-func (c *serveContext) GetTemplateEngine() *template.Engine            { return c.srv.GetTemplateEngine() }
-func (c *serveContext) GetHandlers() []handler.Handler                 { return c.srv.GetHandlers() }
-func (c *serveContext) GetVariables() map[string]interface{}           { return c.srv.GetVariables() }
-func (c *serveContext) GetHandlersFile() string                        { return handlersFile }
-func (c *serveContext) AddHandler(h handler.Handler) error            { return c.srv.AddHandler(h) }
-func (c *serveContext) UpdateHandler(h handler.Handler) error         { return c.srv.UpdateHandler(h) }
-func (c *serveContext) DeleteHandler(name string) error               { return c.srv.DeleteHandler(name) }
-func (c *serveContext) RenameHandler(oldName, newName string) error   { return c.srv.RenameHandler(oldName, newName) }
+func (c *serveContext) Send(id string, msg *ws.Message) error { return c.srv.Send(id, msg) }
+func (c *serveContext) Kick(id string, code int, reason string) error {
+	return c.srv.Kick(id, code, reason)
+}
+func (c *serveContext) GetStatus() string                     { return c.srv.GetStatus() }
+func (c *serveContext) GetTemplateEngine() *template.Engine   { return c.srv.GetTemplateEngine() }
+func (c *serveContext) GetHandlers() []handler.Handler        { return c.srv.GetHandlers() }
+func (c *serveContext) GetVariables() map[string]interface{}  { return c.srv.GetVariables() }
+func (c *serveContext) GetHandlersFile() string               { return handlersFile }
+func (c *serveContext) AddHandler(h handler.Handler) error    { return c.srv.AddHandler(h) }
+func (c *serveContext) UpdateHandler(h handler.Handler) error { return c.srv.UpdateHandler(h) }
+func (c *serveContext) DeleteHandler(name string) error       { return c.srv.DeleteHandler(name) }
+func (c *serveContext) RenameHandler(oldName, newName string) error {
+	return c.srv.RenameHandler(oldName, newName)
+}
 func (c *serveContext) ResetSequence(name string) {
 	c.srv.ResetSequence(name)
 }
@@ -127,19 +131,21 @@ func (c *serveContext) UnsubscribeClientFromAllTopics(clientID string) ([]string
 	return c.srv.UnsubscribeClientFromAllTopics(clientID)
 }
 
-func (c *serveContext) ListKV() map[string]interface{} { return c.srv.ListKV() }
+func (c *serveContext) ListKV() map[string]interface{}       { return c.srv.ListKV() }
 func (c *serveContext) GetKV(key string) (interface{}, bool) { return c.srv.GetKV(key) }
-func (c *serveContext) SetKV(key string, val interface{}, ttl time.Duration) { c.srv.SetKV(key, val, ttl) }
+func (c *serveContext) SetKV(key string, val interface{}, ttl time.Duration) {
+	c.srv.SetKV(key, val, ttl)
+}
 func (c *serveContext) DeleteKV(key string) { c.srv.DeleteKV(key) }
 
-func (c *serveContext) GetGlobalStats() observability.GlobalStats { return c.srv.GetGlobalStats() }
-func (c *serveContext) GetRegistryStats() (uint64, uint64) { return c.srv.GetRegistryStats() }
+func (c *serveContext) GetGlobalStats() observability.GlobalStats   { return c.srv.GetGlobalStats() }
+func (c *serveContext) GetRegistryStats() (uint64, uint64)          { return c.srv.GetRegistryStats() }
 func (c *serveContext) GetSlowLog(limit int) []handler.SlowLogEntry { return c.srv.GetSlowLog(limit) }
 
-func (c *serveContext) Drain()           { c.srv.Drain() }
-func (c *serveContext) Pause()           { c.srv.Pause() }
-func (c *serveContext) Resume()          { c.srv.Resume() }
-func (c *serveContext) IsPaused() bool   { return c.srv.IsPaused() }
+func (c *serveContext) Drain()         { c.srv.Drain() }
+func (c *serveContext) Pause()         { c.srv.Pause() }
+func (c *serveContext) Resume()        { c.srv.Resume() }
+func (c *serveContext) IsPaused() bool { return c.srv.IsPaused() }
 
 func (c *serveContext) ReloadHandlers() error {
 	var handlers []handler.Handler

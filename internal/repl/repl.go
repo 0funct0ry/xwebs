@@ -292,9 +292,9 @@ func parseShortcut(name string) (rune, error) {
 		return rune(char - 'A' + 1), nil
 	}
 
-	// For now we only support Ctrl+A-Z. 
+	// For now we only support Ctrl+A-Z.
 	// Alt sequences often involve ESC prefix which OnChange doesn't handle as a single unit easily.
-	
+
 	return 0, fmt.Errorf("unsupported shortcut format: %s", name)
 }
 
@@ -799,7 +799,7 @@ func (r *REPL) renderPrompt() {
 	r.PopulateContext(tmplCtx)
 
 	engine := template.New(false)
-	
+
 	// Set colors based on display settings
 	colorsEnabled := true
 	switch r.Display.Color {
@@ -872,8 +872,8 @@ func (r *REPL) Do(line []rune, pos int) (newLine [][]rune, length int) {
 // It intercepts defined shortcuts.
 func (r *REPL) OnChange(line []rune, pos int, key rune) (newLine []rune, newPos int, ok bool) {
 	if cmd, exists := r.shortcuts[key]; exists {
-		// Use the mapped command. Intelligent positioning: 
-		// If it's a command that expects more input (e.g. ends in space), 
+		// Use the mapped command. Intelligent positioning:
+		// If it's a command that expects more input (e.g. ends in space),
 		// the cursor is at the end.
 		return []rune(cmd), len(cmd), true
 	}

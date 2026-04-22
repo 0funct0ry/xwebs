@@ -17,8 +17,10 @@ type ForwardBuiltin struct {
 	connsMu sync.Mutex
 }
 
-func (b *ForwardBuiltin) Name() string        { return "forward" }
-func (b *ForwardBuiltin) Description() string { return "Relay the incoming message to another WebSocket endpoint and capture the reply." }
+func (b *ForwardBuiltin) Name() string { return "forward" }
+func (b *ForwardBuiltin) Description() string {
+	return "Relay the incoming message to another WebSocket endpoint and capture the reply."
+}
 func (b *ForwardBuiltin) Scope() BuiltinScope { return ServerOnly }
 
 func (b *ForwardBuiltin) Validate(a Action) error {
@@ -73,7 +75,7 @@ func (b *ForwardBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, 
 		// Reset subscriber for the new connection
 		replyCh = conn.Subscribe()
 		defer conn.Unsubscribe(replyCh)
-		
+
 		err = conn.Write(&ws.Message{
 			Type: mt,
 			Data: tmplCtx.MessageBytes,

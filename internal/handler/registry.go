@@ -61,21 +61,21 @@ type RegistryStats struct {
 
 // Registry manages a collection of message handlers.
 type Registry struct {
-	handlers   []Handler
-	schemas    map[string]*gojsonschema.Schema
-	handlerMu  map[string]*sync.Mutex
-	limiters   map[string]*rate.Limiter
-	debouncers map[string]*debouncer
-	stats      map[string]*HandlerStats
-	global     RegistryStats
+	handlers              []Handler
+	schemas               map[string]*gojsonschema.Schema
+	handlerMu             map[string]*sync.Mutex
+	limiters              map[string]*rate.Limiter
+	debouncers            map[string]*debouncer
+	stats                 map[string]*HandlerStats
+	global                RegistryStats
 	disabled              map[string]bool
-	sequenceIndices      map[string]int              // handlerName -> index
-	sequenceClientIndices map[string]map[string]int   // handlerName -> connID -> index
-	scopedLimiters        map[string]*rate.Limiter    // key -> limiter
-	scopedLimiterRates    map[string]string          // key -> rateStr
-	scopedLimiterBursts   map[string]int             // key -> burst
-	Mode                 RegistryMode
-	mu                   sync.RWMutex
+	sequenceIndices       map[string]int            // handlerName -> index
+	sequenceClientIndices map[string]map[string]int // handlerName -> connID -> index
+	scopedLimiters        map[string]*rate.Limiter  // key -> limiter
+	scopedLimiterRates    map[string]string         // key -> rateStr
+	scopedLimiterBursts   map[string]int            // key -> burst
+	Mode                  RegistryMode
+	mu                    sync.RWMutex
 }
 
 type debouncer struct {
@@ -87,19 +87,19 @@ type debouncer struct {
 // NewRegistry creates a new handler registry with the given mode.
 func NewRegistry(mode RegistryMode) *Registry {
 	return &Registry{
-		handlers:   make([]Handler, 0),
-		schemas:    make(map[string]*gojsonschema.Schema),
-		handlerMu:  make(map[string]*sync.Mutex),
-		limiters:   make(map[string]*rate.Limiter),
-		debouncers: make(map[string]*debouncer),
-		stats:      make(map[string]*HandlerStats),
-		disabled:   make(map[string]bool),
-		sequenceIndices:      make(map[string]int),
+		handlers:              make([]Handler, 0),
+		schemas:               make(map[string]*gojsonschema.Schema),
+		handlerMu:             make(map[string]*sync.Mutex),
+		limiters:              make(map[string]*rate.Limiter),
+		debouncers:            make(map[string]*debouncer),
+		stats:                 make(map[string]*HandlerStats),
+		disabled:              make(map[string]bool),
+		sequenceIndices:       make(map[string]int),
 		sequenceClientIndices: make(map[string]map[string]int),
 		scopedLimiters:        make(map[string]*rate.Limiter),
 		scopedLimiterRates:    make(map[string]string),
 		scopedLimiterBursts:   make(map[string]int),
-		Mode:       mode,
+		Mode:                  mode,
 		global: RegistryStats{
 			maxSlowLog: 50,
 		},
@@ -186,7 +186,7 @@ func (r *Registry) UpdateHandler(h Handler) error {
 		d.mu.Unlock()
 		delete(r.debouncers, h.Name)
 	}
-	
+
 	// Clean up scoped limiters for this handler
 	for k := range r.scopedLimiters {
 		if strings.HasPrefix(k, "handler:"+h.Name+":") || strings.HasPrefix(k, "client:"+h.Name+":") {
@@ -1046,6 +1046,7 @@ func (r *Registry) IsDisabled(name string) bool {
 	defer r.mu.RUnlock()
 	return r.disabled[name]
 }
+
 // GetNextSequenceIndex returns the next index for a sequence builtin, potentially tracking it per-client.
 func (r *Registry) GetNextSequenceIndex(handlerName, connID string, count int, loop, perClient bool) int {
 	if count <= 0 {
@@ -1135,7 +1136,7 @@ func (r *Registry) GetScopedLimiter(key, rateStr string, burst int) *rate.Limite
 		limiter = rate.NewLimiter(rate.Limit(perSec), burstVal)
 		r.scopedLimiters[key] = limiter
 	}
-	
+
 	r.scopedLimiterRates[key] = rateStr
 	r.scopedLimiterBursts[key] = burst
 	return limiter

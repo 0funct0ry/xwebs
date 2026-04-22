@@ -47,6 +47,8 @@ type Handler struct {
 	Content      string                 `yaml:"content,omitempty"`    // For file-write builtin
 	Duration     string                 `yaml:"duration,omitempty"`   // For delay builtin (supports templates)
 	Max          string                 `yaml:"max,omitempty"`        // For delay builtin — cap on dynamic duration
+	Code         string                 `yaml:"code,omitempty"`       // For close builtin (supports templates)
+	Reason       string                 `yaml:"reason,omitempty"`     // For close builtin (supports templates)
 	Actions      []Action               `yaml:"actions,omitempty"`
 	Variables    map[string]interface{} `yaml:"variables,omitempty"`
 	OnConnect    []Action               `yaml:"on_connect,omitempty"`
@@ -72,19 +74,19 @@ type RetryConfig struct {
 
 // PipelineStep defines a single step in a multi-step handler execution.
 type PipelineStep struct {
-	Run         string `yaml:"run,omitempty"`
-	Builtin     string `yaml:"builtin,omitempty"`
-	Topic       string `yaml:"topic,omitempty"`       // Topic name (template) for subscribe/unsubscribe/publish builtins
-	Key         string `yaml:"key,omitempty"`         // Key (template) for KV builtins
-	Value       string `yaml:"value,omitempty"`       // Value (template) for KV builtins
-	Target      string `yaml:"target,omitempty"`      // Upstream target URL for forward builtin
-	As          string `yaml:"as,omitempty"`          // Key to store results in .Steps.<name>
-	Timeout     string `yaml:"timeout,omitempty"`
-	Delay       string `yaml:"delay,omitempty"`
-	Respond     string `yaml:"respond,omitempty"`
-	Message     string `yaml:"message,omitempty"` // Message content (template) for broadcast/publish builtins
-	TTL         string `yaml:"ttl,omitempty"`         // TTL (template) for KV builtins
-	Default     string `yaml:"default,omitempty"`     // Default value (template) for KV builtins
+	Run         string   `yaml:"run,omitempty"`
+	Builtin     string   `yaml:"builtin,omitempty"`
+	Topic       string   `yaml:"topic,omitempty"`  // Topic name (template) for subscribe/unsubscribe/publish builtins
+	Key         string   `yaml:"key,omitempty"`    // Key (template) for KV builtins
+	Value       string   `yaml:"value,omitempty"`  // Value (template) for KV builtins
+	Target      string   `yaml:"target,omitempty"` // Upstream target URL for forward builtin
+	As          string   `yaml:"as,omitempty"`     // Key to store results in .Steps.<name>
+	Timeout     string   `yaml:"timeout,omitempty"`
+	Delay       string   `yaml:"delay,omitempty"`
+	Respond     string   `yaml:"respond,omitempty"`
+	Message     string   `yaml:"message,omitempty"`    // Message content (template) for broadcast/publish builtins
+	TTL         string   `yaml:"ttl,omitempty"`        // TTL (template) for KV builtins
+	Default     string   `yaml:"default,omitempty"`    // Default value (template) for KV builtins
 	Responses   []string `yaml:"responses,omitempty"`  // For sequence builtin
 	Loop        bool     `yaml:"loop,omitempty"`       // For sequence builtin
 	PerClient   bool     `yaml:"per_client,omitempty"` // For sequence builtin
@@ -93,12 +95,14 @@ type PipelineStep struct {
 	Content     string   `yaml:"content,omitempty"`    // For file-write builtin
 	Mode        string   `yaml:"mode,omitempty"`       // For file-send builtin
 	IgnoreError bool     `yaml:"ignore_error,omitempty"`
-	Rate        string   `yaml:"rate,omitempty"`       // For rate-limit builtin
-	Burst       int      `yaml:"burst,omitempty"`      // For rate-limit builtin
-	Scope       string   `yaml:"scope,omitempty"`      // For rate-limit builtin
-	OnLimit     string   `yaml:"on_limit,omitempty"`   // For rate-limit builtin
-	Duration    string   `yaml:"duration,omitempty"`   // For delay builtin (supports templates)
-	Max         string   `yaml:"max,omitempty"`        // For delay builtin — cap on dynamic duration
+	Rate        string   `yaml:"rate,omitempty"`     // For rate-limit builtin
+	Burst       int      `yaml:"burst,omitempty"`    // For rate-limit builtin
+	Scope       string   `yaml:"scope,omitempty"`    // For rate-limit builtin
+	OnLimit     string   `yaml:"on_limit,omitempty"` // For rate-limit builtin
+	Duration    string   `yaml:"duration,omitempty"` // For delay builtin (supports templates)
+	Max         string   `yaml:"max,omitempty"`      // For delay builtin — cap on dynamic duration
+	Code        string   `yaml:"code,omitempty"`     // For close builtin
+	Reason      string   `yaml:"reason,omitempty"`   // For close builtin
 }
 
 // Matcher specifies how to match an incoming WebSocket message.
@@ -137,39 +141,41 @@ func (m *Matcher) UnmarshalYAML(value *yaml.Node) error {
 
 // Action defines an operation to perform when a handler matches or a lifecycle event occurs.
 type Action struct {
-	Type    string            `yaml:"action,omitempty"`  // "shell", "send", "log", "builtin"
-	Run     string            `yaml:"run,omitempty"`     // Shorthand for shell action
-	Send    string            `yaml:"send,omitempty"`    // Shorthand for send action
-	Builtin string            `yaml:"builtin,omitempty"` // Shorthand for builtin action
-	Log     string            `yaml:"log,omitempty"`     // Shorthand for log message
-	Message string            `yaml:"message,omitempty"` // For legacy "send" action (shorthand preferred)
-	Command string            `yaml:"command,omitempty"` // For legacy "shell" action (shorthand preferred)
-	Topic   string            `yaml:"topic,omitempty"`   // Topic name (template) for subscribe/unsubscribe/publish builtins
-	Key     string            `yaml:"key,omitempty"`     // Key (template) for KV builtins
-	Value   string            `yaml:"value,omitempty"`   // Value (template) for KV builtins
-	Target  string            `yaml:"target,omitempty"`  // For "log" action (e.g. filename or "stdout", "stderr")
-	Timeout string            `yaml:"timeout,omitempty"` // Timeout for shell/builtin actions
-	Delay   string            `yaml:"delay,omitempty"`   // Delay before execution
-	Respond string            `yaml:"respond,omitempty"` // Override response for echo or generic follow-up
-	TTL     string            `yaml:"ttl,omitempty"`     // TTL (template) for KV builtins
-	Default string            `yaml:"default,omitempty"` // Default value (template) for KV builtins
-	Env       map[string]string `yaml:"env,omitempty"`     // Environment variables for shell actions
-	Silent    bool              `yaml:"silent,omitempty"`  // Suppress output for shell actions
+	Type        string            `yaml:"action,omitempty"`  // "shell", "send", "log", "builtin"
+	Run         string            `yaml:"run,omitempty"`     // Shorthand for shell action
+	Send        string            `yaml:"send,omitempty"`    // Shorthand for send action
+	Builtin     string            `yaml:"builtin,omitempty"` // Shorthand for builtin action
+	Log         string            `yaml:"log,omitempty"`     // Shorthand for log message
+	Message     string            `yaml:"message,omitempty"` // For legacy "send" action (shorthand preferred)
+	Command     string            `yaml:"command,omitempty"` // For legacy "shell" action (shorthand preferred)
+	Topic       string            `yaml:"topic,omitempty"`   // Topic name (template) for subscribe/unsubscribe/publish builtins
+	Key         string            `yaml:"key,omitempty"`     // Key (template) for KV builtins
+	Value       string            `yaml:"value,omitempty"`   // Value (template) for KV builtins
+	Target      string            `yaml:"target,omitempty"`  // For "log" action (e.g. filename or "stdout", "stderr")
+	Timeout     string            `yaml:"timeout,omitempty"` // Timeout for shell/builtin actions
+	Delay       string            `yaml:"delay,omitempty"`   // Delay before execution
+	Respond     string            `yaml:"respond,omitempty"` // Override response for echo or generic follow-up
+	TTL         string            `yaml:"ttl,omitempty"`     // TTL (template) for KV builtins
+	Default     string            `yaml:"default,omitempty"` // Default value (template) for KV builtins
+	Env         map[string]string `yaml:"env,omitempty"`     // Environment variables for shell actions
+	Silent      bool              `yaml:"silent,omitempty"`  // Suppress output for shell actions
 	Responses   []string          `yaml:"responses,omitempty"`
 	Loop        bool              `yaml:"loop,omitempty"`
 	PerClient   bool              `yaml:"per_client,omitempty"`
-	File        string            `yaml:"file,omitempty"` // For template builtin
-	Path        string            `yaml:"path,omitempty"` // For file-write builtin
-	Content     string            `yaml:"content,omitempty"` // For file-write builtin
-	Mode        string            `yaml:"mode,omitempty"` // For file-send builtin
-	Rate        string            `yaml:"rate,omitempty"` // For rate-limit builtin
-	Burst       int               `yaml:"burst,omitempty"` // For rate-limit builtin
-	Scope       string            `yaml:"scope,omitempty"` // For rate-limit builtin
+	File        string            `yaml:"file,omitempty"`     // For template builtin
+	Path        string            `yaml:"path,omitempty"`     // For file-write builtin
+	Content     string            `yaml:"content,omitempty"`  // For file-write builtin
+	Mode        string            `yaml:"mode,omitempty"`     // For file-send builtin
+	Rate        string            `yaml:"rate,omitempty"`     // For rate-limit builtin
+	Burst       int               `yaml:"burst,omitempty"`    // For rate-limit builtin
+	Scope       string            `yaml:"scope,omitempty"`    // For rate-limit builtin
 	OnLimit     string            `yaml:"on_limit,omitempty"` // For rate-limit builtin
 	Duration    string            `yaml:"duration,omitempty"` // For delay builtin (supports templates)
 	Max         string            `yaml:"max,omitempty"`      // For delay builtin — cap on dynamic duration
-	BaseDir     string            `yaml:"-"`              // For relative path resolution in builtins
-	HandlerName string            `yaml:"-"`              // Internal use only
+	Code        string            `yaml:"code,omitempty"`     // For close builtin
+	Reason      string            `yaml:"reason,omitempty"`   // For close builtin
+	BaseDir     string            `yaml:"-"`                  // For relative path resolution in builtins
+	HandlerName string            `yaml:"-"`                  // Internal use only
 }
 
 // UnmarshalYAML implements custom unmarshaling for Action to support shorthand keys.
@@ -284,12 +290,12 @@ func (c *Config) Validate(mode RegistryMode) error {
 			// Validate builtin-specific fields using the handler's Validate method.
 			// Wrap the shorthand fields into a temporary Action for validation.
 			tmpAction := Action{
-				Type:    "builtin",
-				Command: h.Builtin,
-				Topic:   h.Topic,
-				Key:     h.Key,
-				Value:   h.Value,
-				Target:  h.Target,
+				Type:      "builtin",
+				Command:   h.Builtin,
+				Topic:     h.Topic,
+				Key:       h.Key,
+				Value:     h.Value,
+				Target:    h.Target,
 				Timeout:   h.Timeout,
 				Delay:     h.Delay,
 				Respond:   h.Respond,
@@ -306,6 +312,8 @@ func (c *Config) Validate(mode RegistryMode) error {
 				OnLimit:   h.OnLimit,
 				Duration:  h.Duration,
 				Max:       h.Max,
+				Code:      h.Code,
+				Reason:    h.Reason,
 			}
 			if err := bh.Validate(tmpAction); err != nil {
 				return fmt.Errorf("handler %q: %w", h.Name, err)

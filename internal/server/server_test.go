@@ -15,12 +15,12 @@ import (
 
 func TestServer_ServeStatus(t *testing.T) {
 	s, _ := New(WithPaths([]string{"/ws"}))
-	
+
 	// Test HTML response
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
 	s.serveStatus(w, req)
-	
+
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "xwebs server")
 	assert.Contains(t, w.Body.String(), "RUNNING")
@@ -31,7 +31,7 @@ func TestServer_ServeStatus(t *testing.T) {
 	req.Header.Set("Accept", "application/json")
 	w = httptest.NewRecorder()
 	s.serveStatus(w, req)
-	
+
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), `"status": "running"`)
 	assert.Contains(t, w.Body.String(), `"/ws"`)
@@ -39,7 +39,7 @@ func TestServer_ServeStatus(t *testing.T) {
 
 func TestServer_WebSocketUpgrade(t *testing.T) {
 	s, _ := New(WithPaths([]string{"/ws"}))
-	
+
 	server := httptest.NewServer(http.HandlerFunc(s.serveWS))
 	defer server.Close()
 
@@ -58,7 +58,7 @@ func TestServer_WebSocketUpgrade(t *testing.T) {
 
 func TestServer_NonWSRequestToWSPath(t *testing.T) {
 	s, _ := New(WithPaths([]string{"/ws"}))
-	
+
 	server := httptest.NewServer(http.HandlerFunc(s.serveWS))
 	defer server.Close()
 
@@ -73,7 +73,7 @@ func TestServer_NonWSRequestToWSPath(t *testing.T) {
 
 func TestServer_StartAndStop(t *testing.T) {
 	s, _ := New(WithPort(0)) // Random port
-	
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -87,7 +87,7 @@ func TestServer_StartAndStop(t *testing.T) {
 
 	// Stop the server
 	cancel()
-	
+
 	err := <-errChan
 	assert.NoError(t, err)
 }

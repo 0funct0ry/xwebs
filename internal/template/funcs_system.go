@@ -171,7 +171,7 @@ func updateStatsIfNeeded() {
 	// For now, let's do it synchronized but with a lock to prevent multiple concurrent updates
 	statsMu.Lock()
 	defer statsMu.Unlock()
-	
+
 	// Double check after acquiring lock
 	if time.Since(statsCache.updated) < 2*time.Second {
 		return

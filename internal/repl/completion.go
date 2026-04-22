@@ -289,10 +289,22 @@ func (r *REPL) completeArguments(line string) ([][]rune, int) {
 						suggestions = append(suggestions, []rune(sc[len(currentWord):]))
 					}
 				}
-				// Also suggest handler names (for :handler <name>)
 				for _, h := range handlers {
 					if strings.HasPrefix(strings.ToLower(h.Name), strings.ToLower(currentWord)) {
 						suggestions = append(suggestions, []rune(h.Name[len(currentWord):]))
+					}
+				}
+			} else if len(parts) >= 2 && parts[1] == "add" {
+				// Suggest flags for :handler add
+				if strings.HasPrefix(currentWord, "-") {
+					flags := []string{"--name", "-n", "--match", "-m", "--match-type", "-t", "--priority", "-p", "--run", "-r", "--respond", "-R",
+						"--builtin", "-B", "--topic", "--exclusive", "-e", "--sequential", "-s", "--rate-limit", "-l", "--debounce", "-d",
+						"--file", "--path", "--content", "--mode", "--responses", "--loop", "--per-client", "--on-error", "--duration", "--max",
+						"--code", "--reason"}
+					for _, f := range flags {
+						if strings.HasPrefix(f, currentWord) {
+							suggestions = append(suggestions, []rune(f[len(currentWord):]))
+						}
 					}
 				}
 			} else if len(parts) >= 2 && (parts[1] == "delete" || parts[1] == "edit" || parts[1] == "rename" || parts[1] == "reset") {
@@ -319,6 +331,19 @@ func (r *REPL) completeArguments(line string) ([][]rune, int) {
 					for _, h := range r.Handlers.Handlers() {
 						if strings.HasPrefix(strings.ToLower(h.Name), strings.ToLower(currentWord)) {
 							suggestions = append(suggestions, []rune(h.Name[len(currentWord):]))
+						}
+					}
+				}
+			} else if len(parts) >= 2 && parts[1] == "add" {
+				// Suggest flags for :handler add
+				if strings.HasPrefix(currentWord, "-") {
+					flags := []string{"--name", "-n", "--match", "-m", "--match-type", "-t", "--priority", "-p", "--run", "-r", "--respond", "-R",
+						"--builtin", "-B", "--topic", "--exclusive", "-e", "--sequential", "-s", "--rate-limit", "-l", "--debounce", "-d",
+						"--file", "--path", "--content", "--mode", "--responses", "--loop", "--per-client", "--on-error", "--duration", "--max",
+						"--code", "--reason"}
+					for _, f := range flags {
+						if strings.HasPrefix(f, currentWord) {
+							suggestions = append(suggestions, []rune(f[len(currentWord):]))
 						}
 					}
 				}

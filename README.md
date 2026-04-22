@@ -511,6 +511,8 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `--on-limit <tmpl>`     |       | Response template for rate limit rejection                                 |
 | `--duration <dur>`     |       | Duration for `delay` builtin (supports templates, e.g. `1s`, `{{.Msg.Data.wait}}`) |
 | `--max <dur>`          |       | Max cap for `delay` builtin duration                                       |
+| `--code <code>`        |       | Close code for `close` builtin (e.g. 1000, 4000, template)                 |
+| `--reason <tmpl>`      |       | Close reason for `close` builtin (supports templates)                      |
 
 Example — add pub-sub handlers directly from the REPL:
 
@@ -554,6 +556,8 @@ Topics are created automatically when the first client subscribes and removed wh
 | `file-write`| Shared | Persists a message or rendered template to a local file. |
 | `rate-limit`| Shared | Enforces a per-client, global, or handler-level message rate. |
 | `delay`| Shared | Pauses handler execution for a configurable duration (supports templates and max cap). |
+| `drop` | Shared | Silently discards the current message and stops further processing. |
+| `close` | Shared | Terminates the current connection with an optional code and reason. |
 
 **Validation Features:**
 - **Unknown Builtins**: Using an unknown builtin name in handler configuration causes an immediate startup error.
@@ -660,6 +664,17 @@ handlers:
     duration: "{{.Message | jq \".latency\" | default \"1s\"}}"
     max: "5s"
     respond: "Response after simulated delay"
+
+  # Drop and Close Examples
+  - name: silent-filter
+    match: "unwanted-noise"
+    builtin: drop
+
+  - name: force-evict
+    match: "abuse"
+    builtin: close
+    code: 4001
+    reason: "Evicted for abuse from {{.Conn.RemoteAddr}}"
 
 ```
 

@@ -40,8 +40,8 @@ func TestFileSendBuiltin(t *testing.T) {
 			Mode:    "text",
 		}
 		msg := &ws.Message{
-			Data: []byte("trigger"),
-			Type: ws.TextMessage,
+			Data:     []byte("trigger"),
+			Type:     ws.TextMessage,
 			Metadata: ws.MessageMetadata{Direction: "received"},
 		}
 
@@ -73,8 +73,8 @@ func TestFileSendBuiltin(t *testing.T) {
 			Mode:    "binary",
 		}
 		msg := &ws.Message{
-			Data: []byte("trigger"),
-			Type: ws.TextMessage,
+			Data:     []byte("trigger"),
+			Type:     ws.TextMessage,
 			Metadata: ws.MessageMetadata{Direction: "received"},
 		}
 
@@ -87,7 +87,6 @@ func TestFileSendBuiltin(t *testing.T) {
 		assert.Equal(t, data, conn.messages[0].Data)
 		assert.Equal(t, ws.BinaryMessage, conn.messages[0].Type)
 	})
-
 
 	t.Run("Dynamic File Path", func(t *testing.T) {
 		conn.mu.Lock()
@@ -108,8 +107,8 @@ func TestFileSendBuiltin(t *testing.T) {
 
 		// Test with A
 		msgA := &ws.Message{
-			Data: []byte("A"),
-			Type: ws.TextMessage,
+			Data:     []byte("A"),
+			Type:     ws.TextMessage,
 			Metadata: ws.MessageMetadata{Direction: "received"},
 		}
 		err = d.Execute(context.Background(), h, msgA, nil)
@@ -118,8 +117,8 @@ func TestFileSendBuiltin(t *testing.T) {
 
 		// Test with B
 		msgB := &ws.Message{
-			Data: []byte("B"),
-			Type: ws.TextMessage,
+			Data:     []byte("B"),
+			Type:     ws.TextMessage,
 			Metadata: ws.MessageMetadata{Direction: "received"},
 		}
 		err = d.Execute(context.Background(), h, msgB, nil)
@@ -144,8 +143,8 @@ func TestFileSendBuiltin(t *testing.T) {
 			BaseDir: tmpDir,
 		}
 		msg := &ws.Message{
-			Data: []byte("test"),
-			Type: ws.TextMessage,
+			Data:     []byte("test"),
+			Type:     ws.TextMessage,
 			Metadata: ws.MessageMetadata{Direction: "received"},
 		}
 
@@ -165,8 +164,8 @@ func TestFileSendBuiltin(t *testing.T) {
 			BaseDir: tmpDir,
 		}
 		msg := &ws.Message{
-			Data: []byte("test"),
-			Type: ws.TextMessage,
+			Data:     []byte("test"),
+			Type:     ws.TextMessage,
 			Metadata: ws.MessageMetadata{Direction: "received"},
 		}
 

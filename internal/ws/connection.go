@@ -727,7 +727,6 @@ func NewConnection(conn *websocket.Conn, url string, resp *http.Response, opts *
 		_connectedAt:          time.Now(),
 	}
 
-
 	// Initialize subscriber list with the default read channel
 	c._subscribers = append(c._subscribers, c._readCh)
 

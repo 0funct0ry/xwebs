@@ -181,7 +181,7 @@ func (s *Server) handleDeleteKV(w http.ResponseWriter, r *http.Request) {
 // handleAPIHealth returns the server health status.
 func (s *Server) handleAPIHealth(w http.ResponseWriter, r *http.Request) {
 	uptime := time.Since(s.startTime).Round(time.Second)
-	
+
 	health := map[string]interface{}{
 		"status":     "ok",
 		"uptime":     uptime.String(),

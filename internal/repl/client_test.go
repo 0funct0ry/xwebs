@@ -9,13 +9,13 @@ import (
 )
 
 type mockClientContext struct {
-	conn        *ws.Connection
-	dialURL     string
-	closed      bool
-	closeCode   int
-	closeReason string
-	tmplEngine  *template.Engine
-	handlerHits uint64
+	conn           *ws.Connection
+	dialURL        string
+	closed         bool
+	closeCode      int
+	closeReason    string
+	tmplEngine     *template.Engine
+	handlerHits    uint64
 	activeHandlers int32
 }
 
@@ -40,13 +40,13 @@ func (m *mockClientContext) GetTemplateEngine() *template.Engine { return m.tmpl
 func (m *mockClientContext) GetHandlerStats() (hits uint64, active int32) {
 	return m.handlerHits, m.activeHandlers
 }
-func (m *mockClientContext) GetStatus() string         { return "connected" }
-func (m *mockClientContext) GetReconnectCount() int    { return 0 }
-func (m *mockClientContext) GetURL() string            { 
+func (m *mockClientContext) GetStatus() string      { return "connected" }
+func (m *mockClientContext) GetReconnectCount() int { return 0 }
+func (m *mockClientContext) GetURL() string {
 	if m.conn != nil {
 		return m.conn.URL
 	}
-	return m.dialURL 
+	return m.dialURL
 }
 
 func TestClientCommands(t *testing.T) {

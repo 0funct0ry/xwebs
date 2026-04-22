@@ -451,7 +451,7 @@ func TestBareCommandExecution(t *testing.T) {
 
 	t.Run("Server Mode - Unknown Bare Input", func(t *testing.T) {
 		r, _ := New(ServerMode, &Config{Terminal: true})
-		
+
 		// Capture output would be better, but we can check if it logic flows correctly.
 		// Since we don't have a good way to check Errorf output in unit tests without refactoring,
 		// we'll just ensure it doesn't crash and returns no error from RunLine (as it handles it internally).
@@ -468,7 +468,7 @@ func TestBareCommandExecution(t *testing.T) {
 			inputSent = text
 			return nil
 		})
-		
+
 		mock := &mockCommand{name: "kv"}
 		r.RegisterCommand(mock)
 
@@ -495,12 +495,12 @@ func (r *REPL) RunLine(ctx context.Context, line string) error {
 	if strings.HasPrefix(trimmed, ":") {
 		return r.ExecuteCommand(ctx, trimmed)
 	}
-	
+
 	// Copy logic from Run loop
 	if r.onInput != nil {
 		return r.onInput(ctx, line)
 	}
-	
+
 	parts := splitCommand(trimmed)
 	if len(parts) > 0 {
 		cmdName := parts[0]
@@ -514,7 +514,7 @@ func (r *REPL) RunLine(ctx context.Context, line string) error {
 			return r.ExecuteCommand(ctx, ":"+trimmed)
 		}
 	}
-	
+
 	// Fallback error message (simulated)
 	return nil
 }
