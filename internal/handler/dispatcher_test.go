@@ -209,10 +209,12 @@ func TestDispatcher_Debounce(t *testing.T) {
 	}
 	_ = reg.AddHandlers([]Handler{*h})
 
-	// Send 3 messages in rapid succession
+	// Send 3 messages in rapid succession, but with tiny delays to ensure ordering
 	ctx := context.Background()
 	d.handleMessage(ctx, &ws.Message{Data: []byte("msg1"), Metadata: ws.MessageMetadata{Direction: "received"}})
+	time.Sleep(10 * time.Millisecond)
 	d.handleMessage(ctx, &ws.Message{Data: []byte("msg2"), Metadata: ws.MessageMetadata{Direction: "received"}})
+	time.Sleep(10 * time.Millisecond)
 	d.handleMessage(ctx, &ws.Message{Data: []byte("msg3"), Metadata: ws.MessageMetadata{Direction: "received"}})
 
 	// Wait for debounce period + buffers

@@ -656,6 +656,7 @@ func (d *Dispatcher) populateTemplateContext(tmplCtx *template.TemplateContext, 
 
 	// Populate connection context
 	if d.conn != nil {
+		tmplCtx.ConnectionID = d.conn.GetID()
 		tmplCtx.URL = d.conn.GetURL()
 		u, err := url.Parse(d.conn.GetURL())
 		if err == nil {

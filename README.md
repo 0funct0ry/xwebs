@@ -553,7 +553,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `echo` | Shared | Reflects the incoming message back to the sender. If `respond:` is present, it skips verbatim echo and only sends the transformed response. |
 | `subscribe` | Server | Subscribes the client connection to a pub/sub topic. |
 | `unsubscribe` | Server | Unsubscribes the client from a pub/sub topic. |
-| `publish` | Server | Broadcasts a message to all subscribers of a topic. |
+| `publish` | Server | Broadcasts a message to all subscribers of a topic (uses `message:`, `send:`, or `respond:`). |
 | `kv-set` | Server | Sets a value in the shared server key-value store. |
 | `kv-get` | Server | Retrieves a value from the KV store into `.KvValue`. |
 | `kv-del` | Server | Deletes a key from the KV store. |

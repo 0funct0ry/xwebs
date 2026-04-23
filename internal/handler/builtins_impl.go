@@ -125,8 +125,8 @@ func (b *PublishBuiltin) Validate(a Action) error {
 	if a.Topic == "" {
 		return fmt.Errorf("builtin publish missing topic")
 	}
-	if a.Message == "" && a.Send == "" {
-		return fmt.Errorf("builtin publish missing message")
+	if a.Message == "" && a.Send == "" && a.Respond == "" {
+		return fmt.Errorf("builtin publish missing message (provide message:, send:, or respond:)")
 	}
 	return nil
 }
@@ -147,6 +147,9 @@ func (b *PublishBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, 
 	msgContent := a.Message
 	if msgContent == "" {
 		msgContent = a.Send
+	}
+	if msgContent == "" {
+		msgContent = a.Respond
 	}
 
 	msgStr, err := d.templateEngine.Execute("publish-msg", msgContent, tmplCtx)
