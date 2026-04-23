@@ -568,6 +568,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `drop` | Shared | Silently discards the current message and stops further processing. |
 | `close` | Shared | Terminates the current connection with an optional code and reason. |
 | `http` | Shared | Makes an outbound HTTP request; response status/body are available in context. |
+| `metric` | Shared | Increments a Prometheus counter with dynamic name and labels. |
 
 **Validation Features:**
 - **Unknown Builtins**: Using an unknown builtin name in handler configuration causes an immediate startup error.
@@ -706,6 +707,15 @@ handlers:
     message: "{{.Message}}"
     target: both
     path: "logs/audit_{{.Timestamp.Format \"2006-01-02\"}}.jsonl"
+
+  # Prometheus Metric Example
+  - name: track-events
+    match: "*"
+    builtin: metric
+    name: "xwebs_events_total"
+    labels:
+      type: "{{.MessageType}}"
+      content: "{{.Message | truncate 20}}"
 
 ```
 

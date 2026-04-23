@@ -60,12 +60,13 @@ type Handler struct {
 	URL          string                 `yaml:"url,omitempty"`          // For http builtin
 	Method       string                 `yaml:"method,omitempty"`       // For http builtin
 	Headers      map[string]string      `yaml:"headers,omitempty"`      // For http builtin
-	Body         string                 `yaml:"body,omitempty"`         // For http builtin
-	Rate         string                 `yaml:"rate,omitempty"`         // For rate-limit builtin
-	Burst        int                    `yaml:"burst,omitempty"`        // For rate-limit builtin
-	Scope        string                 `yaml:"scope,omitempty"`        // For rate-limit builtin
-	OnLimit      string                 `yaml:"on_limit,omitempty"`     // For rate-limit builtin
-	BaseDir      string                 `yaml:"-"`                      // Directory from which the handler was loaded
+	Body         string                 `yaml:"body,omitempty"`        // For http builtin
+	Rate         string                 `yaml:"rate,omitempty"`        // For rate-limit builtin
+	Burst        int                    `yaml:"burst,omitempty"`       // For rate-limit builtin
+	Scope        string                 `yaml:"scope,omitempty"`       // For rate-limit builtin
+	OnLimit      string                 `yaml:"on_limit,omitempty"`    // For rate-limit builtin
+	Labels       map[string]string      `yaml:"labels,omitempty"`      // For metric builtin
+	BaseDir      string                 `yaml:"-"`                     // Directory from which the handler was loaded
 }
 
 // RetryConfig defines the settings for automatic retries.
@@ -111,6 +112,8 @@ type PipelineStep struct {
 	Max         string            `yaml:"max,omitempty"`      // For delay builtin — cap on dynamic duration
 	Code        string            `yaml:"code,omitempty"`     // For close builtin
 	Reason      string            `yaml:"reason,omitempty"`   // For close builtin
+	Name        string            `yaml:"name,omitempty"`     // For metric builtin
+	Labels      map[string]string `yaml:"labels,omitempty"`   // For metric builtin
 }
 
 // Matcher specifies how to match an incoming WebSocket message.
@@ -186,6 +189,8 @@ type Action struct {
 	Max         string            `yaml:"max,omitempty"`      // For delay builtin — cap on dynamic duration
 	Code        string            `yaml:"code,omitempty"`     // For close builtin
 	Reason      string            `yaml:"reason,omitempty"`   // For close builtin
+	Name        string            `yaml:"name,omitempty"`     // For metric builtin (metric name)
+	Labels      map[string]string `yaml:"labels,omitempty"`   // For metric builtin
 	BaseDir     string            `yaml:"-"`                  // For relative path resolution in builtins
 	HandlerName string            `yaml:"-"`                  // Internal use only
 }
@@ -333,6 +338,8 @@ func (c *Config) Validate(mode RegistryMode) error {
 				Method:    h.Method,
 				Headers:   h.Headers,
 				Body:      h.Body,
+				Name:      h.Name,
+				Labels:    h.Labels,
 			}
 			if err := bh.Validate(tmpAction); err != nil {
 				return fmt.Errorf("handler %q: %w", h.Name, err)

@@ -1327,6 +1327,7 @@ func (r *REPL) RegisterCommonCommands() {
 				r.Printf("  --message <template>  Message template for 'log' builtin\n")
 				r.Printf("  --target <type>       Target for 'log' builtin (stdout|file|both)\n")
 				r.Printf("  --path <path>         File path for 'log' builtin\n")
+				r.Printf("  --labels <key=val,...> Labels for 'metric' builtin (key=val,key2=val2)\n")
 				return nil
 			}
 
@@ -1491,6 +1492,7 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.SetOutput(nil) // Suppress automatic usage printing on error
 
 			var name, match, matchType, run, respond, builtin, topic, rateLimit, debounce, code, reason, message, target string
+			var labels map[string]string
 			var priority int
 			var exclusive, sequential bool
 
@@ -1527,6 +1529,7 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.StringArrayVar(&headers, "header", nil, "Headers for http builtin (key:value)")
 			fs.StringVar(&body, "body", "", "Body for http builtin")
 			fs.StringVar(&timeout, "timeout", "", "Timeout for http builtin")
+			fs.StringToStringVar(&labels, "labels", nil, "Labels for metric builtin (key=val,key2=val2)")
 
 			if err := fs.Parse(args[1:]); err != nil {
 				return fmt.Errorf("parsing flags: %w", err)
@@ -1572,6 +1575,7 @@ func (r *REPL) RegisterCommonCommands() {
 				Responses: responses,
 				Loop:      loop,
 				PerClient: perClient,
+				Labels:    labels,
 			}
 
 			if len(headers) > 0 {

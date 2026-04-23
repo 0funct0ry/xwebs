@@ -2,6 +2,8 @@ package observability
 
 import (
 	"net/http"
+	"sort"
+	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -44,4 +46,42 @@ func init() {
 // Handler returns the Prometheus HTTP handler.
 func Handler() http.Handler {
 	return promhttp.Handler()
+}
+
+var (
+	dynamicCounters = make(map[string]*prometheus.CounterVec)
+	dynamicMu       sync.RWMutex
+)
+
+// IncrementCounter increments a dynamic counter by name and labels.
+// The set of label keys for a given metric name must be consistent across calls.
+func IncrementCounter(name string, labels map[string]string) {
+	dynamicMu.RLock()
+	cv, ok := dynamicCounters[name]
+	dynamicMu.RUnlock()
+
+	if !ok {
+		dynamicMu.Lock()
+		// Check again
+		cv, ok = dynamicCounters[name]
+		if !ok {
+			labelKeys := make([]string, 0, len(labels))
+			for k := range labels {
+				labelKeys = append(labelKeys, k)
+			}
+			sort.Strings(labelKeys)
+			cv = prometheus.NewCounterVec(prometheus.CounterOpts{
+				Name: name,
+				Help: "Dynamic counter created by handler builtin action",
+			}, labelKeys)
+			// Using MustRegister might panic if the name is already used by a non-vec counter
+			// or if label keys are inconsistent. We'll let it panic for now as it's a developer error
+			// in the handler configuration.
+			prometheus.MustRegister(cv)
+			dynamicCounters[name] = cv
+		}
+		dynamicMu.Unlock()
+	}
+
+	cv.With(labels).Inc()
 }

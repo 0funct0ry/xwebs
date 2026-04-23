@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/0funct0ry/xwebs/internal/observability"
 	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/0funct0ry/xwebs/internal/ws"
 )
@@ -40,6 +41,7 @@ func init() {
 	MustRegister(&CloseBuiltin{})
 	MustRegister(&LogBuiltin{})
 	MustRegister(&HttpBuiltin{})
+	MustRegister(&MetricBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -1226,6 +1228,60 @@ func (b *LogBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmpl
 		if _, err := f.Write(jsonBytes); err != nil {
 			return fmt.Errorf("writing to log file %s: %w", resolvedPath, err)
 		}
+	}
+
+	return nil
+}
+
+// MetricBuiltin increments a Prometheus counter with dynamic name and labels.
+type MetricBuiltin struct{}
+
+func (b *MetricBuiltin) Name() string        { return "metric" }
+func (b *MetricBuiltin) Description() string { return "Increment a Prometheus counter." }
+func (b *MetricBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *MetricBuiltin) Validate(a Action) error {
+	if a.Name == "" {
+		return fmt.Errorf("builtin metric: missing 'name'")
+	}
+	return nil
+}
+
+func (b *MetricBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	// 1. Resolve metric name (render if template)
+	metricName, err := d.templateEngine.Execute("metric-name", a.Name, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in metric name expression: %w", err)
+	}
+	metricName = strings.TrimSpace(metricName)
+	if metricName == "" {
+		return fmt.Errorf("builtin metric: name evaluates to empty string")
+	}
+
+	// 2. Resolve labels
+	labels := make(map[string]string)
+	for k, vTmpl := range a.Labels {
+		val, err := d.templateEngine.Execute("metric-label-"+k, vTmpl, tmplCtx)
+		if err != nil {
+			return fmt.Errorf("template error in label %q expression: %w", k, err)
+		}
+		labels[k] = val
+	}
+
+	// 3. Increment counter
+	observability.IncrementCounter(metricName, labels)
+
+	if d.verbose {
+		labelStr := ""
+		if len(labels) > 0 {
+			labelParts := make([]string, 0, len(labels))
+			for k, v := range labels {
+				labelParts = append(labelParts, fmt.Sprintf("%s=%q", k, v))
+			}
+			sort.Strings(labelParts)
+			labelStr = " {" + strings.Join(labelParts, ", ") + "}"
+		}
+		d.errorf("  [handler] metric: incremented %s%s\n", metricName, labelStr)
 	}
 
 	return nil

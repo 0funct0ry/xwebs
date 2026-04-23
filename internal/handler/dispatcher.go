@@ -482,6 +482,8 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 				Method:      h.Method,
 				Headers:     h.Headers,
 				Body:        h.Body,
+				Name:        h.Name,
+				Labels:      h.Labels,
 				BaseDir:     h.BaseDir,
 				HandlerName: h.Name,
 			}
@@ -559,6 +561,8 @@ func (d *Dispatcher) executePipeline(ctx context.Context, handlerName string, pi
 			action.Method = step.Method
 			action.Headers = step.Headers
 			action.Body = step.Body
+			action.Name = step.Name
+			action.Labels = step.Labels
 			action.BaseDir = d.registry.GetHandlerBaseDir(handlerName)
 			action.HandlerName = handlerName
 		}

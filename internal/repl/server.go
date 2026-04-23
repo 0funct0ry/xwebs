@@ -583,6 +583,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("      --message <template>  Message template for 'log' builtin\n")
 				r.Printf("      --target <type>       Target for 'log' builtin (stdout|file|both)\n")
 				r.Printf("      --path <path>         File path for 'log' builtin\n")
+				r.Printf("      --labels <key:val,...> Labels for 'metric' builtin (key=val,key2=val2)\n")
 				return nil
 			}
 
@@ -593,6 +594,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 
 				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout string
 				var responses, headers []string
+				var labels map[string]string
 				var priority, burst int
 				var exclusive, sequential, loop, perClient bool
 
@@ -631,6 +633,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.StringArrayVar(&headers, "header", nil, "Headers for http builtin (key:value)")
 				fs.StringVar(&body, "body", "", "Body for http builtin")
 				fs.StringVar(&timeout, "timeout", "", "Timeout for http builtin")
+				fs.StringToStringVar(&labels, "labels", nil, "Labels for metric builtin (key=val,key2=val2)")
 
 				if err := fs.Parse(args[1:]); err != nil {
 					return fmt.Errorf("parsing flags: %w", err)
@@ -680,6 +683,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					Method:     method,
 					Body:       body,
 					Timeout:    timeout,
+					Labels:     labels,
 				}
 
 				if len(headers) > 0 {
