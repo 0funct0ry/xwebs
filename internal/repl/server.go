@@ -580,6 +580,9 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("      --header <key:val>    Headers for 'http' builtin (repeatable)\n")
 				r.Printf("      --body <template>     Body for 'http' builtin\n")
 				r.Printf("      --timeout <duration>  Timeout for 'http' builtin (e.g. '5s')\n")
+				r.Printf("      --message <template>  Message template for 'log' builtin\n")
+				r.Printf("      --target <type>       Target for 'log' builtin (stdout|file|both)\n")
+				r.Printf("      --path <path>         File path for 'log' builtin\n")
 				return nil
 			}
 
@@ -601,7 +604,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.StringVarP(&respond, "respond", "R", "", "Response template")
 				fs.StringVarP(&builtin, "builtin", "B", "", "Builtin action")
 				fs.StringVar(&topic, "topic", "", "Topic name template")
-				fs.StringVar(&target, "target", "", "Upstream target URL for forward")
+				fs.StringVar(&target, "target", "", "Target URL (forward) or destination type (log: stdout|file|both)")
 				fs.BoolVarP(&exclusive, "exclusive", "e", false, "Short-circuit match")
 				fs.BoolVarP(&sequential, "sequential", "s", false, "Run actions sequentially")
 				fs.StringVarP(&rateLimit, "rate-limit", "l", "", "Rate limit")
@@ -612,7 +615,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.BoolVar(&loop, "loop", false, "Loop sequence")
 				fs.BoolVar(&perClient, "per-client", false, "Track per client")
 				fs.StringVar(&file, "file", "", "Template file path for template builtin")
-				fs.StringVar(&path, "path", "", "Path for file-write")
+				fs.StringVar(&path, "path", "", "File path for file-write or log builtins")
 				fs.StringVar(&content, "content", "", "Content for file-write")
 				fs.StringVar(&mode, "mode", "", "Mode (text|binary or overwrite|append)")
 				fs.StringVar(&rate, "rate", "", "Rate for rate-limit builtin")

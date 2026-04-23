@@ -308,6 +308,9 @@ func (c *Config) Validate(mode RegistryMode) error {
 				Key:       h.Key,
 				Value:     h.Value,
 				Target:    h.Target,
+				Message:   h.Message,
+				TTL:       h.TTL,
+				Default:   h.Default,
 				Timeout:   h.Timeout,
 				Delay:     h.Delay,
 				Respond:   h.Respond,
@@ -337,8 +340,8 @@ func (c *Config) Validate(mode RegistryMode) error {
 		}
 
 		// Validate top-level target (shorthand usage)
-		if h.Target != "" && h.Builtin != "forward" {
-			return fmt.Errorf("handler %q: target property is only allowed for 'forward' builtin", h.Name)
+		if h.Target != "" && h.Builtin != "forward" && h.Builtin != "log" {
+			return fmt.Errorf("handler %q: target property is only allowed for 'forward' or 'log' builtins", h.Name)
 		}
 		if h.Builtin == "forward" && h.Target == "" {
 			return fmt.Errorf("handler %q: 'forward' builtin requires a target", h.Name)

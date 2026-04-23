@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -37,6 +38,7 @@ func init() {
 	MustRegister(&DelayBuiltin{})
 	MustRegister(&DropBuiltin{})
 	MustRegister(&CloseBuiltin{})
+	MustRegister(&LogBuiltin{})
 	MustRegister(&HttpBuiltin{})
 }
 
@@ -1112,6 +1114,118 @@ func (b *HttpBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmp
 
 	if d.verbose {
 		d.errorf("  [handler] http: received status %d (%d bytes)\n", resp.StatusCode, len(respBody))
+	}
+
+	return nil
+}
+
+// LogBuiltin writes a structured log entry to stdout, a file, or both.
+type LogBuiltin struct{}
+
+func (b *LogBuiltin) Name() string { return "log" }
+func (b *LogBuiltin) Description() string {
+	return "Write a structured JSONL log entry to stdout, a file, or both."
+}
+func (b *LogBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *LogBuiltin) Validate(a Action) error {
+	if a.Message == "" {
+		return fmt.Errorf("builtin log: missing 'message'")
+	}
+	target := strings.ToLower(a.Target)
+	if target == "" {
+		target = "stdout" // default
+	}
+	if target != "stdout" && target != "file" && target != "both" {
+		return fmt.Errorf("builtin log: invalid target %q (must be 'stdout', 'file', or 'both')", a.Target)
+	}
+	if (target == "file" || target == "both") && a.Path == "" {
+		return fmt.Errorf("builtin log: missing 'path' for file-based logging")
+	}
+	return nil
+}
+
+func (b *LogBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	// 1. Render message
+	msgStr, err := d.templateEngine.Execute("log-message", a.Message, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("rendering log message: %w", err)
+	}
+
+	// 2. Prepare log entry
+	connID := tmplCtx.ConnectionID
+	if connID == "" && d.conn != nil {
+		connID = d.conn.GetID()
+	}
+
+	entry := struct {
+		Timestamp    string      `json:"timestamp"`
+		ConnectionID string      `json:"conn_id"`
+		Message      string      `json:"message"`
+		Metadata     interface{} `json:"metadata,omitempty"`
+	}{
+		Timestamp:    time.Now().Format(time.RFC3339),
+		ConnectionID: connID,
+		Message:      msgStr,
+	}
+
+	// Optional: add some metadata if available
+	if tmplCtx.Msg != nil {
+		entry.Metadata = map[string]interface{}{
+			"type":      tmplCtx.MessageType,
+			"direction": tmplCtx.Direction,
+		}
+	}
+
+	jsonBytes, err := json.Marshal(entry)
+	if err != nil {
+		return fmt.Errorf("marshaling log entry: %w", err)
+	}
+	jsonBytes = append(jsonBytes, '\n')
+
+	// 3. Write to targets
+	target := strings.ToLower(a.Target)
+	if target == "" {
+		target = "stdout"
+	}
+
+	if target == "stdout" || target == "both" {
+		d.log("%s", string(jsonBytes))
+	}
+
+	if target == "file" || target == "both" {
+		// Resolve path (render if template)
+		filePath, err := d.templateEngine.Execute("log-path", a.Path, tmplCtx)
+		if err != nil {
+			return fmt.Errorf("rendering log path: %w", err)
+		}
+		filePath = strings.TrimSpace(filePath)
+		if filePath == "" {
+			return fmt.Errorf("builtin log: path evaluates to empty string")
+		}
+
+		// Resolve relative path
+		resolvedPath := filePath
+		if !filepath.IsAbs(filePath) && a.BaseDir != "" {
+			resolvedPath = filepath.Join(a.BaseDir, filePath)
+		}
+
+		// Ensure directory exists
+		dir := filepath.Dir(resolvedPath)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("creating log directory %s: %w", dir, err)
+		}
+
+		// Append to file
+		f, err := os.OpenFile(resolvedPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return fmt.Errorf("opening log file %s: %w", resolvedPath, err)
+		}
+		defer f.Close()
+
+		if _, err := f.Write(jsonBytes); err != nil {
+			return fmt.Errorf("writing to log file %s: %w", resolvedPath, err)
+		}
 	}
 
 	return nil

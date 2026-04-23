@@ -518,6 +518,9 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `--header <key:val>`   |       | HTTP headers for `http` builtin (repeatable, supports templates)           |
 | `--body <template>`    |       | Request body for `http` builtin (supports templates)                       |
 | `--timeout <dur>`      |       | Request timeout for `http` builtin (e.g. `5s`)                             |
+| `--message <tmpl>`    | `-M`  | Message template for `log` builtin                                        |
+| `--target <type>`     |       | Destination for `log` builtin (`stdout`, `file`, `both`)                  |
+| `--path <path>`       |       | File path for `log` builtin (supports templates)                           |
 
 Example — add pub-sub handlers directly from the REPL:
 
@@ -559,6 +562,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `template`| Shared | Renders a response from an external template file (supports live-reload). |
 | `file-send`| Client | Sends a local file as a WebSocket message (text or binary). |
 | `file-write`| Shared | Persists a message or rendered template to a local file. |
+| `log`       | Shared | Writes a structured JSONL log entry to stdout, a file, or both. |
 | `rate-limit`| Shared | Enforces a per-client, global, or handler-level message rate. |
 | `delay`| Shared | Pauses handler execution for a configurable duration (supports templates and max cap). |
 | `drop` | Shared | Silently discards the current message and stops further processing. |
@@ -694,6 +698,14 @@ handlers:
       X-API-Key: "{{kv \"api_key\"}}"
     body: '{"alert": "{{.Message | jq ".data"}}", "from": "{{.Conn.ID}}"}'
     respond: "Webhook sent! Status: {{.HttpStatus}}, Response: {{.HttpBody}}"
+ 
+  # Structured Logging Example
+  - name: traffic-audit
+    match: "*"
+    builtin: log
+    message: "{{.Message}}"
+    target: both
+    path: "logs/audit_{{.Timestamp.Format \"2006-01-02\"}}.jsonl"
 
 ```
 
@@ -774,9 +786,10 @@ Client Information: conn-12345678
     - `silent`: If `false` (default), command output is logged to the terminal.
   - `send`: Sends a message back to the server.
     - `message`: The message content. Supports Go templates.
-  - `log`: Appends a message to a file or stream.
-    - `message`: The log entry. Supports Go templates.
-    - `target`: Destination file path or `stdout`/`stderr`.
+  - `log`: Appends a structured JSONL entry to a file or stream.
+    - `message`: The log entry content. Supports Go templates.
+    - `target`: Destination: `stdout`, `file`, or `both`.
+    - `path`: File path (required for `file` or `both`). Supports Go templates.
   - `builtin`: Executes a built-in `xwebs` command (REPL command).
 - **Stdin Piping**: For `shell` actions, the raw incoming WebSocket message is automatically piped to the command's `stdin`.
 - **Template Context**: Shell execution results are available to subsequent actions in the same handler via the `.Handler` object. For the `respond:` shorthand, these are also available as top-level variables:

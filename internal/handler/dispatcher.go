@@ -905,28 +905,17 @@ func (d *Dispatcher) executeSend(a *Action, ctx *template.TemplateContext) error
 	})
 }
 
-func (d *Dispatcher) executeLog(a *Action, ctx *template.TemplateContext) error {
-	msgStr, err := d.templateEngine.Execute("log", a.Message, ctx)
-	if err != nil {
-		return fmt.Errorf("template error in log message: %w", err)
+func (d *Dispatcher) executeLog(a *Action, tmplCtx *template.TemplateContext) error {
+	// Delegate to the new LogBuiltin for consistent JSONL formatting and features
+	h, ok := GetBuiltin("log")
+	if !ok {
+		// Fallback to simple stderr if builtin is somehow missing
+		msgStr, _ := d.templateEngine.Execute("log", a.Message, tmplCtx)
+		d.errorf("  [handler] log: %s\n", msgStr)
+		return nil
 	}
 
-	target := strings.ToLower(a.Target)
-	switch target {
-	case "stderr":
-		d.errorf("  [handler] %s\n", msgStr)
-	case "stdout", "":
-		d.log("  [handler] %s\n", msgStr)
-	default:
-		// Log to file
-		f, err := os.OpenFile(a.Target, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			return fmt.Errorf("opening log file %s: %w", a.Target, err)
-		}
-		defer f.Close()
-		fmt.Fprintf(f, "%s\n", msgStr)
-	}
-	return nil
+	return h.Execute(context.Background(), d, a, tmplCtx)
 }
 
 func (d *Dispatcher) executeBuiltin(ctx context.Context, a *Action, tmplCtx *template.TemplateContext) error {

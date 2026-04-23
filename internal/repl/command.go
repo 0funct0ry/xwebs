@@ -1322,11 +1322,11 @@ func (r *REPL) RegisterCommonCommands() {
 				r.Printf("  --per-client          Track sequence position independently per client\n")
 				r.Printf("  --code <code>         Close code for 'close' builtin (e.g. 1000, template)\n")
 				r.Printf("  --reason <reason>     Close reason for 'close' builtin (supports templates)\n")
-				r.Printf("  --url <url>           URL for 'http' builtin\n")
-				r.Printf("  --method <method>     Method for 'http' builtin (GET, POST, etc.)\n")
-				r.Printf("  --header <key:val>    Headers for 'http' builtin (repeatable)\n")
 				r.Printf("  --body <template>     Body for 'http' builtin\n")
 				r.Printf("  --timeout <duration>  Timeout for 'http' builtin (e.g. '5s')\n")
+				r.Printf("  --message <template>  Message template for 'log' builtin\n")
+				r.Printf("  --target <type>       Target for 'log' builtin (stdout|file|both)\n")
+				r.Printf("  --path <path>         File path for 'log' builtin\n")
 				return nil
 			}
 
@@ -1490,7 +1490,7 @@ func (r *REPL) RegisterCommonCommands() {
 			fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 			fs.SetOutput(nil) // Suppress automatic usage printing on error
 
-			var name, match, matchType, run, respond, builtin, topic, rateLimit, debounce, code, reason string
+			var name, match, matchType, run, respond, builtin, topic, rateLimit, debounce, code, reason, message, target string
 			var priority int
 			var exclusive, sequential bool
 
@@ -1508,6 +1508,8 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.StringVar(&code, "code", "", "Close code for close builtin")
 			fs.StringVar(&reason, "reason", "", "Close reason for close builtin")
 			fs.StringVarP(&debounce, "debounce", "d", "", "Debounce duration")
+			fs.StringVarP(&message, "message", "M", "", "Message template (for broadcast or log)")
+			fs.StringVar(&target, "target", "", "Target URL (forward) or destination type (log: stdout|file|both)")
 			var file, path, content, mode string
 			var responses []string
 			var loop, perClient bool
@@ -1549,6 +1551,8 @@ func (r *REPL) RegisterCommonCommands() {
 				Respond:   respond,
 				Builtin:   builtin,
 				Topic:     topic,
+				Message:   message,
+				Target:    target,
 				Match: handler.Matcher{
 					Pattern: match,
 					Type:    matchType,
