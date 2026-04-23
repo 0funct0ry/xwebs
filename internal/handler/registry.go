@@ -74,6 +74,8 @@ type Registry struct {
 	scopedLimiters        map[string]*rate.Limiter  // key -> limiter
 	scopedLimiterRates    map[string]string         // key -> rateStr
 	scopedLimiterBursts   map[string]int            // key -> burst
+	luaPools              map[string]interface{}    // handlerName -> *LuaPool (interface{} to avoid circular dependency or import lua here)
+	luaStates             map[string]interface{}    // handlerName -> *lua.LTable
 	Mode                  RegistryMode
 	mu                    sync.RWMutex
 }
@@ -99,6 +101,8 @@ func NewRegistry(mode RegistryMode) *Registry {
 		scopedLimiters:        make(map[string]*rate.Limiter),
 		scopedLimiterRates:    make(map[string]string),
 		scopedLimiterBursts:   make(map[string]int),
+		luaPools:              make(map[string]interface{}),
+		luaStates:             make(map[string]interface{}),
 		Mode:                  mode,
 		global: RegistryStats{
 			maxSlowLog: 50,
@@ -247,6 +251,8 @@ func (r *Registry) ReplaceHandlers(handlers []Handler) error {
 	r.scopedLimiters = make(map[string]*rate.Limiter)
 	r.scopedLimiterRates = make(map[string]string)
 	r.scopedLimiterBursts = make(map[string]int)
+	r.luaPools = make(map[string]interface{})
+	r.luaStates = make(map[string]interface{})
 
 	r.handlers = handlers
 	r.sort()
@@ -276,6 +282,8 @@ func (r *Registry) Delete(name string) error {
 	delete(r.limiters, name)
 	delete(r.sequenceIndices, name)
 	delete(r.sequenceClientIndices, name)
+	delete(r.luaPools, name)
+	delete(r.luaStates, name)
 
 	if d, ok := r.debouncers[name]; ok {
 		d.mu.Lock()

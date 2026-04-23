@@ -484,6 +484,22 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 				Body:        h.Body,
 				Name:        h.Name,
 				Labels:      h.Labels,
+				Script:      h.Script,
+				MaxMemory:   h.MaxMemory,
+				BaseDir:     h.BaseDir,
+				HandlerName: h.Name,
+			}
+			return d.ExecuteAction(ctx, &action, tmplCtx, msg)
+		} else if h.Script != "" || h.File != "" {
+			action := Action{
+				Type:        "builtin",
+				Command:     "lua",
+				Script:      h.Script,
+				File:        h.File,
+				MaxMemory:   h.MaxMemory,
+				Timeout:     h.Timeout,
+				Delay:       h.Delay,
+				Respond:     h.Respond,
 				BaseDir:     h.BaseDir,
 				HandlerName: h.Name,
 			}
@@ -563,6 +579,8 @@ func (d *Dispatcher) executePipeline(ctx context.Context, handlerName string, pi
 			action.Body = step.Body
 			action.Name = step.Name
 			action.Labels = step.Labels
+			action.Script = step.Script
+			action.MaxMemory = step.MaxMemory
 			action.BaseDir = d.registry.GetHandlerBaseDir(handlerName)
 			action.HandlerName = handlerName
 		}

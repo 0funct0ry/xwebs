@@ -584,6 +584,8 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("      --target <type>       Target for 'log' builtin (stdout|file|both)\n")
 				r.Printf("      --path <path>         File path for 'log' builtin\n")
 				r.Printf("      --labels <key:val,...> Labels for 'metric' builtin (key=val,key2=val2)\n")
+				r.Printf("      --script <script>     Inline Lua script\n")
+				r.Printf("      --max-memory <n>      Memory limit for Lua VM in bytes\n")
 				return nil
 			}
 
@@ -592,10 +594,10 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 				fs.SetOutput(r.Stdout())
 
-				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout string
+				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script string
 				var responses, headers []string
 				var labels map[string]string
-				var priority, burst int
+				var priority, burst, maxMemory int
 				var exclusive, sequential, loop, perClient bool
 
 				fs.StringVarP(&name, "name", "n", "", "Name of the handler")
@@ -633,6 +635,8 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.StringArrayVar(&headers, "header", nil, "Headers for http builtin (key:value)")
 				fs.StringVar(&body, "body", "", "Body for http builtin")
 				fs.StringVar(&timeout, "timeout", "", "Timeout for http builtin")
+				fs.StringVar(&script, "script", "", "Inline Lua script")
+				fs.IntVar(&maxMemory, "max-memory", 0, "Max memory for Lua VM in bytes")
 				fs.StringToStringVar(&labels, "labels", nil, "Labels for metric builtin (key=val,key2=val2)")
 
 				if err := fs.Parse(args[1:]); err != nil {
@@ -684,6 +688,8 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					Body:       body,
 					Timeout:    timeout,
 					Labels:     labels,
+					Script:     script,
+					MaxMemory:  maxMemory,
 				}
 
 				if len(headers) > 0 {

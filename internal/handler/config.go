@@ -55,7 +55,9 @@ type Handler struct {
 	OnDisconnect []Action               `yaml:"on_disconnect,omitempty"`
 	OnError      []Action               `yaml:"on_error,omitempty"`
 	OnErrorMsg   string                 `yaml:"on_error_msg,omitempty"` // Shorthand for on_error send: template
-	File         string                 `yaml:"file,omitempty"`         // For template builtin
+	File         string                 `yaml:"file,omitempty"`         // For template or lua builtin
+	Script       string                 `yaml:"script,omitempty"`       // For lua builtin
+	MaxMemory    int                    `yaml:"max_memory,omitempty"`   // For lua builtin (bytes)
 	Mode         string                 `yaml:"mode,omitempty"`         // For file-send builtin
 	URL          string                 `yaml:"url,omitempty"`          // For http builtin
 	Method       string                 `yaml:"method,omitempty"`       // For http builtin
@@ -95,7 +97,9 @@ type PipelineStep struct {
 	Responses   []string          `yaml:"responses,omitempty"`  // For sequence builtin
 	Loop        bool              `yaml:"loop,omitempty"`       // For sequence builtin
 	PerClient   bool              `yaml:"per_client,omitempty"` // For sequence builtin
-	File        string            `yaml:"file,omitempty"`       // For template builtin
+	File        string            `yaml:"file,omitempty"`       // For template or lua builtin
+	Script      string            `yaml:"script,omitempty"`     // For lua builtin
+	MaxMemory   int               `yaml:"max_memory,omitempty"` // For lua builtin (bytes)
 	Path        string            `yaml:"path,omitempty"`       // For file-write builtin
 	Content     string            `yaml:"content,omitempty"`    // For file-write builtin
 	Mode        string            `yaml:"mode,omitempty"`       // For file-send builtin
@@ -173,8 +177,10 @@ type Action struct {
 	Responses   []string          `yaml:"responses,omitempty"`
 	Loop        bool              `yaml:"loop,omitempty"`
 	PerClient   bool              `yaml:"per_client,omitempty"`
-	File        string            `yaml:"file,omitempty"`     // For template builtin
-	Path        string            `yaml:"path,omitempty"`     // For file-write builtin
+	File        string            `yaml:"file,omitempty"`       // For template or lua builtin
+	Script      string            `yaml:"script,omitempty"`     // For lua builtin
+	MaxMemory   int               `yaml:"max_memory,omitempty"` // For lua builtin (bytes)
+	Path        string            `yaml:"path,omitempty"`       // For file-write builtin
 	Content     string            `yaml:"content,omitempty"`  // For file-write builtin
 	URL         string            `yaml:"url,omitempty"`      // For http builtin
 	Method      string            `yaml:"method,omitempty"`   // For http builtin
@@ -235,7 +241,7 @@ func (c *Config) Validate(mode RegistryMode) error {
 			h.Match.Binary != nil || len(h.Match.All) > 0 || len(h.Match.Any) > 0
 
 		hasExecution := len(h.Actions) > 0 || h.Run != "" || h.Respond != "" ||
-			h.Builtin != "" || len(h.Pipeline) > 0
+			h.Builtin != "" || len(h.Pipeline) > 0 || h.Script != "" || h.File != ""
 
 		if !hasMatch && hasExecution {
 			return fmt.Errorf("handler %q is missing a match condition (pattern, regex, jq, json_path, json_schema, template, binary, all, or any)", h.Name)
@@ -323,6 +329,8 @@ func (c *Config) Validate(mode RegistryMode) error {
 				Loop:      h.Loop,
 				PerClient: h.PerClient,
 				File:      h.File,
+				Script:    h.Script,
+				MaxMemory: h.MaxMemory,
 				Path:      h.Path,
 				Content:   h.Content,
 				Mode:      h.Mode,

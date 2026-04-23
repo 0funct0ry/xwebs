@@ -170,6 +170,9 @@ type TemplateContext struct {
 	RetryAfterMs int64   `json:"retry_after_ms,omitempty"`
 	RateLimit    string  `json:"rate_limit,omitempty"`
 	LimitScope   string  `json:"limit_scope,omitempty"`
+
+	// Lua Builtin
+	LuaError string `json:"lua_error,omitempty"`
 }
 
 // NewContext creates a new TemplateContext with initialized maps.
