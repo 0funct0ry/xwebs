@@ -1,7 +1,7 @@
 ---
 title: "xwebs bench"
 description: "Load test a WebSocket endpoint"
-generated: "2026-04-23"
+generated: "2026-04-24"
 ---
 
 # xwebs bench

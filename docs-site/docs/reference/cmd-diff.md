@@ -1,7 +1,7 @@
 ---
 title: "xwebs diff"
 description: "Compare responses from two WebSocket endpoints"
-generated: "2026-04-23"
+generated: "2026-04-24"
 ---
 
 # xwebs diff

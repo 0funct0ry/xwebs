@@ -1,7 +1,7 @@
 ---
 title: "xwebs replay"
 description: "Replay a recorded xwebs session"
-generated: "2026-04-23"
+generated: "2026-04-24"
 ---
 
 # xwebs replay

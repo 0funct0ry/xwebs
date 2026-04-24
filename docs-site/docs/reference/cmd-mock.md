@@ -1,7 +1,7 @@
 ---
 title: "xwebs mock"
 description: "Start a scripted mock WebSocket server"
-generated: "2026-04-23"
+generated: "2026-04-24"
 ---
 
 # xwebs mock

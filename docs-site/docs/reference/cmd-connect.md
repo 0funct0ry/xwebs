@@ -1,7 +1,7 @@
 ---
 title: "xwebs connect"
 description: "Connect to a WebSocket server"
-generated: "2026-04-23"
+generated: "2026-04-24"
 ---
 
 # xwebs connect
@@ -43,7 +43,7 @@ xwebs connect <url> [flags]
 | `--config` | string | ~/.xwebs.yaml | Config file path |
 | `--profile` | string | — | Named profile from config file |
 | `--handlers` | string | — | Handler config file (YAML) |
-| `--on` | stringArray | — | Inline handler: '' |
+| `--on` | stringArray | — | Inline handler: '<match> :: <action>' |
 | `--respond` | string | — | Default response template for --on handlers |
 | `--no-shell-func` | bool | false | Disable shell/env/fileRead template functions |
 | `--sandbox` | bool | false | Enable shell command allowlisting |

@@ -1,7 +1,7 @@
 ---
 title: "xwebs broadcast"
 description: "Fan-out pub/sub WebSocket server"
-generated: "2026-04-23"
+generated: "2026-04-24"
 ---
 
 # xwebs broadcast

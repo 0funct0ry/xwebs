@@ -1,7 +1,7 @@
 ---
 title: "xwebs serve"
 description: "Start a WebSocket server"
-generated: "2026-04-23"
+generated: "2026-04-24"
 ---
 
 # xwebs serve
@@ -36,7 +36,7 @@ xwebs serve [flags]
 | `--allow-ip` | strings | — | IP allowlist (CIDR) |
 | `--deny-ip` | strings | — | IP denylist (CIDR) |
 | `--handlers` | string | — | Handler config file (YAML) |
-| `--on` | stringArray | — | Inline handler: '' |
+| `--on` | stringArray | — | Inline handler: '<match> :: <action>' |
 | `--respond` | string | — | Default response template for --on handlers |
 | `--no-shell-func` | bool | false | Disable shell template functions |
 | `--sandbox` | bool | false | Enable shell command allowlisting |
