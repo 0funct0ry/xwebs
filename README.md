@@ -521,6 +521,7 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `--message <tmpl>`    | `-M`  | Message template for `log` builtin                                        |
 | `--target <type>`     |       | Destination for `log` builtin (`stdout`, `file`, `both`)                  |
 | `--path <path>`       |       | File path for `log` builtin (supports templates)                           |
+| `--window <dur>`      | `-w`  | Throttle window for `throttle-broadcast` builtin (e.g. `5s`, templates)   |
 
 Example — add pub-sub handlers directly from the REPL:
 
@@ -569,6 +570,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `close` | Shared | Terminates the current connection with an optional code and reason. |
 | `http` | Shared | Makes an outbound HTTP request; response status/body are available in context. |
 | `metric` | Shared | Increments a Prometheus counter with dynamic name and labels. |
+| `throttle-broadcast` | Server | Broadcasts a message to all clients except those who received one from this handler within the last `window:` duration. |
 
 **Validation Features:**
 - **Unknown Builtins**: Using an unknown builtin name in handler configuration causes an immediate startup error.
@@ -716,6 +718,14 @@ handlers:
     labels:
       type: "{{.MessageType}}"
       content: "{{.Message | truncate 20}}"
+
+  # Throttle-Broadcast Example
+  - name: high-frequency-broadcast
+    match: "tick"
+    builtin: throttle-broadcast
+    window: "5s"
+    message: "Throttled broadcast at {{now}}"
+    respond: "Broadcasted to {{.DeliveredCount}} clients, skipped {{.SkippedCount}}"
 
 ```
 

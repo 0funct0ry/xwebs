@@ -42,6 +42,7 @@ func init() {
 	MustRegister(&LogBuiltin{})
 	MustRegister(&HttpBuiltin{})
 	MustRegister(&MetricBuiltin{})
+	MustRegister(&ThrottleBroadcastBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -1285,6 +1286,112 @@ func (b *MetricBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, t
 			labelStr = " {" + strings.Join(labelParts, ", ") + "}"
 		}
 		d.errorf("  [handler] metric: incremented %s%s\n", metricName, labelStr)
+	}
+
+	return nil
+}
+
+// ThrottleBroadcastBuiltin delivers messages to all clients except those who
+// received a message from this handler within the last window: duration.
+type ThrottleBroadcastBuiltin struct{}
+
+func (b *ThrottleBroadcastBuiltin) Name() string { return "throttle-broadcast" }
+func (b *ThrottleBroadcastBuiltin) Description() string {
+	return "Deliver a message to all clients except those who received one from this handler too recently."
+}
+func (b *ThrottleBroadcastBuiltin) Scope() BuiltinScope { return ServerOnly }
+
+func (b *ThrottleBroadcastBuiltin) Validate(a Action) error {
+	if a.Window == "" {
+		return fmt.Errorf("builtin throttle-broadcast: missing 'window'")
+	}
+	return nil
+}
+
+func (b *ThrottleBroadcastBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	if d.serverStats == nil {
+		return fmt.Errorf("throttle-broadcast is only available in server mode")
+	}
+
+	// 1. Resolve window duration
+	windowStr, err := d.templateEngine.Execute("window", a.Window, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("rendering window template: %w", err)
+	}
+	window, err := time.ParseDuration(windowStr)
+	if err != nil {
+		return fmt.Errorf("invalid window duration %q: %w", windowStr, err)
+	}
+
+	// 2. Resolve message content
+	msgContent := a.Message
+	if msgContent == "" {
+		msgContent = a.Send
+	}
+
+	var data []byte
+	var msgType ws.MessageType
+
+	if msgContent != "" {
+		res, err := d.templateEngine.Execute("broadcast", msgContent, tmplCtx)
+		if err != nil {
+			return fmt.Errorf("rendering broadcast template: %w", err)
+		}
+		data = []byte(res)
+		msgType = ws.TextMessage
+	} else {
+		// Default to original message content
+		data = tmplCtx.MessageBytes
+		mt := ws.TextMessage
+		if tmplCtx.MessageType == "binary" {
+			mt = ws.BinaryMessage
+		} else if tmplCtx.MessageType == "ping" {
+			mt = ws.PingMessage
+		} else if tmplCtx.MessageType == "pong" {
+			mt = ws.PongMessage
+		}
+		msgType = mt
+	}
+
+	broadcastMsg := &ws.Message{
+		Type: msgType,
+		Data: data,
+		Metadata: ws.MessageMetadata{
+			Direction: "sent",
+			Timestamp: time.Now(),
+		},
+	}
+
+	// 3. Filter clients and broadcast
+	clients := d.serverStats.GetClients()
+	deliveredCount := 0
+	skippedCount := 0
+	now := time.Now()
+
+	for _, client := range clients {
+		lastSent := d.registry.GetLastThrottleBroadcast(a.HandlerName, client.ID)
+		if !lastSent.IsZero() && now.Sub(lastSent) < window {
+			skippedCount++
+			continue
+		}
+
+		if err := d.serverStats.Send(client.ID, broadcastMsg); err == nil {
+			deliveredCount++
+			d.registry.SetLastThrottleBroadcast(a.HandlerName, client.ID, now)
+		} else {
+			// Delivery failure, we don't count it as skipped but we don't update timestamp
+			if d.verbose {
+				d.errorf("  [builtin:throttle-broadcast] failed to deliver to %s: %v\n", client.ID, err)
+			}
+		}
+	}
+
+	tmplCtx.DeliveredCount = deliveredCount
+	tmplCtx.SkippedCount = skippedCount
+	tmplCtx.Stdout = fmt.Sprintf("Broadcasted to %d clients, skipped %d", deliveredCount, skippedCount)
+
+	if d.verbose {
+		d.log("  [builtin:throttle-broadcast] delivered to %d clients, skipped %d\n", deliveredCount, skippedCount)
 	}
 
 	return nil

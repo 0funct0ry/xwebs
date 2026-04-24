@@ -76,6 +76,7 @@ type Registry struct {
 	scopedLimiterBursts   map[string]int            // key -> burst
 	luaPools              map[string]interface{}    // handlerName -> *LuaPool (interface{} to avoid circular dependency or import lua here)
 	luaStates             map[string]interface{}    // handlerName -> *lua.LTable
+	throttleTimestamps    map[string]time.Time      // handlerName:connID -> last broadcast time
 	Mode                  RegistryMode
 	mu                    sync.RWMutex
 }
@@ -103,6 +104,7 @@ func NewRegistry(mode RegistryMode) *Registry {
 		scopedLimiterBursts:   make(map[string]int),
 		luaPools:              make(map[string]interface{}),
 		luaStates:             make(map[string]interface{}),
+		throttleTimestamps:    make(map[string]time.Time),
 		Mode:                  mode,
 		global: RegistryStats{
 			maxSlowLog: 50,
@@ -199,6 +201,12 @@ func (r *Registry) UpdateHandler(h Handler) error {
 			delete(r.scopedLimiterBursts, k)
 		}
 	}
+	// Clean up throttle timestamps for this handler
+	for k := range r.throttleTimestamps {
+		if strings.HasPrefix(k, h.Name+":") {
+			delete(r.throttleTimestamps, k)
+		}
+	}
 
 	r.handlers[index] = h
 	r.sort()
@@ -253,6 +261,7 @@ func (r *Registry) ReplaceHandlers(handlers []Handler) error {
 	r.scopedLimiterBursts = make(map[string]int)
 	r.luaPools = make(map[string]interface{})
 	r.luaStates = make(map[string]interface{})
+	r.throttleTimestamps = make(map[string]time.Time)
 
 	r.handlers = handlers
 	r.sort()
@@ -284,6 +293,13 @@ func (r *Registry) Delete(name string) error {
 	delete(r.sequenceClientIndices, name)
 	delete(r.luaPools, name)
 	delete(r.luaStates, name)
+
+	// Clean up throttle timestamps for this handler
+	for k := range r.throttleTimestamps {
+		if strings.HasPrefix(k, name+":") {
+			delete(r.throttleTimestamps, k)
+		}
+	}
 
 	if d, ok := r.debouncers[name]; ok {
 		d.mu.Lock()
@@ -351,6 +367,15 @@ func (r *Registry) RenameHandler(oldName, newName string) error {
 	if cIdx, ok := r.sequenceClientIndices[oldName]; ok {
 		r.sequenceClientIndices[newName] = cIdx
 		delete(r.sequenceClientIndices, oldName)
+	}
+
+	// Migrate throttle timestamps
+	for k, v := range r.throttleTimestamps {
+		if strings.HasPrefix(k, oldName+":") {
+			newKey := newName + ":" + strings.TrimPrefix(k, oldName+":")
+			r.throttleTimestamps[newKey] = v
+			delete(r.throttleTimestamps, k)
+		}
 	}
 
 	return nil
@@ -1148,4 +1173,18 @@ func (r *Registry) GetScopedLimiter(key, rateStr string, burst int) *rate.Limite
 	r.scopedLimiterRates[key] = rateStr
 	r.scopedLimiterBursts[key] = burst
 	return limiter
+}
+
+// GetLastThrottleBroadcast returns the last time a message was broadcasted to a client by a specific handler.
+func (r *Registry) GetLastThrottleBroadcast(handlerName, connID string) time.Time {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.throttleTimestamps[handlerName+":"+connID]
+}
+
+// SetLastThrottleBroadcast updates the last broadcast time for a client by a specific handler.
+func (r *Registry) SetLastThrottleBroadcast(handlerName, connID string, t time.Time) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.throttleTimestamps[handlerName+":"+connID] = t
 }

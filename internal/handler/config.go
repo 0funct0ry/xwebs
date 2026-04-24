@@ -38,6 +38,7 @@ type Handler struct {
 	Debounce     string                 `yaml:"debounce,omitempty"`   // Per-handler debounce duration (e.g. "500ms")
 	Delay        string                 `yaml:"delay,omitempty"`      // Per-handler delay (e.g. "1s")
 	Message      string                 `yaml:"message,omitempty"`    // Message content (template) for broadcast/publish builtins
+	Window       string                 `yaml:"window,omitempty"`     // For throttle-broadcast builtin
 	TTL          string                 `yaml:"ttl,omitempty"`        // TTL (template) for KV builtins
 	Default      string                 `yaml:"default,omitempty"`    // Default value (template) for KV builtins
 	Responses    []string               `yaml:"responses,omitempty"`  // For sequence builtin
@@ -92,6 +93,7 @@ type PipelineStep struct {
 	Delay       string            `yaml:"delay,omitempty"`
 	Respond     string            `yaml:"respond,omitempty"`
 	Message     string            `yaml:"message,omitempty"`    // Message content (template) for broadcast/publish builtins
+	Window      string            `yaml:"window,omitempty"`     // For throttle-broadcast builtin
 	TTL         string            `yaml:"ttl,omitempty"`        // TTL (template) for KV builtins
 	Default     string            `yaml:"default,omitempty"`    // Default value (template) for KV builtins
 	Responses   []string          `yaml:"responses,omitempty"`  // For sequence builtin
@@ -170,6 +172,7 @@ type Action struct {
 	Timeout     string            `yaml:"timeout,omitempty"` // Timeout for shell/builtin actions
 	Delay       string            `yaml:"delay,omitempty"`   // Delay before execution
 	Respond     string            `yaml:"respond,omitempty"` // Override response for echo or generic follow-up
+	Window      string            `yaml:"window,omitempty"`  // For throttle-broadcast builtin
 	TTL         string            `yaml:"ttl,omitempty"`     // TTL (template) for KV builtins
 	Default     string            `yaml:"default,omitempty"` // Default value (template) for KV builtins
 	Env         map[string]string `yaml:"env,omitempty"`     // Environment variables for shell actions
@@ -338,6 +341,7 @@ func (c *Config) Validate(mode RegistryMode) error {
 				Burst:     h.Burst,
 				Scope:     h.Scope,
 				OnLimit:   h.OnLimit,
+				Window:    h.Window,
 				Duration:  h.Duration,
 				Max:       h.Max,
 				Code:      h.Code,

@@ -165,6 +165,10 @@ type TemplateContext struct {
 	// Upstream Forwarding
 	ForwardReply string `json:"forward_reply,omitempty"` // Result of forward builtin
 
+	// Throttling
+	DeliveredCount int `json:"delivered_count,omitempty"` // Result of throttle-broadcast builtin
+	SkippedCount   int `json:"skipped_count,omitempty"`   // Result of throttle-broadcast builtin
+
 	// Rate Limiting
 	RetryAfter   float64 `json:"retry_after,omitempty"`
 	RetryAfterMs int64   `json:"retry_after_ms,omitempty"`
