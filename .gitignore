@@ -38,3 +38,4 @@ AGENTS.md
 certs/
 .agents/
 scratch/
+.claude/

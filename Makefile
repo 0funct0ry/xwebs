@@ -122,6 +122,23 @@ run:
 run-verbose:
 	$(GO) run . --verbose
 
+# Documentation targets
+.PHONY: docs-gen
+docs-gen:
+	$(GO) run tools/gendocs/main.go --out docs-site/docs/reference/
+
+.PHONY: docs-serve
+docs-serve:
+	cd docs-site && npm run start
+
+.PHONY: docs-build
+docs-build:
+	cd docs-site && npm run build
+
+.PHONY: docs-deploy
+docs-deploy: docs-gen docs-build
+	cd docs-site && npm run deploy
+
 # Help target
 .PHONY: help
 help:
