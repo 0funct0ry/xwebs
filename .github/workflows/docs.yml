@@ -17,6 +17,7 @@ permissions:
 
 jobs:
   gen:
+    if: false
     name: Generate CLI Reference
     runs-on: ubuntu-latest
     steps:
@@ -38,6 +39,7 @@ jobs:
           file_pattern: "docs-site/docs/reference/cmd-*.md"
 
   build:
+    if: false
     name: Build Docusaurus site
     runs-on: ubuntu-latest
     needs: gen
@@ -68,6 +70,7 @@ jobs:
           path: docs-site/build
 
   deploy:
+    if: false
     name: Deploy to GitHub Pages
     runs-on: ubuntu-latest
     needs: build
