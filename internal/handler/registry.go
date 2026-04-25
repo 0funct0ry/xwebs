@@ -77,6 +77,7 @@ type Registry struct {
 	luaPools              map[string]interface{}    // handlerName -> *LuaPool (interface{} to avoid circular dependency or import lua here)
 	luaStates             map[string]interface{}    // handlerName -> *lua.LTable
 	throttleTimestamps    map[string]time.Time      // handlerName:connID -> last broadcast time
+	roundRobinIndices     map[string]int            // actionKey -> index
 	Mode                  RegistryMode
 	mu                    sync.RWMutex
 }
@@ -105,6 +106,7 @@ func NewRegistry(mode RegistryMode) *Registry {
 		luaPools:              make(map[string]interface{}),
 		luaStates:             make(map[string]interface{}),
 		throttleTimestamps:    make(map[string]time.Time),
+		roundRobinIndices:     make(map[string]int),
 		Mode:                  mode,
 		global: RegistryStats{
 			maxSlowLog: 50,
@@ -207,6 +209,12 @@ func (r *Registry) UpdateHandler(h Handler) error {
 			delete(r.throttleTimestamps, k)
 		}
 	}
+	// Clean up round-robin indices for this handler
+	for k := range r.roundRobinIndices {
+		if strings.HasPrefix(k, h.Name+":") {
+			delete(r.roundRobinIndices, k)
+		}
+	}
 
 	r.handlers[index] = h
 	r.sort()
@@ -262,6 +270,7 @@ func (r *Registry) ReplaceHandlers(handlers []Handler) error {
 	r.luaPools = make(map[string]interface{})
 	r.luaStates = make(map[string]interface{})
 	r.throttleTimestamps = make(map[string]time.Time)
+	r.roundRobinIndices = make(map[string]int)
 
 	r.handlers = handlers
 	r.sort()
@@ -298,6 +307,11 @@ func (r *Registry) Delete(name string) error {
 	for k := range r.throttleTimestamps {
 		if strings.HasPrefix(k, name+":") {
 			delete(r.throttleTimestamps, k)
+		}
+	}
+	for k := range r.roundRobinIndices {
+		if strings.HasPrefix(k, name+":") {
+			delete(r.roundRobinIndices, k)
 		}
 	}
 
@@ -375,6 +389,14 @@ func (r *Registry) RenameHandler(oldName, newName string) error {
 			newKey := newName + ":" + strings.TrimPrefix(k, oldName+":")
 			r.throttleTimestamps[newKey] = v
 			delete(r.throttleTimestamps, k)
+		}
+	}
+	// Migrate round-robin indices
+	for k, v := range r.roundRobinIndices {
+		if strings.HasPrefix(k, oldName+":") {
+			newKey := newName + ":" + strings.TrimPrefix(k, oldName+":")
+			r.roundRobinIndices[newKey] = v
+			delete(r.roundRobinIndices, k)
 		}
 	}
 
@@ -1187,4 +1209,41 @@ func (r *Registry) SetLastThrottleBroadcast(handlerName, connID string, t time.T
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.throttleTimestamps[handlerName+":"+connID] = t
+}
+
+// GetRoundRobinIndex returns the current index for a round-robin action without advancing it.
+func (r *Registry) GetRoundRobinIndex(key string, count int) int {
+	if count <= 0 {
+		return 0
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.roundRobinIndices[key] % count
+}
+
+// SetRoundRobinIndex sets the current index for a round-robin action.
+func (r *Registry) SetRoundRobinIndex(key string, idx int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.roundRobinIndices[key] = idx
+}
+
+// GetNextRoundRobinIndex returns the next index for a round-robin action, atomically.
+func (r *Registry) GetNextRoundRobinIndex(key string, count int) int {
+	if count <= 0 {
+		return 0
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	idx := r.roundRobinIndices[key] % count
+	r.roundRobinIndices[key] = (idx + 1) % count
+	return idx
+}
+
+// ResetRoundRobin clears the round-robin index for a specific handler or action key.
+func (r *Registry) ResetRoundRobin(key string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.roundRobinIndices, key)
 }

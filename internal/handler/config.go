@@ -70,6 +70,8 @@ type Handler struct {
 	OnLimit      string                 `yaml:"on_limit,omitempty"`     // For rate-limit builtin
 	Labels       map[string]string      `yaml:"labels,omitempty"`       // For metric builtin
 	Targets      string                 `yaml:"targets,omitempty"`      // For multicast builtin
+	Pool         string                 `yaml:"pool,omitempty"`         // For round-robin builtin (template)
+	OnEmpty      string                 `yaml:"on_empty,omitempty"`     // For round-robin builtin (template)
 	BaseDir      string                 `yaml:"-"`                      // Directory from which the handler was loaded
 }
 
@@ -122,6 +124,8 @@ type PipelineStep struct {
 	Name        string            `yaml:"name,omitempty"`     // For metric builtin
 	Labels      map[string]string `yaml:"labels,omitempty"`   // For metric builtin
 	Targets     string            `yaml:"targets,omitempty"`  // For multicast builtin
+	Pool        string            `yaml:"pool,omitempty"`     // For round-robin builtin
+	OnEmpty     string            `yaml:"on_empty,omitempty"` // For round-robin builtin
 }
 
 // Matcher specifies how to match an incoming WebSocket message.
@@ -203,6 +207,8 @@ type Action struct {
 	Name        string            `yaml:"name,omitempty"`       // For metric builtin (metric name)
 	Labels      map[string]string `yaml:"labels,omitempty"`     // For metric builtin
 	Targets     string            `yaml:"targets,omitempty"`    // For multicast builtin
+	Pool        string            `yaml:"pool,omitempty"`       // For round-robin builtin
+	OnEmpty     string            `yaml:"on_empty,omitempty"`   // For round-robin builtin
 	BaseDir     string            `yaml:"-"`                    // For relative path resolution in builtins
 	HandlerName string            `yaml:"-"`                    // Internal use only
 }
@@ -356,6 +362,8 @@ func (c *Config) Validate(mode RegistryMode) error {
 				Name:      h.Name,
 				Labels:    h.Labels,
 				Targets:   h.Targets,
+				Pool:      h.Pool,
+				OnEmpty:   h.OnEmpty,
 			}
 			if err := bh.Validate(tmpAction); err != nil {
 				return fmt.Errorf("handler %q: %w", h.Name, err)

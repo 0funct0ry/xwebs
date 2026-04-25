@@ -582,7 +582,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("      --header <key:val>    Headers for 'http' builtin (repeatable)\n")
 				r.Printf("      --body <template>     Body for 'http' builtin\n")
 				r.Printf("      --timeout <duration>  Timeout for 'http' builtin (e.g. '5s')\n")
-				r.Printf("      --message <template>  Message template for 'log' builtin\n")
+				r.Printf("      --message <template>  Message template for 'log', 'publish', or 'round-robin' builtins\n")
 				r.Printf("      --target <type>       Target for 'log' builtin (stdout|file|both)\n")
 				r.Printf("      --path <path>         File path for 'log' builtin\n")
 				r.Printf("      --labels <key:val,...> Labels for 'metric' builtin (key=val,key2=val2)\n")
@@ -591,6 +591,8 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("  -w, --window <duration>   Throttle window for 'throttle-broadcast' builtin (e.g. '5s')\n")
 				r.Printf("      --sticky-broadcast    Builtin: broadcast and retain a message for new subscribers\n")
 				r.Printf("      --targets <ids>       Comma-separated list of client IDs or JSON array for 'multicast' builtin\n")
+				r.Printf("      --pool <list>         Pool of client IDs for 'round-robin' builtin (comma-separated or JSON array)\n")
+				r.Printf("      --on-empty <tmpl>     Response template if no pool clients are connected for 'round-robin'\n")
 				return nil
 			}
 
@@ -599,7 +601,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 				fs.SetOutput(r.Stdout())
 
-				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets string
+				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty string
 				var responses, headers []string
 				var labels map[string]string
 				var priority, burst, maxMemory int
@@ -645,6 +647,8 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.StringVarP(&window, "window", "w", "", "Throttle window (e.g. '5s')")
 				fs.BoolVar(&stickyBroadcast, "sticky-broadcast", false, "Builtin: sticky-broadcast")
 				fs.StringVar(&targets, "targets", "", "Targets (comma-separated list or JSON array) for multicast builtin")
+				fs.StringVar(&pool, "pool", "", "Pool of client IDs (comma-separated or JSON array) for round-robin")
+				fs.StringVar(&onEmpty, "on-empty", "", "Response template for round-robin if pool is empty")
 				fs.StringToStringVar(&labels, "labels", nil, "Labels for metric builtin (key=val,key2=val2)")
 
 				if err := fs.Parse(args[1:]); err != nil {
@@ -704,6 +708,8 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					MaxMemory:  maxMemory,
 					Window:     window,
 					Targets:    targets,
+					Pool:       pool,
+					OnEmpty:    onEmpty,
 				}
 
 				if len(headers) > 0 {

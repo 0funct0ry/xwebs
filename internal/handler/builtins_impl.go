@@ -45,6 +45,7 @@ func init() {
 	MustRegister(&ThrottleBroadcastBuiltin{})
 	MustRegister(&MulticastBuiltin{})
 	MustRegister(&StickyBroadcastBuiltin{})
+	MustRegister(&RoundRobinBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -1580,4 +1581,146 @@ func (b *StickyBroadcastBuiltin) Execute(ctx context.Context, d *Dispatcher, a *
 		d.errorf("  [handler] sticky-broadcast to topic %q → %d clients (retained value set)\n", topic, delivered)
 	}
 	return nil
+}
+
+// RoundRobinBuiltin distributes messages across a pool of client IDs.
+type RoundRobinBuiltin struct{}
+
+func (b *RoundRobinBuiltin) Name() string        { return "round-robin" }
+func (b *RoundRobinBuiltin) Description() string { return "Cycle messages across a pool of client IDs." }
+func (b *RoundRobinBuiltin) Scope() BuiltinScope { return ServerOnly }
+
+func (b *RoundRobinBuiltin) Validate(a Action) error {
+	if a.Pool == "" {
+		return fmt.Errorf("builtin round-robin: missing 'pool'")
+	}
+	return nil
+}
+
+func (b *RoundRobinBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	if d.serverStats == nil {
+		return fmt.Errorf("builtin round-robin: only available in server mode")
+	}
+
+	// 1. Evaluate Pool template
+	poolStr, err := d.templateEngine.Execute("round-robin-pool", a.Pool, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in pool expression: %w", err)
+	}
+
+	// 2. Parse Pool as JSON array
+	var pool []string
+	if err := json.Unmarshal([]byte(poolStr), &pool); err != nil {
+		// Fallback: try comma-separated if not JSON array
+		if strings.Contains(poolStr, ",") {
+			parts := strings.Split(poolStr, ",")
+			for _, p := range parts {
+				pool = append(pool, strings.TrimSpace(p))
+			}
+		} else if strings.TrimSpace(poolStr) != "" {
+			pool = []string{strings.TrimSpace(poolStr)}
+		}
+	}
+
+	if len(pool) == 0 {
+		return b.handleEmpty(d, a, tmplCtx)
+	}
+
+	// 3. Get next starting index from Registry
+	key := a.HandlerName + ":round-robin:" + a.Pool
+	idx := d.registry.GetRoundRobinIndex(key, len(pool))
+
+	// 4. Resolve message content
+	msgContent := a.Message
+	if msgContent == "" {
+		msgContent = a.Send
+	}
+	if msgContent == "" {
+		msgContent = a.Respond
+	}
+
+	var data []byte
+	var msgType ws.MessageType
+	if msgContent != "" {
+		res, err := d.templateEngine.Execute("round-robin-msg", msgContent, tmplCtx)
+		if err != nil {
+			return fmt.Errorf("rendering round-robin message template: %w", err)
+		}
+		data = []byte(res)
+		msgType = ws.TextMessage
+	} else {
+		data = tmplCtx.MessageBytes
+		msgType = ws.TextMessage
+		if tmplCtx.MessageType == "binary" {
+			msgType = ws.BinaryMessage
+		}
+	}
+
+	rrMsg := &ws.Message{
+		Type: msgType,
+		Data: data,
+		Metadata: ws.MessageMetadata{
+			Direction: "sent",
+			Timestamp: time.Now(),
+		},
+	}
+
+	// 5. Try clients in the pool starting from idx
+	clients := d.serverStats.GetClients()
+	connectedMap := make(map[string]bool)
+	for _, c := range clients {
+		connectedMap[c.ID] = true
+	}
+
+	for i := 0; i < len(pool); i++ {
+		tryIdx := (idx + i) % len(pool)
+		clientID := pool[tryIdx]
+
+		if connectedMap[clientID] {
+			if d.verbose {
+				d.errorf("  [handler] round-robin: sending to client %q (pool index %d)\n", clientID, tryIdx)
+			}
+			if err := d.serverStats.Send(clientID, rrMsg); err != nil {
+				d.errorf("  [handler] round-robin error sending to %q: %v\n", clientID, err)
+				continue // Try next one if send fails
+			}
+			// Update index to the one *after* the successful one for next time
+			d.registry.SetRoundRobinIndex(key, (tryIdx+1)%len(pool))
+			return nil
+		}
+	}
+
+	// 6. All failed
+	return b.handleEmpty(d, a, tmplCtx)
+}
+
+func (b *RoundRobinBuiltin) handleEmpty(d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	if a.OnEmpty == "" {
+		if d.verbose {
+			d.errorf("  [handler] round-robin: pool is empty or all clients disconnected, no on_empty provided\n")
+		}
+		return nil
+	}
+
+	res, err := d.templateEngine.Execute("round-robin-empty", a.OnEmpty, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("rendering on_empty template: %w", err)
+	}
+
+	if res == "" {
+		return nil
+	}
+
+	if d.verbose {
+		d.errorf("  [handler] round-robin: all disconnected, sending on_empty response to sender\n")
+	}
+
+	return d.conn.Write(&ws.Message{
+		Type: ws.TextMessage,
+		Data: []byte(res),
+		Metadata: ws.MessageMetadata{
+			Direction: "sent",
+			Timestamp: time.Now(),
+		},
+	})
 }

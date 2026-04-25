@@ -491,6 +491,8 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 				Script:      h.Script,
 				MaxMemory:   h.MaxMemory,
 				Targets:     h.Targets,
+				Pool:        h.Pool,
+				OnEmpty:     h.OnEmpty,
 				BaseDir:     h.BaseDir,
 				HandlerName: h.Name,
 			}
@@ -588,6 +590,8 @@ func (d *Dispatcher) executePipeline(ctx context.Context, handlerName string, pi
 			action.Script = step.Script
 			action.MaxMemory = step.MaxMemory
 			action.Targets = step.Targets
+			action.Pool = step.Pool
+			action.OnEmpty = step.OnEmpty
 			action.BaseDir = d.registry.GetHandlerBaseDir(handlerName)
 			action.HandlerName = handlerName
 		}

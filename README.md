@@ -573,6 +573,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `throttle-broadcast` | Server | Broadcasts a message to all clients except those who received one from this handler within the last `window:` duration. |
 | `sticky-broadcast` | Server | Broadcasts a message to all subscribers of a topic and stores it as the retained value for new subscribers. |
 | `multicast` | Server | Delivers a message to a specific list of client IDs (supports JSON arrays and templates). |
+| `round-robin` | Server | Distributes messages across a pool of client IDs in order (skips disconnected clients). Supports custom `message:` template. |
 
 **Validation Features:**
 - **Unknown Builtins**: Using an unknown builtin name in handler configuration causes an immediate startup error.
@@ -745,6 +746,15 @@ handlers:
     targets: '["{{.Message | jq ".target"}}"]'
     message: "ALERT: {{.Message | jq \".text\"}}"
     respond: "Delivered alert to {{.DeliveredCount}} targets"
+  
+  # Round-Robin Example
+  - name: distribute-work
+    match: "work:*"
+    builtin: round-robin
+    pool: '["worker1", "worker2", "worker3"]'
+    message: '{"task": "{{.Message | trimPrefix \"work:\"}}", "id": "{{.ConnectionID}}"}'
+    on_empty: "No workers available to process {{.Message}}"
+    respond: "Dispatched work to backend"
 
 ```
 
