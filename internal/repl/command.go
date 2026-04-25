@@ -1330,6 +1330,7 @@ func (r *REPL) RegisterCommonCommands() {
 				r.Printf("  --labels <key=val,...> Labels for 'metric' builtin (key=val,key2=val2)\n")
 				r.Printf("  --script <script>     Inline Lua script\n")
 				r.Printf("  --max-memory <n>      Memory limit for Lua VM in bytes\n")
+				r.Printf("  --targets <ids>       Comma-separated list of client IDs or JSON array for 'multicast' builtin\n")
 				return nil
 			}
 
@@ -1493,7 +1494,7 @@ func (r *REPL) RegisterCommonCommands() {
 			fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 			fs.SetOutput(nil) // Suppress automatic usage printing on error
 
-			var name, match, matchType, run, respond, builtin, topic, rateLimit, debounce, code, reason, message, target, script string
+			var name, match, matchType, run, respond, builtin, topic, rateLimit, debounce, code, reason, message, target, script, targets string
 			var labels map[string]string
 			var priority, maxMemory int
 			var exclusive, sequential bool
@@ -1533,6 +1534,7 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.StringVar(&timeout, "timeout", "", "Timeout for http builtin")
 			fs.StringVar(&script, "script", "", "Inline Lua script")
 			fs.IntVar(&maxMemory, "max-memory", 0, "Max memory for Lua VM")
+			fs.StringVar(&targets, "targets", "", "Targets (comma-separated list or JSON array) for multicast builtin")
 			fs.StringToStringVar(&labels, "labels", nil, "Labels for metric builtin (key=val,key2=val2)")
 
 			if err := fs.Parse(args[1:]); err != nil {
@@ -1582,6 +1584,7 @@ func (r *REPL) RegisterCommonCommands() {
 				Labels:    labels,
 				Script:    script,
 				MaxMemory: maxMemory,
+				Targets:   targets,
 			}
 
 			if len(headers) > 0 {

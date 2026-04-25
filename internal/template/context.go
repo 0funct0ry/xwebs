@@ -153,7 +153,7 @@ type TemplateContext struct {
 	ServerUptimeStr string        `json:"server_uptime_str,omitempty"`
 
 	// Key-Value Store
-	KV         map[string]interface{} `json:"kv,omitempty"`       // Global KV store snapshot
+	KV         map[string]interface{} `json:"kv,omitempty"`          // Global KV store snapshot
 	HttpStatus int                    `json:"http_status,omitempty"` // HTTP status code from http builtin
 	HttpBody   string                 `json:"http_body,omitempty"`   // Response body from http builtin
 	KvValue    interface{}            `json:"kv_value,omitempty"`    // Result of kv-get builtin

@@ -16,11 +16,11 @@ type mockServerStats struct {
 	msgs    map[string][]*ws.Message
 }
 
-func (m *mockServerStats) GetClientCount() int { return len(m.clients) }
-func (m *mockServerStats) GetUptime() time.Duration { return 0 }
-func (m *mockServerStats) GetClients() []template.ClientInfo { return m.clients }
-func (m *mockServerStats) IsPaused() bool { return false }
-func (m *mockServerStats) WaitIfPaused() {}
+func (m *mockServerStats) GetClientCount() int                                 { return len(m.clients) }
+func (m *mockServerStats) GetUptime() time.Duration                            { return 0 }
+func (m *mockServerStats) GetClients() []template.ClientInfo                   { return m.clients }
+func (m *mockServerStats) IsPaused() bool                                      { return false }
+func (m *mockServerStats) WaitIfPaused()                                       {}
 func (m *mockServerStats) Broadcast(msg *ws.Message, excludeIDs ...string) int { return 0 }
 func (m *mockServerStats) Send(id string, msg *ws.Message) error {
 	m.msgs[id] = append(m.msgs[id], msg)

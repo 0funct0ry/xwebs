@@ -31,9 +31,9 @@ func TestMetricBuiltin(t *testing.T) {
 		tmplCtx.Message = "{\"type\": \"login\"}"
 
 		action := &Action{
-			Type: "builtin",
+			Type:    "builtin",
 			Command: "metric",
-			Name: "user_events_total",
+			Name:    "user_events_total",
 			Labels: map[string]string{
 				"event_type": "login",
 				"static":     "val",
@@ -51,9 +51,9 @@ func TestMetricBuiltin(t *testing.T) {
 		tmplCtx := template.NewContext()
 
 		action := &Action{
-			Type: "builtin",
+			Type:    "builtin",
 			Command: "metric",
-			Name: "metric_{{.Invalid}}",
+			Name:    "metric_{{.Invalid}}",
 		}
 
 		err := b.Execute(context.Background(), d, action, tmplCtx)

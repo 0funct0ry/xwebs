@@ -571,6 +571,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `http` | Shared | Makes an outbound HTTP request; response status/body are available in context. |
 | `metric` | Shared | Increments a Prometheus counter with dynamic name and labels. |
 | `throttle-broadcast` | Server | Broadcasts a message to all clients except those who received one from this handler within the last `window:` duration. |
+| `multicast` | Server | Delivers a message to a specific list of client IDs (supports JSON arrays and templates). |
 
 **Validation Features:**
 - **Unknown Builtins**: Using an unknown builtin name in handler configuration causes an immediate startup error.
@@ -726,6 +727,15 @@ handlers:
     window: "5s"
     message: "Throttled broadcast at {{now}}"
     respond: "Broadcasted to {{.DeliveredCount}} clients, skipped {{.SkippedCount}}"
+
+  # Multicast Example
+  - name: targeted-alert
+    match:
+      jq: '.type == "alert"'
+    builtin: multicast
+    targets: '["{{.Message | jq ".target"}}"]'
+    message: "ALERT: {{.Message | jq \".text\"}}"
+    respond: "Delivered alert to {{.DeliveredCount}} targets"
 
 ```
 

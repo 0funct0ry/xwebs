@@ -76,7 +76,7 @@ func TestHttpBuiltin(t *testing.T) {
 	t.Run("Template in URL and Headers", func(t *testing.T) {
 		tmplCtx.Vars["path"] = "dynamic-path"
 		tmplCtx.Vars["hdr_val"] = "templated-header"
-		
+
 		action := &Action{
 			Type:    "builtin",
 			Command: "http",
@@ -121,7 +121,7 @@ func TestHttpBuiltin(t *testing.T) {
 				return nil
 			},
 		}
-		
+
 		d := &Dispatcher{
 			registry:       reg,
 			templateEngine: tmplEngine,
@@ -140,7 +140,7 @@ func TestHttpBuiltin(t *testing.T) {
 
 		err := d.Execute(context.Background(), h, &ws.Message{Data: []byte("hello")}, nil)
 		require.NoError(t, err)
-		
+
 		require.NotEmpty(t, mockConn.msgs)
 		assert.Equal(t, "Status: 200, Body: ok", string(mockConn.msgs[0].Data))
 	})
@@ -178,20 +178,20 @@ func (m *httpMockConnection) Write(msg *ws.Message) error {
 	return nil
 }
 func (m *httpMockConnection) CloseWithCode(code int, reason string) error { return nil }
-func (m *httpMockConnection) Subscribe() <-chan *ws.Message             { return nil }
-func (m *httpMockConnection) Unsubscribe(ch <-chan *ws.Message)         {}
-func (m *httpMockConnection) Done() <-chan struct{}                     { return nil }
-func (m *httpMockConnection) IsCompressionEnabled() bool                { return false }
-func (m *httpMockConnection) GetID() string                             { return "test-id" }
-func (m *httpMockConnection) GetURL() string                            { return "ws://localhost" }
-func (m *httpMockConnection) GetSubprotocol() string                    { return "" }
-func (m *httpMockConnection) RemoteAddr() string                        { return "127.0.0.1" }
-func (m *httpMockConnection) LocalAddr() string                         { return "127.0.0.1" }
-func (m *httpMockConnection) ConnectedAt() time.Time                    { return time.Now() }
-func (m *httpMockConnection) MessageCount() uint64                      { return 0 }
-func (m *httpMockConnection) MsgsIn() uint64                            { return 0 }
-func (m *httpMockConnection) MsgsOut() uint64                           { return 0 }
-func (m *httpMockConnection) LastMsgReceivedAt() time.Time              { return time.Time{} }
-func (m *httpMockConnection) LastMsgSentAt() time.Time                  { return time.Time{} }
-func (m *httpMockConnection) RTT() time.Duration                        { return 0 }
-func (m *httpMockConnection) AvgRTT() time.Duration                     { return 0 }
+func (m *httpMockConnection) Subscribe() <-chan *ws.Message               { return nil }
+func (m *httpMockConnection) Unsubscribe(ch <-chan *ws.Message)           {}
+func (m *httpMockConnection) Done() <-chan struct{}                       { return nil }
+func (m *httpMockConnection) IsCompressionEnabled() bool                  { return false }
+func (m *httpMockConnection) GetID() string                               { return "test-id" }
+func (m *httpMockConnection) GetURL() string                              { return "ws://localhost" }
+func (m *httpMockConnection) GetSubprotocol() string                      { return "" }
+func (m *httpMockConnection) RemoteAddr() string                          { return "127.0.0.1" }
+func (m *httpMockConnection) LocalAddr() string                           { return "127.0.0.1" }
+func (m *httpMockConnection) ConnectedAt() time.Time                      { return time.Now() }
+func (m *httpMockConnection) MessageCount() uint64                        { return 0 }
+func (m *httpMockConnection) MsgsIn() uint64                              { return 0 }
+func (m *httpMockConnection) MsgsOut() uint64                             { return 0 }
+func (m *httpMockConnection) LastMsgReceivedAt() time.Time                { return time.Time{} }
+func (m *httpMockConnection) LastMsgSentAt() time.Time                    { return time.Time{} }
+func (m *httpMockConnection) RTT() time.Duration                          { return 0 }
+func (m *httpMockConnection) AvgRTT() time.Duration                       { return 0 }

@@ -23,12 +23,12 @@ func TestLogBuiltin(t *testing.T) {
 	tmplEngine := template.New(false)
 
 	tests := []struct {
-		name       string
-		action     Action
-		tmplCtx    *template.TemplateContext
-		setup      func()
-		verify     func(t *testing.T, stdout string, stderr string)
-		wantError  bool
+		name      string
+		action    Action
+		tmplCtx   *template.TemplateContext
+		setup     func()
+		verify    func(t *testing.T, stdout string, stderr string)
+		wantError bool
 	}{
 		{
 			name: "Log to stdout (default)",
@@ -62,7 +62,7 @@ func TestLogBuiltin(t *testing.T) {
 				path := filepath.Join(tmpDir, "test.log")
 				data, err := os.ReadFile(path)
 				assert.NoError(t, err)
-				
+
 				var log map[string]interface{}
 				err = json.Unmarshal(data, &log)
 				assert.NoError(t, err)
@@ -100,7 +100,7 @@ func TestLogBuiltin(t *testing.T) {
 			verify: func(t *testing.T, stdout string, stderr string) {
 				// Check stdout
 				assert.Contains(t, stdout, "Both targets")
-				
+
 				// Check file
 				path := filepath.Join(tmpDir, "both.log")
 				data, err := os.ReadFile(path)

@@ -587,6 +587,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("      --script <script>     Inline Lua script\n")
 				r.Printf("      --max-memory <n>      Memory limit for Lua VM in bytes\n")
 				r.Printf("  -w, --window <duration>   Throttle window for 'throttle-broadcast' builtin (e.g. '5s')\n")
+				r.Printf("      --targets <ids>       Comma-separated list of client IDs or JSON array for 'multicast' builtin\n")
 				return nil
 			}
 
@@ -595,7 +596,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 				fs.SetOutput(r.Stdout())
 
-				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window string
+				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets string
 				var responses, headers []string
 				var labels map[string]string
 				var priority, burst, maxMemory int
@@ -639,6 +640,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.StringVar(&script, "script", "", "Inline Lua script")
 				fs.IntVar(&maxMemory, "max-memory", 0, "Max memory for Lua VM in bytes")
 				fs.StringVarP(&window, "window", "w", "", "Throttle window (e.g. '5s')")
+				fs.StringVar(&targets, "targets", "", "Targets (comma-separated list or JSON array) for multicast builtin")
 				fs.StringToStringVar(&labels, "labels", nil, "Labels for metric builtin (key=val,key2=val2)")
 
 				if err := fs.Parse(args[1:]); err != nil {
@@ -693,6 +695,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					Script:     script,
 					MaxMemory:  maxMemory,
 					Window:     window,
+					Targets:    targets,
 				}
 
 				if len(headers) > 0 {

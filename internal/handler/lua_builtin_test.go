@@ -13,10 +13,10 @@ import (
 func TestLuaBuiltin_Execute(t *testing.T) {
 	// Setup dispatcher with mock connection
 	conn := &mockConn{}
-	
+
 	registry := NewRegistry(ServerMode)
 	engine := template.New(false)
-	
+
 	d := &Dispatcher{
 		conn:           conn,
 		registry:       registry,
@@ -39,7 +39,7 @@ func TestLuaBuiltin_Execute(t *testing.T) {
 
 		err := lua.Execute(context.Background(), d, a, tmplCtx)
 		assert.NoError(t, err)
-		
+
 		conn.mu.Lock()
 		require.Len(t, conn.messages, 1)
 		assert.Equal(t, "hello from lua", string(conn.messages[0].Data))
@@ -59,7 +59,7 @@ func TestLuaBuiltin_Execute(t *testing.T) {
 
 		err := lua.Execute(context.Background(), d, a, tmplCtx)
 		assert.ErrorIs(t, err, ErrDrop)
-		
+
 		conn.mu.Lock()
 		assert.Empty(t, conn.messages)
 		conn.mu.Unlock()
@@ -79,7 +79,7 @@ func TestLuaBuiltin_Execute(t *testing.T) {
 		// Call 1
 		err := lua.Execute(context.Background(), d, a, tmplCtx)
 		assert.NoError(t, err)
-		
+
 		conn.mu.Lock()
 		assert.Equal(t, "1", string(conn.messages[0].Data))
 		conn.mu.Unlock()
@@ -87,7 +87,7 @@ func TestLuaBuiltin_Execute(t *testing.T) {
 		// Call 2
 		err = lua.Execute(context.Background(), d, a, tmplCtx)
 		assert.NoError(t, err)
-		
+
 		conn.mu.Lock()
 		assert.Equal(t, "2", string(conn.messages[1].Data))
 		conn.mu.Unlock()
@@ -108,7 +108,7 @@ func TestLuaBuiltin_Execute(t *testing.T) {
 
 		err := lua.Execute(context.Background(), d, a, tmplCtx)
 		assert.NoError(t, err)
-		
+
 		conn.mu.Lock()
 		assert.Equal(t, "hello conn123", string(conn.messages[0].Data))
 		conn.mu.Unlock()
@@ -128,7 +128,7 @@ func TestLuaBuiltin_Execute(t *testing.T) {
 
 		err := lua.Execute(context.Background(), d, a, tmplCtx)
 		assert.NoError(t, err)
-		
+
 		conn.mu.Lock()
 		assert.Contains(t, string(conn.messages[0].Data), `"foo":"bar"`)
 		assert.Contains(t, string(conn.messages[0].Data), `"val":123`)
@@ -145,11 +145,11 @@ func TestLuaBuiltin_Execute(t *testing.T) {
 			Script:      `if re.match("^foo", message) then return "matched" else return "no match" end`,
 		}
 		tmplCtx := template.NewContext()
-		
+
 		tmplCtx.Message = "foobar"
 		err := lua.Execute(context.Background(), d, a, tmplCtx)
 		assert.NoError(t, err)
-		
+
 		conn.mu.Lock()
 		assert.Equal(t, "matched", string(conn.messages[0].Data))
 		conn.mu.Unlock()
@@ -157,7 +157,7 @@ func TestLuaBuiltin_Execute(t *testing.T) {
 		tmplCtx.Message = "barfoo"
 		err = lua.Execute(context.Background(), d, a, tmplCtx)
 		assert.NoError(t, err)
-		
+
 		conn.mu.Lock()
 		assert.Equal(t, "no match", string(conn.messages[1].Data))
 		conn.mu.Unlock()
@@ -197,7 +197,7 @@ func TestLuaBuiltin_Execute(t *testing.T) {
 
 		err = lua.Execute(context.Background(), d, a, tmplCtx)
 		assert.NoError(t, err)
-		
+
 		conn.mu.Lock()
 		assert.Equal(t, "hello from file", string(conn.messages[0].Data))
 		conn.mu.Unlock()

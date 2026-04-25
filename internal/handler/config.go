@@ -63,13 +63,14 @@ type Handler struct {
 	URL          string                 `yaml:"url,omitempty"`          // For http builtin
 	Method       string                 `yaml:"method,omitempty"`       // For http builtin
 	Headers      map[string]string      `yaml:"headers,omitempty"`      // For http builtin
-	Body         string                 `yaml:"body,omitempty"`        // For http builtin
-	Rate         string                 `yaml:"rate,omitempty"`        // For rate-limit builtin
-	Burst        int                    `yaml:"burst,omitempty"`       // For rate-limit builtin
-	Scope        string                 `yaml:"scope,omitempty"`       // For rate-limit builtin
-	OnLimit      string                 `yaml:"on_limit,omitempty"`    // For rate-limit builtin
-	Labels       map[string]string      `yaml:"labels,omitempty"`      // For metric builtin
-	BaseDir      string                 `yaml:"-"`                     // Directory from which the handler was loaded
+	Body         string                 `yaml:"body,omitempty"`         // For http builtin
+	Rate         string                 `yaml:"rate,omitempty"`         // For rate-limit builtin
+	Burst        int                    `yaml:"burst,omitempty"`        // For rate-limit builtin
+	Scope        string                 `yaml:"scope,omitempty"`        // For rate-limit builtin
+	OnLimit      string                 `yaml:"on_limit,omitempty"`     // For rate-limit builtin
+	Labels       map[string]string      `yaml:"labels,omitempty"`       // For metric builtin
+	Targets      string                 `yaml:"targets,omitempty"`      // For multicast builtin
+	BaseDir      string                 `yaml:"-"`                      // Directory from which the handler was loaded
 }
 
 // RetryConfig defines the settings for automatic retries.
@@ -82,8 +83,8 @@ type RetryConfig struct {
 
 // PipelineStep defines a single step in a multi-step handler execution.
 type PipelineStep struct {
-	Run         string   `yaml:"run,omitempty"`
-	Builtin     string   `yaml:"builtin,omitempty"`
+	Run         string            `yaml:"run,omitempty"`
+	Builtin     string            `yaml:"builtin,omitempty"`
 	Topic       string            `yaml:"topic,omitempty"`  // Topic name (template) for subscribe/unsubscribe/publish builtins
 	Key         string            `yaml:"key,omitempty"`    // Key (template) for KV builtins
 	Value       string            `yaml:"value,omitempty"`  // Value (template) for KV builtins
@@ -120,6 +121,7 @@ type PipelineStep struct {
 	Reason      string            `yaml:"reason,omitempty"`   // For close builtin
 	Name        string            `yaml:"name,omitempty"`     // For metric builtin
 	Labels      map[string]string `yaml:"labels,omitempty"`   // For metric builtin
+	Targets     string            `yaml:"targets,omitempty"`  // For multicast builtin
 }
 
 // Matcher specifies how to match an incoming WebSocket message.
@@ -184,24 +186,25 @@ type Action struct {
 	Script      string            `yaml:"script,omitempty"`     // For lua builtin
 	MaxMemory   int               `yaml:"max_memory,omitempty"` // For lua builtin (bytes)
 	Path        string            `yaml:"path,omitempty"`       // For file-write builtin
-	Content     string            `yaml:"content,omitempty"`  // For file-write builtin
-	URL         string            `yaml:"url,omitempty"`      // For http builtin
-	Method      string            `yaml:"method,omitempty"`   // For http builtin
-	Headers     map[string]string `yaml:"headers,omitempty"`  // For http builtin
-	Body        string            `yaml:"body,omitempty"`     // For http builtin
-	Mode        string            `yaml:"mode,omitempty"`     // For file-send builtin
-	Rate        string            `yaml:"rate,omitempty"`     // For rate-limit builtin
-	Burst       int               `yaml:"burst,omitempty"`    // For rate-limit builtin
-	Scope       string            `yaml:"scope,omitempty"`    // For rate-limit builtin
-	OnLimit     string            `yaml:"on_limit,omitempty"` // For rate-limit builtin
-	Duration    string            `yaml:"duration,omitempty"` // For delay builtin (supports templates)
-	Max         string            `yaml:"max,omitempty"`      // For delay builtin — cap on dynamic duration
-	Code        string            `yaml:"code,omitempty"`     // For close builtin
-	Reason      string            `yaml:"reason,omitempty"`   // For close builtin
-	Name        string            `yaml:"name,omitempty"`     // For metric builtin (metric name)
-	Labels      map[string]string `yaml:"labels,omitempty"`   // For metric builtin
-	BaseDir     string            `yaml:"-"`                  // For relative path resolution in builtins
-	HandlerName string            `yaml:"-"`                  // Internal use only
+	Content     string            `yaml:"content,omitempty"`    // For file-write builtin
+	URL         string            `yaml:"url,omitempty"`        // For http builtin
+	Method      string            `yaml:"method,omitempty"`     // For http builtin
+	Headers     map[string]string `yaml:"headers,omitempty"`    // For http builtin
+	Body        string            `yaml:"body,omitempty"`       // For http builtin
+	Mode        string            `yaml:"mode,omitempty"`       // For file-send builtin
+	Rate        string            `yaml:"rate,omitempty"`       // For rate-limit builtin
+	Burst       int               `yaml:"burst,omitempty"`      // For rate-limit builtin
+	Scope       string            `yaml:"scope,omitempty"`      // For rate-limit builtin
+	OnLimit     string            `yaml:"on_limit,omitempty"`   // For rate-limit builtin
+	Duration    string            `yaml:"duration,omitempty"`   // For delay builtin (supports templates)
+	Max         string            `yaml:"max,omitempty"`        // For delay builtin — cap on dynamic duration
+	Code        string            `yaml:"code,omitempty"`       // For close builtin
+	Reason      string            `yaml:"reason,omitempty"`     // For close builtin
+	Name        string            `yaml:"name,omitempty"`       // For metric builtin (metric name)
+	Labels      map[string]string `yaml:"labels,omitempty"`     // For metric builtin
+	Targets     string            `yaml:"targets,omitempty"`    // For multicast builtin
+	BaseDir     string            `yaml:"-"`                    // For relative path resolution in builtins
+	HandlerName string            `yaml:"-"`                    // Internal use only
 }
 
 // UnmarshalYAML implements custom unmarshaling for Action to support shorthand keys.
@@ -352,6 +355,7 @@ func (c *Config) Validate(mode RegistryMode) error {
 				Body:      h.Body,
 				Name:      h.Name,
 				Labels:    h.Labels,
+				Targets:   h.Targets,
 			}
 			if err := bh.Validate(tmpAction); err != nil {
 				return fmt.Errorf("handler %q: %w", h.Name, err)

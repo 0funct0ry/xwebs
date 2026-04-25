@@ -43,6 +43,7 @@ func init() {
 	MustRegister(&HttpBuiltin{})
 	MustRegister(&MetricBuiltin{})
 	MustRegister(&ThrottleBroadcastBuiltin{})
+	MustRegister(&MulticastBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -1392,6 +1393,124 @@ func (b *ThrottleBroadcastBuiltin) Execute(ctx context.Context, d *Dispatcher, a
 
 	if d.verbose {
 		d.log("  [builtin:throttle-broadcast] delivered to %d clients, skipped %d\n", deliveredCount, skippedCount)
+	}
+
+	return nil
+}
+
+// MulticastBuiltin sends a message to a specific list of client IDs.
+type MulticastBuiltin struct{}
+
+func (b *MulticastBuiltin) Name() string { return "multicast" }
+func (b *MulticastBuiltin) Description() string {
+	return "Send a message to a specific list of client IDs."
+}
+func (b *MulticastBuiltin) Scope() BuiltinScope { return ServerOnly }
+
+func (b *MulticastBuiltin) Validate(a Action) error {
+	if a.Targets == "" {
+		return fmt.Errorf("builtin multicast: missing 'targets'")
+	}
+	return nil
+}
+
+func (b *MulticastBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	if d.serverStats == nil {
+		return fmt.Errorf("multicast is only available in server mode")
+	}
+
+	// 1. Resolve targets (template expression evaluating to JSON array)
+	targetsStr, err := d.templateEngine.Execute("multicast-targets", a.Targets, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("rendering targets template: %w", err)
+	}
+
+	var targetIDs []string
+	if err := json.Unmarshal([]byte(targetsStr), &targetIDs); err != nil {
+		// Fallback: if it's not a JSON array, maybe it's a single ID or comma-separated
+		targetsStr = strings.TrimSpace(targetsStr)
+		if strings.HasPrefix(targetsStr, "[") {
+			return fmt.Errorf("invalid JSON array in targets: %w", err)
+		}
+		if targetsStr != "" {
+			for _, id := range strings.Split(targetsStr, ",") {
+				if trimmed := strings.TrimSpace(id); trimmed != "" {
+					targetIDs = append(targetIDs, trimmed)
+				}
+			}
+		}
+	}
+
+	if len(targetIDs) == 0 {
+		tmplCtx.DeliveredCount = 0
+		tmplCtx.SkippedCount = 0
+		if d.verbose {
+			d.log("  [builtin:multicast] no targets specified\n")
+		}
+		return nil
+	}
+
+	// 2. Resolve message content
+	msgContent := a.Message
+	if msgContent == "" {
+		msgContent = a.Send
+	}
+
+	var data []byte
+	var msgType ws.MessageType
+
+	if msgContent != "" {
+		res, err := d.templateEngine.Execute("multicast-msg", msgContent, tmplCtx)
+		if err != nil {
+			return fmt.Errorf("rendering multicast template: %w", err)
+		}
+		data = []byte(res)
+		msgType = ws.TextMessage
+	} else {
+		data = tmplCtx.MessageBytes
+		mt := ws.TextMessage
+		if tmplCtx.MessageType == "binary" {
+			mt = ws.BinaryMessage
+		} else if tmplCtx.MessageType == "ping" {
+			mt = ws.PingMessage
+		} else if tmplCtx.MessageType == "pong" {
+			mt = ws.PongMessage
+		}
+		msgType = mt
+	}
+
+	multicastMsg := &ws.Message{
+		Type: msgType,
+		Data: data,
+		Metadata: ws.MessageMetadata{
+			Direction: "sent",
+			Timestamp: time.Now(),
+		},
+	}
+
+	// 3. Deliver to targets
+	deliveredCount := 0
+	skippedCount := 0
+
+	for _, id := range targetIDs {
+		err := d.serverStats.Send(id, multicastMsg)
+		if err == nil {
+			deliveredCount++
+		} else {
+			// In server mode, Send usually fails if the ID is not found in registry
+			skippedCount++
+			if d.verbose {
+				d.errorf("  [builtin:multicast] failed to deliver to %s: %v\n", id, err)
+			}
+		}
+	}
+
+	tmplCtx.DeliveredCount = deliveredCount
+	tmplCtx.SkippedCount = skippedCount
+	tmplCtx.Stdout = fmt.Sprintf("Multicast to %d clients, skipped %d", deliveredCount, skippedCount)
+
+	if d.verbose {
+		d.log("  [builtin:multicast] delivered to %d clients, skipped %d\n", deliveredCount, skippedCount)
 	}
 
 	return nil
