@@ -26,6 +26,7 @@ type topicEntry struct {
 	mu            sync.RWMutex
 	subscriptions map[string]*topicSubscription // keyed by connID
 	lastActive    time.Time
+	retained      *ws.Message
 }
 
 // TopicStore is the in-memory pub/sub engine.  It is safe for concurrent use.
@@ -59,11 +60,17 @@ func (ts *TopicStore) Subscribe(connID string, conn handler.Connection, topic st
 	defer entry.mu.Unlock()
 
 	if _, exists := entry.subscriptions[connID]; !exists {
-		entry.subscriptions[connID] = &topicSubscription{
+		sub := &topicSubscription{
 			connID:       connID,
 			conn:         conn,
 			remoteAddr:   conn.RemoteAddr(),
 			subscribedAt: time.Now(),
+		}
+		entry.subscriptions[connID] = sub
+
+		// Deliver retained message if present
+		if entry.retained != nil {
+			_ = conn.Write(entry.retained)
 		}
 	}
 }
@@ -89,7 +96,7 @@ func (ts *TopicStore) Unsubscribe(connID, topic string) int {
 		// Re-check under write lock to avoid a race where another goroutine
 		// re-subscribed between the two locks.
 		entry.mu.RLock()
-		stillEmpty := len(entry.subscriptions) == 0
+		stillEmpty := len(entry.subscriptions) == 0 && entry.retained == nil
 		entry.mu.RUnlock()
 		if stillEmpty {
 			delete(ts.topics, topic)
@@ -155,6 +162,66 @@ func (ts *TopicStore) Publish(topic string, msg *ws.Message) (int, error) {
 	return delivered, nil
 }
 
+// PublishSticky stores msg as the retained value for topic and fans it out to current subscribers.
+func (ts *TopicStore) PublishSticky(topic string, msg *ws.Message) (int, error) {
+	ts.mu.Lock()
+	entry, ok := ts.topics[topic]
+	if !ok {
+		entry = &topicEntry{
+			subscriptions: make(map[string]*topicSubscription),
+			lastActive:    time.Now(),
+		}
+		ts.topics[topic] = entry
+	}
+	ts.mu.Unlock()
+
+	entry.mu.Lock()
+	entry.retained = msg
+	entry.lastActive = time.Now()
+	subs := make([]*topicSubscription, 0, len(entry.subscriptions))
+	for _, s := range entry.subscriptions {
+		subs = append(subs, s)
+	}
+	entry.mu.Unlock()
+
+	delivered := 0
+	for _, sub := range subs {
+		if err := sub.conn.Write(msg); err == nil {
+			atomic.AddUint64(&sub.msgsSent, 1)
+			delivered++
+		}
+	}
+
+	return delivered, nil
+}
+
+// ClearRetained removes the retained message for a topic.
+func (ts *TopicStore) ClearRetained(topic string) {
+	ts.mu.RLock()
+	entry, ok := ts.topics[topic]
+	ts.mu.RUnlock()
+
+	if !ok {
+		return
+	}
+
+	entry.mu.Lock()
+	entry.retained = nil
+	empty := len(entry.subscriptions) == 0
+	entry.mu.Unlock()
+
+	if empty {
+		ts.mu.Lock()
+		// Re-check under lock
+		entry.mu.RLock()
+		if len(entry.subscriptions) == 0 && entry.retained == nil {
+			delete(ts.topics, topic)
+		}
+		entry.mu.RUnlock()
+		ts.mu.Unlock()
+	}
+}
+
 // GetTopics returns metadata for all active topics (sorted by name).
 func (ts *TopicStore) GetTopics() []template.TopicInfo {
 	ts.mu.RLock()
@@ -165,12 +232,17 @@ func (ts *TopicStore) GetTopics() []template.TopicInfo {
 		entry.mu.RLock()
 		subs := buildSubscriberInfos(entry)
 		lastActive := entry.lastActive
+		var retained interface{}
+		if entry.retained != nil {
+			retained = string(entry.retained.Data)
+		}
 		entry.mu.RUnlock()
 
 		infos = append(infos, template.TopicInfo{
 			Name:        name,
 			Subscribers: subs,
 			LastActive:  lastActive,
+			Retained:    retained,
 		})
 	}
 
@@ -193,12 +265,17 @@ func (ts *TopicStore) GetTopic(name string) (template.TopicInfo, bool) {
 	entry.mu.RLock()
 	subs := buildSubscriberInfos(entry)
 	lastActive := entry.lastActive
+	var retained interface{}
+	if entry.retained != nil {
+		retained = string(entry.retained.Data)
+	}
 	entry.mu.RUnlock()
 
 	return template.TopicInfo{
 		Name:        name,
 		Subscribers: subs,
 		LastActive:  lastActive,
+		Retained:    retained,
 	}, true
 }
 

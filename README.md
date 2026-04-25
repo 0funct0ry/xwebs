@@ -571,6 +571,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `http` | Shared | Makes an outbound HTTP request; response status/body are available in context. |
 | `metric` | Shared | Increments a Prometheus counter with dynamic name and labels. |
 | `throttle-broadcast` | Server | Broadcasts a message to all clients except those who received one from this handler within the last `window:` duration. |
+| `sticky-broadcast` | Server | Broadcasts a message to all subscribers of a topic and stores it as the retained value for new subscribers. |
 | `multicast` | Server | Delivers a message to a specific list of client IDs (supports JSON arrays and templates). |
 
 **Validation Features:**
@@ -727,6 +728,14 @@ handlers:
     window: "5s"
     message: "Throttled broadcast at {{now}}"
     respond: "Broadcasted to {{.DeliveredCount}} clients, skipped {{.SkippedCount}}"
+
+  # Sticky-Broadcast Example
+  - name: update-dashboard
+    match: "update:*"
+    builtin: sticky-broadcast
+    topic: "dashboard"
+    message: "New status: {{.Message | trimPrefix \"update:\"}}"
+    respond: "Dashboard updated"
 
   # Multicast Example
   - name: targeted-alert

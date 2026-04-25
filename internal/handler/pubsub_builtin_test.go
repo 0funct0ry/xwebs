@@ -28,6 +28,15 @@ func (m *mockTopicManager) Publish(topic string, msg *ws.Message) (int, error) {
 	return args.Int(0), args.Error(1)
 }
 
+func (m *mockTopicManager) PublishSticky(topic string, msg *ws.Message) (int, error) {
+	args := m.Called(topic, msg)
+	return args.Int(0), args.Error(1)
+}
+
+func (m *mockTopicManager) ClearRetained(topic string) {
+	m.Called(topic)
+}
+
 func TestPubSubBuiltins(t *testing.T) {
 	registry := NewRegistry(ServerMode)
 	conn := &mockConn{}

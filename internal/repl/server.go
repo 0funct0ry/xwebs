@@ -54,6 +54,8 @@ type ServerContext interface {
 	GetTopics() []template.TopicInfo
 	GetTopic(name string) (template.TopicInfo, bool)
 	PublishToTopic(topic string, msg *ws.Message) (int, error)
+	PublishSticky(topic string, msg *ws.Message) (int, error)
+	ClearRetained(topic string)
 	SubscribeClientToTopic(clientID, topic string) error
 	UnsubscribeClientFromTopic(clientID, topic string) (int, error)
 	UnsubscribeClientFromAllTopics(clientID string) ([]string, error)
@@ -587,6 +589,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("      --script <script>     Inline Lua script\n")
 				r.Printf("      --max-memory <n>      Memory limit for Lua VM in bytes\n")
 				r.Printf("  -w, --window <duration>   Throttle window for 'throttle-broadcast' builtin (e.g. '5s')\n")
+				r.Printf("      --sticky-broadcast    Builtin: broadcast and retain a message for new subscribers\n")
 				r.Printf("      --targets <ids>       Comma-separated list of client IDs or JSON array for 'multicast' builtin\n")
 				return nil
 			}
@@ -600,7 +603,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				var responses, headers []string
 				var labels map[string]string
 				var priority, burst, maxMemory int
-				var exclusive, sequential, loop, perClient bool
+				var exclusive, sequential, loop, perClient, stickyBroadcast bool
 
 				fs.StringVarP(&name, "name", "n", "", "Name of the handler")
 				fs.StringVarP(&match, "match", "m", "", "Match pattern")
@@ -640,6 +643,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.StringVar(&script, "script", "", "Inline Lua script")
 				fs.IntVar(&maxMemory, "max-memory", 0, "Max memory for Lua VM in bytes")
 				fs.StringVarP(&window, "window", "w", "", "Throttle window (e.g. '5s')")
+				fs.BoolVar(&stickyBroadcast, "sticky-broadcast", false, "Builtin: sticky-broadcast")
 				fs.StringVar(&targets, "targets", "", "Targets (comma-separated list or JSON array) for multicast builtin")
 				fs.StringToStringVar(&labels, "labels", nil, "Labels for metric builtin (key=val,key2=val2)")
 
@@ -653,6 +657,10 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 
 				if name == "" {
 					name = namesgenerator.GetRandomName(0)
+				}
+
+				if stickyBroadcast {
+					builtin = "sticky-broadcast"
 				}
 
 				h := handler.Handler{
@@ -1040,12 +1048,17 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 
 			tw := table.NewWriter()
 			tw.SetOutputMirror(nil)
-			tw.AppendHeader(table.Row{"TOPIC", "SUBSCRIBERS", "LAST ACTIVE"})
+			tw.AppendHeader(table.Row{"TOPIC", "SUBS", "RETAINED", "LAST ACTIVE"})
 
 			for _, t := range topics {
+				retainedMarker := "-"
+				if t.Retained != nil {
+					retainedMarker = text.FgCyan.Sprint("✓")
+				}
 				tw.AppendRow(table.Row{
 					t.Name,
 					len(t.Subscribers),
+					retainedMarker,
 					formatLastActive(t.LastActive),
 				})
 			}
@@ -1068,11 +1081,34 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 
 	r.RegisterCommand(&BuiltinCommand{
 		name: "topic",
-		help: "Show detailed state for a single topic: :topic <name>",
+		help: "Show/manage topics: :topic (list | <name> | clear <name>)",
 		handler: func(ctx context.Context, r *REPL, args []string) error {
 			if len(args) == 0 {
-				return fmt.Errorf("usage: :topic <name>")
+				r.Printf("Usage:\n")
+				r.Printf("  :topic list          List all active topics (alias for :topics)\n")
+				r.Printf("  :topic <name>        Show detailed state for a single topic\n")
+				r.Printf("  :topic clear <name>  Clear the retained message for a topic\n")
+				return nil
 			}
+
+			if args[0] == "list" || args[0] == "ls" {
+				// Re-use the topics command handler
+				if cmd, ok := r.commands["topics"]; ok {
+					return cmd.Execute(ctx, r, nil)
+				}
+				return fmt.Errorf("topics command not found")
+			}
+
+			if args[0] == "clear" {
+				if len(args) < 2 {
+					return fmt.Errorf("usage: :topic clear <name>")
+				}
+				name := args[1]
+				sc.ClearRetained(name)
+				r.Printf("✓ Retained message cleared for topic %q\n", name)
+				return nil
+			}
+
 			name := args[0]
 			info, ok := sc.GetTopic(name)
 			if !ok {
@@ -1080,6 +1116,11 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 			}
 
 			r.Printf("\nTopic: %s\nSubscribers: %d\n", info.Name, len(info.Subscribers))
+			if info.Retained != nil {
+				r.Printf("Retained Message: %v\n", text.FgCyan.Sprint(info.Retained))
+			} else {
+				r.Printf("Retained Message: (none)\n")
+			}
 
 			if len(info.Subscribers) == 0 {
 				r.Printf("  (no subscribers)\n")
@@ -1104,7 +1145,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 			tw.Style().Options.SeparateColumns = true
 			tw.Style().Options.DrawBorder = true
 
-			r.Printf("\n%s\n", tw.Render())
+			r.Printf("\nSubscribers:\n%s\n", tw.Render())
 			return nil
 		},
 	})

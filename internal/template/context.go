@@ -66,6 +66,7 @@ type TopicInfo struct {
 	Name        string                `json:"name"`
 	Subscribers []TopicSubscriberInfo `json:"subscribers"`
 	LastActive  time.Time             `json:"last_active"`
+	Retained    interface{}           `json:"retained,omitempty"`
 }
 
 // ServerContext provides global metrics when running in server mode.
@@ -177,6 +178,9 @@ type TemplateContext struct {
 
 	// Lua Builtin
 	LuaError string `json:"lua_error,omitempty"`
+
+	// Sticky Broadcast
+	Retained interface{} `json:"retained,omitempty"`
 }
 
 // NewContext creates a new TemplateContext with initialized maps.

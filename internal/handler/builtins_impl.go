@@ -44,6 +44,7 @@ func init() {
 	MustRegister(&MetricBuiltin{})
 	MustRegister(&ThrottleBroadcastBuiltin{})
 	MustRegister(&MulticastBuiltin{})
+	MustRegister(&StickyBroadcastBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -1513,5 +1514,70 @@ func (b *MulticastBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action
 		d.log("  [builtin:multicast] delivered to %d clients, skipped %d\n", deliveredCount, skippedCount)
 	}
 
+	return nil
+}
+
+// StickyBroadcastBuiltin broadcasts a message to all current subscribers of a topic
+// and stores it as the retained value for that topic.
+type StickyBroadcastBuiltin struct{}
+
+func (b *StickyBroadcastBuiltin) Name() string        { return "sticky-broadcast" }
+func (b *StickyBroadcastBuiltin) Description() string { return "Broadcast and retain a message for a topic." }
+func (b *StickyBroadcastBuiltin) Scope() BuiltinScope { return ServerOnly }
+
+func (b *StickyBroadcastBuiltin) Validate(a Action) error {
+	if a.Topic == "" {
+		return fmt.Errorf("builtin sticky-broadcast missing topic")
+	}
+	if a.Message == "" && a.Send == "" && a.Respond == "" {
+		return fmt.Errorf("builtin sticky-broadcast missing message (provide message:, send:, or respond:)")
+	}
+	return nil
+}
+
+func (b *StickyBroadcastBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	if d.topicManager == nil {
+		return fmt.Errorf("builtin sticky-broadcast: topic manager not available")
+	}
+	topic, err := d.templateEngine.Execute("topic", a.Topic, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in topic expression: %w", err)
+	}
+	topic = strings.TrimSpace(topic)
+	if topic == "" {
+		return fmt.Errorf("builtin sticky-broadcast: topic evaluates to empty string")
+	}
+
+	msgContent := a.Message
+	if msgContent == "" {
+		msgContent = a.Send
+	}
+	if msgContent == "" {
+		msgContent = a.Respond
+	}
+
+	msgStr, err := d.templateEngine.Execute("sticky-broadcast-msg", msgContent, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in sticky-broadcast message: %w", err)
+	}
+
+	msg := &ws.Message{
+		Type: ws.TextMessage,
+		Data: []byte(msgStr),
+		Metadata: ws.MessageMetadata{
+			Direction: "sent",
+			Timestamp: time.Now(),
+		},
+	}
+
+	delivered, err := d.topicManager.PublishSticky(topic, msg)
+	if err != nil {
+		return err
+	}
+
+	tmplCtx.Retained = msgStr
+	if d.verbose {
+		d.errorf("  [handler] sticky-broadcast to topic %q → %d clients (retained value set)\n", topic, delivered)
+	}
 	return nil
 }

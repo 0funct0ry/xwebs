@@ -134,6 +134,24 @@ func TestBuiltinValidation(t *testing.T) {
 			mode:    ClientMode,
 			wantErr: true,
 		},
+		{
+			name:    "valid sticky-broadcast",
+			action:  Action{Type: "builtin", Command: "sticky-broadcast", Topic: "foo", Message: "bar"},
+			mode:    ServerMode,
+			wantErr: false,
+		},
+		{
+			name:    "missing topic sticky-broadcast",
+			action:  Action{Type: "builtin", Command: "sticky-broadcast", Message: "bar"},
+			mode:    ServerMode,
+			wantErr: true,
+		},
+		{
+			name:    "missing message sticky-broadcast",
+			action:  Action{Type: "builtin", Command: "sticky-broadcast", Topic: "foo"},
+			mode:    ServerMode,
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {

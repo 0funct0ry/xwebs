@@ -119,6 +119,14 @@ func (c *serveContext) PublishToTopic(topic string, msg *ws.Message) (int, error
 	return c.srv.PublishToTopic(topic, msg)
 }
 
+func (c *serveContext) PublishSticky(topic string, msg *ws.Message) (int, error) {
+	return c.srv.PublishSticky(topic, msg)
+}
+
+func (c *serveContext) ClearRetained(topic string) {
+	c.srv.ClearRetained(topic)
+}
+
 func (c *serveContext) SubscribeClientToTopic(clientID, topic string) error {
 	return c.srv.SubscribeClientToTopic(clientID, topic)
 }

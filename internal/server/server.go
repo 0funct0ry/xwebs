@@ -488,6 +488,16 @@ func (s *Server) PublishToTopic(topic string, msg *ws.Message) (int, error) {
 	return s.topics.Publish(topic, msg)
 }
 
+// PublishSticky stores msg as the retained value for topic and fans it out to current subscribers.
+func (s *Server) PublishSticky(topic string, msg *ws.Message) (int, error) {
+	return s.topics.PublishSticky(topic, msg)
+}
+
+// ClearRetained removes the retained message for a topic.
+func (s *Server) ClearRetained(topic string) {
+	s.topics.ClearRetained(topic)
+}
+
 // SubscribeClientToTopic manually subscribes a connected client to a topic.
 // It looks up the live connection by clientID and registers it with the TopicStore.
 func (s *Server) SubscribeClientToTopic(clientID, topic string) error {

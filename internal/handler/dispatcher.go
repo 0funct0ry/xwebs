@@ -59,6 +59,8 @@ type TopicManager interface {
 	Subscribe(connID string, conn Connection, topic string)
 	Unsubscribe(connID, topic string) int
 	Publish(topic string, msg *ws.Message) (int, error)
+	PublishSticky(topic string, msg *ws.Message) (int, error)
+	ClearRetained(topic string)
 }
 
 // KVManager defines the required interface for key-value store operations.
