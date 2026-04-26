@@ -300,7 +300,7 @@ func (r *REPL) completeArguments(line string) ([][]rune, int) {
 					flags := []string{"--name", "-n", "--match", "-m", "--match-type", "-t", "--priority", "-p", "--run", "-r", "--respond", "-R",
 						"--builtin", "-B", "--topic", "--exclusive", "-e", "--sequential", "-s", "--rate-limit", "-l", "--debounce", "-d",
 						"--file", "--path", "--content", "--mode", "--responses", "--loop", "--per-client", "--on-error", "--duration", "--max",
-						"--code", "--reason", "--script", "--max-memory"}
+						"--code", "--reason", "--script", "--max-memory", "--rule-when", "-W", "--rule-respond", "-S", "--default", "-D"}
 					for _, f := range flags {
 						if strings.HasPrefix(f, currentWord) {
 							suggestions = append(suggestions, []rune(f[len(currentWord):]))
@@ -340,7 +340,7 @@ func (r *REPL) completeArguments(line string) ([][]rune, int) {
 					flags := []string{"--name", "-n", "--match", "-m", "--match-type", "-t", "--priority", "-p", "--run", "-r", "--respond", "-R",
 						"--builtin", "-B", "--topic", "--exclusive", "-e", "--sequential", "-s", "--rate-limit", "-l", "--debounce", "-d",
 						"--file", "--path", "--content", "--mode", "--responses", "--loop", "--per-client", "--on-error", "--duration", "--max",
-						"--code", "--reason", "--script", "--max-memory"}
+						"--code", "--reason", "--script", "--max-memory", "--rule-when", "-W", "--rule-respond", "-S", "--default", "-D"}
 					for _, f := range flags {
 						if strings.HasPrefix(f, currentWord) {
 							suggestions = append(suggestions, []rune(f[len(currentWord):]))

@@ -3,6 +3,7 @@ package repl
 import (
 	"bufio"
 	"context"
+	"errors"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -1338,6 +1339,9 @@ func (r *REPL) RegisterCommonCommands() {
 				r.Printf("  --script <script>     Inline Lua script\n")
 				r.Printf("  --max-memory <n>      Memory limit for Lua VM in bytes\n")
 				r.Printf("  --targets <ids>       Comma-separated list of client IDs or JSON array for 'multicast' builtin\n")
+				r.Printf("  --rule-when, -W <matcher> Condition for rule-engine rule (repeatable)\n")
+				r.Printf("  --rule-respond, -S <tmpl> Response for rule-engine rule (repeatable)\n")
+				r.Printf("  --default, -D <tmpl>      Default response for rule-engine or KV builtins\n")
 				return nil
 			}
 
@@ -1545,8 +1549,18 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.IntVar(&maxMemory, "max-memory", 0, "Max memory for Lua VM")
 			fs.StringVar(&targets, "targets", "", "Targets (comma-separated list or JSON array) for multicast builtin")
 			fs.StringToStringVar(&labels, "labels", nil, "Labels for metric builtin (key=val,key2=val2)")
+			var ruleWhens, ruleResponds []string
+			var defaultResp string
+			fs.StringArrayVarP(&ruleWhens, "rule-when", "W", nil, "Condition for rule-engine rule")
+			fs.StringArrayVarP(&ruleResponds, "rule-respond", "S", nil, "Response for rule-engine rule")
+			fs.StringVarP(&defaultResp, "default", "D", "", "Default response template")
 
 			if err := fs.Parse(args[1:]); err != nil {
+				if errors.Is(err, pflag.ErrHelp) {
+					// Use our centralized help printer for uniformity
+					_ = r.commands["handler"].Execute(ctx, r, nil)
+					return nil
+				}
 				return fmt.Errorf("parsing flags: %w", err)
 			}
 
@@ -1571,10 +1585,13 @@ func (r *REPL) RegisterCommonCommands() {
 				Topic:     topic,
 				Message:   message,
 				Target:    target,
-				Match: handler.Matcher{
-					Pattern: match,
-					Type:    matchType,
-				},
+				Match: func() handler.Matcher {
+					m := handler.AutoDetectMatcher(match)
+					if matchType != "" {
+						m.Type = matchType
+					}
+					return m
+				}(),
 				RateLimit: rateLimit,
 				Debounce:  debounce,
 				Window:    window,
@@ -1596,6 +1613,19 @@ func (r *REPL) RegisterCommonCommands() {
 				Script:    script,
 				MaxMemory: maxMemory,
 				Targets:   targets,
+				Default:   defaultResp,
+			}
+
+			if len(ruleWhens) > 0 {
+				if len(ruleWhens) != len(ruleResponds) {
+					return fmt.Errorf("number of --rule-when must match number of --rule-respond")
+				}
+				for i := range ruleWhens {
+					h.Rules = append(h.Rules, handler.Rule{
+						When:    handler.AutoDetectMatcher(ruleWhens[i]),
+						Respond: ruleResponds[i],
+					})
+				}
 			}
 
 			if len(headers) > 0 {

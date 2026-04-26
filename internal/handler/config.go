@@ -17,6 +17,12 @@ type Config struct {
 	BaseDir   string                 `yaml:"-"` // Directory from which the config was loaded
 }
 
+// Rule defines a single condition-and-action pair for the rule-engine builtin.
+type Rule struct {
+	When    Matcher `yaml:"when"`
+	Respond string  `yaml:"respond"`
+}
+
 // Handler defines a single message handler with a name, match conditions, and actions.
 type Handler struct {
 	Name         string                 `yaml:"name"`
@@ -74,6 +80,7 @@ type Handler struct {
 	Targets      string                 `yaml:"targets,omitempty"`      // For multicast builtin
 	Pool         string                 `yaml:"pool,omitempty"`         // For round-robin builtin (template)
 	OnEmpty      string                 `yaml:"on_empty,omitempty"`     // For round-robin builtin (template)
+	Rules        []Rule                 `yaml:"rules,omitempty"`        // For rule-engine builtin
 	BaseDir      string                 `yaml:"-"`                      // Directory from which the handler was loaded
 }
 
@@ -130,6 +137,7 @@ type PipelineStep struct {
 	Targets     string            `yaml:"targets,omitempty"`   // For multicast builtin
 	Pool        string            `yaml:"pool,omitempty"`      // For round-robin builtin
 	OnEmpty     string            `yaml:"on_empty,omitempty"`  // For round-robin builtin
+	Rules       []Rule            `yaml:"rules,omitempty"`     // For rule-engine builtin
 }
 
 // Matcher specifies how to match an incoming WebSocket message.
@@ -215,6 +223,7 @@ type Action struct {
 	Targets     string            `yaml:"targets,omitempty"`    // For multicast builtin
 	Pool        string            `yaml:"pool,omitempty"`       // For round-robin builtin
 	OnEmpty     string            `yaml:"on_empty,omitempty"`   // For round-robin builtin
+	Rules       []Rule            `yaml:"rules,omitempty"`     // For rule-engine builtin
 	BaseDir     string            `yaml:"-"`                    // For relative path resolution in builtins
 	HandlerName string            `yaml:"-"`                    // Internal use only
 }
@@ -372,6 +381,7 @@ func (c *Config) Validate(mode RegistryMode) error {
 				Targets:   h.Targets,
 				Pool:      h.Pool,
 				OnEmpty:   h.OnEmpty,
+				Rules:     h.Rules,
 			}
 			if err := bh.Validate(tmpAction); err != nil {
 				return fmt.Errorf("handler %q: %w", h.Name, err)

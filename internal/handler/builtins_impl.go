@@ -50,6 +50,7 @@ func init() {
 	MustRegister(&SampleBuiltin{})
 	MustRegister(&OnceBuiltin{})
 	MustRegister(&DebounceBuiltin{})
+	MustRegister(&RuleEngineBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -2025,4 +2026,84 @@ func (b *DebounceBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action,
 	})
 
 	return ErrDrop
+}
+
+// RuleEngineBuiltin evaluates a list of conditions and executes the first matching one.
+type RuleEngineBuiltin struct{}
+
+func (b *RuleEngineBuiltin) Name() string { return "rule-engine" }
+func (b *RuleEngineBuiltin) Description() string {
+	return "Evaluate a list of rules in order and execute the first match."
+}
+func (b *RuleEngineBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *RuleEngineBuiltin) Validate(a Action) error {
+	if len(a.Rules) == 0 {
+		return fmt.Errorf("builtin rule-engine: rules list is required and cannot be empty")
+	}
+	return nil
+}
+
+func (b *RuleEngineBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	for i, rule := range a.Rules {
+		matched, matches, err := d.registry.matchMatcher(&rule.When, a.BaseDir, d.connToMessage(tmplCtx), d.templateEngine, tmplCtx)
+		if err != nil {
+			if d.verbose {
+				d.errorf("  [handler] rule-engine: error matching rule %d: %v\n", i, err)
+			}
+			continue
+		}
+
+		if matched {
+			if d.verbose {
+				d.errorf("  [handler] rule-engine: rule %d matched\n", i)
+			}
+
+			// Capture matches from the matching rule's condition
+			originalMatches := tmplCtx.Matches
+			tmplCtx.Matches = matches
+			defer func() { tmplCtx.Matches = originalMatches }()
+
+			if rule.Respond != "" {
+				resp, err := d.templateEngine.Execute("rule-respond", rule.Respond, tmplCtx)
+				if err != nil {
+					return fmt.Errorf("rule %d: rendering response template: %w", i, err)
+				}
+				return d.conn.Write(&ws.Message{
+					Type: ws.TextMessage,
+					Data: []byte(resp),
+					Metadata: ws.MessageMetadata{
+						Direction: "sent",
+						Timestamp: time.Now(),
+					},
+				})
+			}
+			return nil
+		}
+	}
+
+	// Fallback to default if no rules matched
+	if a.Default != "" {
+		if d.verbose {
+			d.errorf("  [handler] rule-engine: no rules matched, using default\n")
+		}
+		resp, err := d.templateEngine.Execute("rule-default", a.Default, tmplCtx)
+		if err != nil {
+			return fmt.Errorf("rendering default template: %w", err)
+		}
+		return d.conn.Write(&ws.Message{
+			Type: ws.TextMessage,
+			Data: []byte(resp),
+			Metadata: ws.MessageMetadata{
+				Direction: "sent",
+				Timestamp: time.Now(),
+			},
+		})
+	}
+
+	if d.verbose {
+		d.errorf("  [handler] rule-engine: no rules matched and no default provided\n")
+	}
+
+	return nil
 }

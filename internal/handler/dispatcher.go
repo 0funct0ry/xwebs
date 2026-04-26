@@ -449,6 +449,9 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 				Respond:     h.Respond,
 				Loop:        h.Loop,
 				PerClient:   h.PerClient,
+				Scope:       h.Scope,
+				OnLimit:     h.OnLimit,
+				Rules:       h.Rules,
 				BaseDir:     h.BaseDir,
 				HandlerName: h.Name,
 			}
@@ -496,6 +499,7 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 				Targets:     h.Targets,
 				Pool:        h.Pool,
 				OnEmpty:     h.OnEmpty,
+				Rules:       h.Rules,
 				BaseDir:     h.BaseDir,
 				HandlerName: h.Name,
 			}
@@ -597,6 +601,8 @@ func (d *Dispatcher) executePipeline(ctx context.Context, handlerName string, pi
 			action.Targets = step.Targets
 			action.Pool = step.Pool
 			action.OnEmpty = step.OnEmpty
+			action.Rules = step.Rules
+			action.Default = step.Default
 			action.BaseDir = d.registry.GetHandlerBaseDir(handlerName)
 			action.HandlerName = handlerName
 		}
@@ -1080,5 +1086,28 @@ func (d *Dispatcher) executeHandlerError(ctx context.Context, h *Handler, tmplCt
 		if err := d.ExecuteAction(ctx, &a, tmplCtx, nil); err != nil {
 			d.errorf("  [handler] error in OnError action for %q: %v\n", h.Name, err)
 		}
+	}
+}
+
+// connToMessage reconstructs a ws.Message from the template context.
+func (d *Dispatcher) connToMessage(ctx *template.TemplateContext) *ws.Message {
+	mt := ws.TextMessage
+	switch ctx.MessageType {
+	case "binary":
+		mt = ws.BinaryMessage
+	case "ping":
+		mt = ws.PingMessage
+	case "pong":
+		mt = ws.PongMessage
+	}
+
+	return &ws.Message{
+		Type: mt,
+		Data: ctx.MessageBytes,
+		Metadata: ws.MessageMetadata{
+			Timestamp:    ctx.Timestamp,
+			Direction:    ctx.Direction,
+			MessageIndex: ctx.MessageIndex,
+		},
 	}
 }

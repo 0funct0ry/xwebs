@@ -3,6 +3,7 @@ package repl
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -598,7 +599,9 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("      --key <template>      Key for KV builtins or gate builtin\n")
 				r.Printf("      --value <template>    Value for KV builtins\n")
 				r.Printf("      --ttl <duration>      TTL for KV builtins\n")
-				r.Printf("      --default <template>  Default value for KV builtins\n")
+				r.Printf("      --default, -D <tmpl>  Default response for rule-engine or KV builtins\n")
+				r.Printf("      --rule-when, -W <pat> Condition for rule-engine rule (repeatable)\n")
+				r.Printf("      --rule-respond, -S <t> Response for rule-engine rule (repeatable)\n")
 				return nil
 			}
 
@@ -608,7 +611,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.SetOutput(r.Stdout())
 
 				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue string
-				var responses, headers []string
+				var ruleWhens, ruleResponds, responses, headers []string
 				var labels map[string]string
 				var priority, burst, maxMemory int
 				var exclusive, sequential, loop, perClient, stickyBroadcast bool
@@ -660,10 +663,15 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.StringVar(&key, "key", "", "Key for KV builtins or gate builtin")
 				fs.StringVar(&value, "value", "", "Value for KV builtins")
 				fs.StringVar(&ttl, "ttl", "", "TTL for KV builtins")
-				fs.StringVar(&defaultValue, "default", "", "Default value for KV builtins")
+				fs.StringVarP(&defaultValue, "default", "D", "", "Default value for KV builtins or rule-engine")
+				fs.StringArrayVarP(&ruleWhens, "rule-when", "W", nil, "Condition for rule-engine rule")
+				fs.StringArrayVarP(&ruleResponds, "rule-respond", "S", nil, "Response for rule-engine rule")
 				fs.StringToStringVar(&labels, "labels", nil, "Labels for metric builtin (key=val,key2=val2)")
 
 				if err := fs.Parse(args[1:]); err != nil {
+					if errors.Is(err, pflag.ErrHelp) {
+						return nil
+					}
 					return fmt.Errorf("parsing flags: %w", err)
 				}
 
@@ -689,10 +697,13 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					Topic:     topic,
 					Target:    target,
 					Message:   message,
-					Match: handler.Matcher{
-						Pattern: match,
-						Type:    matchType,
-					},
+					Match: func() handler.Matcher {
+						m := handler.AutoDetectMatcher(match)
+						if matchType != "" {
+							m.Type = matchType
+						}
+						return m
+					}(),
 					RateLimit:  rateLimit,
 					Debounce:   debounce,
 					OnErrorMsg: onError,
@@ -728,6 +739,16 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					Value:      value,
 					TTL:        ttl,
 					Default:    defaultValue,
+					Rules:      make([]handler.Rule, 0),
+				}
+
+				if len(ruleWhens) > 0 && len(ruleWhens) == len(ruleResponds) {
+					for i := range ruleWhens {
+						h.Rules = append(h.Rules, handler.Rule{
+							When:    handler.AutoDetectMatcher(ruleWhens[i]),
+							Respond: ruleResponds[i],
+						})
+					}
 				}
 
 				if len(headers) > 0 {

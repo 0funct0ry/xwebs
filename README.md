@@ -524,6 +524,9 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `--window <dur>`      | `-w`  | Throttle window for `throttle-broadcast` builtin (e.g. `5s`, templates)   |
 | `--expect <tmpl>`    |       | Expected value for `gate` builtin (supports templates)                     |
 | `--on-closed <tmpl>` |       | Response template if gate is closed (supports templates)                   |
+| `--rule-when <pat>` | `-W`  | Condition for rule-engine rule (repeatable)                                |
+| `--rule-respond <t>`| `-S`  | Response template for rule-engine rule (repeatable)                        |
+| `--default <tmpl>`  | `-D`  | Default response for rule-engine or KV builtins                            |
 
 Example — add pub-sub handlers directly from the REPL:
 
@@ -580,6 +583,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `gate`        | Server | Conditional message processing based on KV store values (checks `key` against `expect`). |
 | `once`        | Server | Executes exactly once and then permanently disables the handler. |
 | `debounce`    | Shared | Suppresses repeated matching messages within a window and only processes the last one. |
+| `rule-engine`  | Shared | Evaluates a list of condition-and-action rules in order; first-match wins. |
 
 **Validation Features:**
 - **Unknown Builtins**: Using an unknown builtin name in handler configuration causes an immediate startup error.
@@ -792,6 +796,19 @@ handlers:
     window: "2s"
     scope: client
     respond: "Final burst message: {{.Message}}"
+
+  # Rule-Engine Example
+  - name: message-router
+    match: "*"
+    builtin: rule-engine
+    rules:
+      - when: "ping"
+        respond: "pong"
+      - when: { jq: ".type == \"login\"" }
+        respond: "Welcome back, {{.Msg.Data.user}}!"
+      - when: { regex: "^/msg (@\\w+) (.*)" }
+        respond: "Sending private message to {{index .Matches 0}}..."
+    default: "Unrecognized command: {{.Message}}"
 
 ```
 
