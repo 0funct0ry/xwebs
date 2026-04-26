@@ -48,6 +48,7 @@ func init() {
 	MustRegister(&StickyBroadcastBuiltin{})
 	MustRegister(&RoundRobinBuiltin{})
 	MustRegister(&SampleBuiltin{})
+	MustRegister(&OnceBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -1853,6 +1854,43 @@ func (b *SampleBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, t
 	if d.verbose {
 		d.errorf("  [handler] sample: passing message %d (rate: %d)\n", count, rate)
 	}
+
+	return nil
+}
+
+// OnceBuiltin executes its respond template once and then disables the handler.
+type OnceBuiltin struct{}
+
+func (b *OnceBuiltin) Name() string { return "once" }
+func (b *OnceBuiltin) Description() string {
+	return "Executes its respond template once and then permanently disables the handler."
+}
+func (b *OnceBuiltin) Scope() BuiltinScope { return ServerOnly }
+
+func (b *OnceBuiltin) Validate(a Action) error {
+	return nil
+}
+
+func (b *OnceBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	if a.HandlerName == "" {
+		return fmt.Errorf("builtin once: handler name not available")
+	}
+
+	if d.verbose {
+		d.errorf("  [handler] once: firing for handler %q\n", a.HandlerName)
+	}
+
+	// Disable the handler first to avoid race conditions if multiple messages arrive
+	if err := d.registry.DisableHandlerWithReason(a.HandlerName, "once"); err != nil {
+		return fmt.Errorf("builtin once: disabling handler %q: %w", a.HandlerName, err)
+	}
+
+	// If a.Respond is set, ExecuteAction will handle sending the transformed message.
+	// But since we want to be sure it's sent as part of the 'once' execution,
+	// and we are disabling the handler now, we should handle it here or let ExecuteAction do it.
+	// Actually, ExecuteAction calls this and then handles a.Respond.
+	// However, if we want to ensure it's sent ONLY on the first match, we are good because
+	// subsequent matches won't even reach here (handler will be disabled).
 
 	return nil
 }

@@ -1223,7 +1223,12 @@ func (r *REPL) RegisterCommonCommands() {
 
 				status := text.FgGreen.Sprint("enabled")
 				if r.Handlers.IsDisabled(h.Name) {
-					status = text.FgRed.Sprint("disabled")
+					reason := r.Handlers.GetDisabledReason(h.Name)
+					if reason != "" && reason != "user" {
+						status = text.FgRed.Sprintf("disabled (%s)", reason)
+					} else {
+						status = text.FgRed.Sprint("disabled")
+					}
 				}
 
 				matcherStr := ""

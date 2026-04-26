@@ -68,7 +68,7 @@ type Registry struct {
 	debouncers            map[string]*debouncer
 	stats                 map[string]*HandlerStats
 	global                RegistryStats
-	disabled              map[string]bool
+	disabled              map[string]string // handlerName -> reason (empty if enabled, non-empty if disabled)
 	sequenceIndices       map[string]int            // handlerName -> index
 	sequenceClientIndices map[string]map[string]int // handlerName -> connID -> index
 	scopedLimiters        map[string]*rate.Limiter  // key -> limiter
@@ -98,7 +98,7 @@ func NewRegistry(mode RegistryMode) *Registry {
 		limiters:              make(map[string]*rate.Limiter),
 		debouncers:            make(map[string]*debouncer),
 		stats:                 make(map[string]*HandlerStats),
-		disabled:              make(map[string]bool),
+		disabled:              make(map[string]string),
 		sequenceIndices:       make(map[string]int),
 		sequenceClientIndices: make(map[string]map[string]int),
 		scopedLimiters:        make(map[string]*rate.Limiter),
@@ -269,7 +269,7 @@ func (r *Registry) ReplaceHandlers(handlers []Handler) error {
 	r.debouncers = make(map[string]*debouncer)
 	r.schemas = make(map[string]*gojsonschema.Schema)
 	r.stats = make(map[string]*HandlerStats)
-	r.disabled = make(map[string]bool)
+	r.disabled = make(map[string]string)
 	r.sequenceIndices = make(map[string]int)
 	r.sequenceClientIndices = make(map[string]map[string]int)
 	r.scopedLimiters = make(map[string]*rate.Limiter)
@@ -311,6 +311,7 @@ func (r *Registry) Delete(name string) error {
 	delete(r.sequenceClientIndices, name)
 	delete(r.luaPools, name)
 	delete(r.luaStates, name)
+	delete(r.disabled, name)
 
 	// Clean up throttle timestamps for this handler
 	for k := range r.throttleTimestamps {
@@ -439,7 +440,7 @@ func (r *Registry) Match(msg *ws.Message, engine *template.Engine, ctx *template
 
 	r.mu.RLock()
 	handlers := r.handlers
-	disabled := make(map[string]bool)
+	disabled := make(map[string]string)
 	for k, v := range r.disabled {
 		disabled[k] = v
 	}
@@ -449,7 +450,7 @@ func (r *Registry) Match(msg *ws.Message, engine *template.Engine, ctx *template
 		h := &handlers[i]
 
 		// Skip disabled handlers
-		if disabled[h.Name] {
+		if disabled[h.Name] != "" {
 			continue
 		}
 
@@ -1097,6 +1098,30 @@ func (r *Registry) EnableHandler(name string) error {
 	return nil
 }
 
+// DisableHandlerWithReason disables a handler at runtime with a specific reason.
+func (r *Registry) DisableHandlerWithReason(name, reason string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Check if handler exists
+	found := false
+	for _, h := range r.handlers {
+		if h.Name == name {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("handler %q not found", name)
+	}
+
+	if reason == "" {
+		reason = "user"
+	}
+	r.disabled[name] = reason
+	return nil
+}
+
 // DisableHandler disables a handler at runtime.
 func (r *Registry) DisableHandler(name string) error {
 	r.mu.Lock()
@@ -1114,15 +1139,22 @@ func (r *Registry) DisableHandler(name string) error {
 		return fmt.Errorf("handler %q not found", name)
 	}
 
-	r.disabled[name] = true
+	r.disabled[name] = "user"
 	return nil
+}
+
+// GetDisabledReason returns the reason why a handler is disabled.
+func (r *Registry) GetDisabledReason(name string) string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.disabled[name]
 }
 
 // IsDisabled returns true if the handler is currently disabled.
 func (r *Registry) IsDisabled(name string) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return r.disabled[name]
+	return r.disabled[name] != ""
 }
 
 // GetNextSequenceIndex returns the next index for a sequence builtin, potentially tracking it per-client.

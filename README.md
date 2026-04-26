@@ -578,6 +578,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `round-robin` | Server | Distributes messages across a pool of client IDs in order (skips disconnected clients). Supports custom `message:` template. |
 | `sample`      | Shared | Pass every Nth message (set by `rate: N`) and drop the rest. Supports template expressions. |
 | `gate`        | Server | Conditional message processing based on KV store values (checks `key` against `expect`). |
+| `once`        | Server | Executes exactly once and then permanently disables the handler. |
 
 **Validation Features:**
 - **Unknown Builtins**: Using an unknown builtin name in handler configuration causes an immediate startup error.
@@ -776,6 +777,12 @@ handlers:
         expect: "true"
         on_closed: "Feature is currently disabled"
       - builtin: echo
+
+  # Once Example
+  - name: one-time-setup
+    match: "setup"
+    builtin: once
+    respond: "Server initialised! This handler is now disabled."
 
 ```
 

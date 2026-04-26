@@ -430,6 +430,7 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 	if len(h.Actions) > 0 {
 		// Legacy action list
 		for _, action := range h.Actions {
+			action.HandlerName = h.Name
 			if err := d.ExecuteAction(ctx, &action, tmplCtx, msg); err != nil {
 				return err
 			}
