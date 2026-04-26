@@ -593,6 +593,12 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("      --targets <ids>       Comma-separated list of client IDs or JSON array for 'multicast' builtin\n")
 				r.Printf("      --pool <list>         Pool of client IDs for 'round-robin' builtin (comma-separated or JSON array)\n")
 				r.Printf("      --on-empty <tmpl>     Response template if no pool clients are connected for 'round-robin'\n")
+				r.Printf("      --expect <template>   Expected value for 'gate' builtin\n")
+				r.Printf("      --on-closed <tmpl>    Response template if gate is closed\n")
+				r.Printf("      --key <template>      Key for KV builtins or gate builtin\n")
+				r.Printf("      --value <template>    Value for KV builtins\n")
+				r.Printf("      --ttl <duration>      TTL for KV builtins\n")
+				r.Printf("      --default <template>  Default value for KV builtins\n")
 				return nil
 			}
 
@@ -601,7 +607,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 				fs.SetOutput(r.Stdout())
 
-				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty string
+				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue string
 				var responses, headers []string
 				var labels map[string]string
 				var priority, burst, maxMemory int
@@ -649,6 +655,12 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.StringVar(&targets, "targets", "", "Targets (comma-separated list or JSON array) for multicast builtin")
 				fs.StringVar(&pool, "pool", "", "Pool of client IDs (comma-separated or JSON array) for round-robin")
 				fs.StringVar(&onEmpty, "on-empty", "", "Response template for round-robin if pool is empty")
+				fs.StringVar(&expect, "expect", "", "Expected value for gate builtin")
+				fs.StringVar(&onClosed, "on-closed", "", "Response template if gate is closed")
+				fs.StringVar(&key, "key", "", "Key for KV builtins or gate builtin")
+				fs.StringVar(&value, "value", "", "Value for KV builtins")
+				fs.StringVar(&ttl, "ttl", "", "TTL for KV builtins")
+				fs.StringVar(&defaultValue, "default", "", "Default value for KV builtins")
 				fs.StringToStringVar(&labels, "labels", nil, "Labels for metric builtin (key=val,key2=val2)")
 
 				if err := fs.Parse(args[1:]); err != nil {
@@ -710,6 +722,12 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					Targets:    targets,
 					Pool:       pool,
 					OnEmpty:    onEmpty,
+					Expect:     expect,
+					OnClosed:   onClosed,
+					Key:        key,
+					Value:      value,
+					TTL:        ttl,
+					Default:    defaultValue,
 				}
 
 				if len(headers) > 0 {

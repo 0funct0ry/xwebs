@@ -26,6 +26,7 @@ func init() {
 	MustRegister(&KVGetBuiltin{})
 	MustRegister(&KVDelBuiltin{})
 	MustRegister(&KVListBuiltin{})
+	MustRegister(&GateBuiltin{})
 	MustRegister(&NoopBuiltin{})
 	MustRegister(&EchoBuiltin{})
 	MustRegister(&BroadcastBuiltin{})
@@ -331,6 +332,77 @@ func (b *KVListBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, t
 	if d.verbose {
 		d.errorf("  [handler] kv-list: found %d keys\n", len(keys))
 	}
+	return nil
+}
+
+// GateBuiltin checks a KV key before allowing a message to proceed.
+type GateBuiltin struct{}
+
+func (b *GateBuiltin) Name() string { return "gate" }
+func (b *GateBuiltin) Description() string {
+	return "Check a KV key against an expected value. Drops message if they don't match."
+}
+func (b *GateBuiltin) Scope() BuiltinScope { return ServerOnly }
+
+func (b *GateBuiltin) Validate(a Action) error {
+	if a.Key == "" {
+		return fmt.Errorf("builtin gate missing key")
+	}
+	if a.Expect == "" {
+		return fmt.Errorf("builtin gate missing expect")
+	}
+	return nil
+}
+
+func (b *GateBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	if d.kvManager == nil {
+		return fmt.Errorf("builtin gate: kv manager not available")
+	}
+
+	key, err := d.templateEngine.Execute("gate-key", a.Key, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in gate key: %w", err)
+	}
+
+	expect, err := d.templateEngine.Execute("gate-expect", a.Expect, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in gate expect: %w", err)
+	}
+
+	val, ok := d.kvManager.GetKV(key)
+	valStr := fmt.Sprintf("%v", val)
+	if !ok {
+		valStr = ""
+	}
+
+	if valStr != expect {
+		if d.verbose {
+			d.errorf("  [handler] gate closed: %s (got: %q, expect: %q)\n", key, valStr, expect)
+		}
+
+		if a.OnClosed != "" {
+			resp, err := d.templateEngine.Execute("on-closed", a.OnClosed, tmplCtx)
+			if err != nil {
+				d.errorf("  [handler] gate: error rendering on_closed template: %v\n", err)
+			} else if resp != "" {
+				_ = d.conn.Write(&ws.Message{
+					Type: ws.TextMessage,
+					Data: []byte(resp),
+					Metadata: ws.MessageMetadata{
+						Direction: "sent",
+						Timestamp: time.Now(),
+					},
+				})
+			}
+		}
+
+		return ErrDrop
+	}
+
+	if d.verbose {
+		d.errorf("  [handler] gate open: %s (%q == %q)\n", key, valStr, expect)
+	}
+
 	return nil
 }
 

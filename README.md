@@ -522,6 +522,8 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `--target <type>`     |       | Destination for `log` builtin (`stdout`, `file`, `both`)                  |
 | `--path <path>`       |       | File path for `log` builtin (supports templates)                           |
 | `--window <dur>`      | `-w`  | Throttle window for `throttle-broadcast` builtin (e.g. `5s`, templates)   |
+| `--expect <tmpl>`    |       | Expected value for `gate` builtin (supports templates)                     |
+| `--on-closed <tmpl>` |       | Response template if gate is closed (supports templates)                   |
 
 Example — add pub-sub handlers directly from the REPL:
 
@@ -575,6 +577,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `multicast` | Server | Delivers a message to a specific list of client IDs (supports JSON arrays and templates). |
 | `round-robin` | Server | Distributes messages across a pool of client IDs in order (skips disconnected clients). Supports custom `message:` template. |
 | `sample`      | Shared | Pass every Nth message (set by `rate: N`) and drop the rest. Supports template expressions. |
+| `gate`        | Server | Conditional message processing based on KV store values (checks `key` against `expect`). |
 
 **Validation Features:**
 - **Unknown Builtins**: Using an unknown builtin name in handler configuration causes an immediate startup error.
@@ -763,6 +766,16 @@ handlers:
     builtin: sample
     rate: 10
     respond: "Processing message #{{.MessageIndex}} (1-in-10 sampling)"
+
+  # Gate Example
+  - name: feature-gated-echo
+    match: "*"
+    pipeline:
+      - builtin: gate
+        key: "feature_enabled"
+        expect: "true"
+        on_closed: "Feature is currently disabled"
+      - builtin: echo
 
 ```
 

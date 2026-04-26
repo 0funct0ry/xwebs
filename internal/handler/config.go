@@ -68,6 +68,8 @@ type Handler struct {
 	Burst        int                    `yaml:"burst,omitempty"`        // For rate-limit builtin
 	Scope        string                 `yaml:"scope,omitempty"`        // For rate-limit builtin
 	OnLimit      string                 `yaml:"on_limit,omitempty"`     // For rate-limit builtin
+	Expect       string                 `yaml:"expect,omitempty"`       // For gate builtin
+	OnClosed     string                 `yaml:"on_closed,omitempty"`     // For gate builtin
 	Labels       map[string]string      `yaml:"labels,omitempty"`       // For metric builtin
 	Targets      string                 `yaml:"targets,omitempty"`      // For multicast builtin
 	Pool         string                 `yaml:"pool,omitempty"`         // For round-robin builtin (template)
@@ -117,6 +119,8 @@ type PipelineStep struct {
 	Burst       int               `yaml:"burst,omitempty"`    // For rate-limit builtin
 	Scope       string            `yaml:"scope,omitempty"`    // For rate-limit builtin
 	OnLimit     string            `yaml:"on_limit,omitempty"` // For rate-limit builtin
+	Expect      string            `yaml:"expect,omitempty"`   // For gate builtin
+	OnClosed    string            `yaml:"on_closed,omitempty"` // For gate builtin
 	Duration    string            `yaml:"duration,omitempty"` // For delay builtin (supports templates)
 	Max         string            `yaml:"max,omitempty"`      // For delay builtin — cap on dynamic duration
 	Code        string            `yaml:"code,omitempty"`     // For close builtin
@@ -200,6 +204,8 @@ type Action struct {
 	Burst       int               `yaml:"burst,omitempty"`      // For rate-limit builtin
 	Scope       string            `yaml:"scope,omitempty"`      // For rate-limit builtin
 	OnLimit     string            `yaml:"on_limit,omitempty"`   // For rate-limit builtin
+	Expect      string            `yaml:"expect,omitempty"`     // For gate builtin
+	OnClosed    string            `yaml:"on_closed,omitempty"`   // For gate builtin
 	Duration    string            `yaml:"duration,omitempty"`   // For delay builtin (supports templates)
 	Max         string            `yaml:"max,omitempty"`        // For delay builtin — cap on dynamic duration
 	Code        string            `yaml:"code,omitempty"`       // For close builtin
@@ -350,6 +356,8 @@ func (c *Config) Validate(mode RegistryMode) error {
 				Burst:     h.Burst,
 				Scope:     h.Scope,
 				OnLimit:   h.OnLimit,
+				Expect:    h.Expect,
+				OnClosed:  h.OnClosed,
 				Window:    h.Window,
 				Duration:  h.Duration,
 				Max:       h.Max,

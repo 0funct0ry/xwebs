@@ -57,3 +57,24 @@ func (m *mockConn) LastMsgReceivedAt() time.Time { return time.Now().Add(-10 * t
 func (m *mockConn) LastMsgSentAt() time.Time     { return time.Now().Add(-5 * time.Second) }
 func (m *mockConn) RTT() time.Duration           { return 50 * time.Millisecond }
 func (m *mockConn) AvgRTT() time.Duration        { return 45 * time.Millisecond }
+
+type mockKVManager struct {
+	store map[string]interface{}
+}
+
+func (m *mockKVManager) ListKV() map[string]interface{} {
+	return m.store
+}
+
+func (m *mockKVManager) GetKV(key string) (interface{}, bool) {
+	val, ok := m.store[key]
+	return val, ok
+}
+
+func (m *mockKVManager) SetKV(key string, val interface{}, ttl time.Duration) {
+	m.store[key] = val
+}
+
+func (m *mockKVManager) DeleteKV(key string) {
+	delete(m.store, key)
+}

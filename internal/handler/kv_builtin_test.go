@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/0funct0ry/xwebs/internal/ws"
@@ -11,26 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type mockKVManager struct {
-	store map[string]interface{}
-}
-
-func (m *mockKVManager) ListKV() map[string]interface{} {
-	return m.store
-}
-
-func (m *mockKVManager) GetKV(key string) (interface{}, bool) {
-	val, ok := m.store[key]
-	return val, ok
-}
-
-func (m *mockKVManager) SetKV(key string, val interface{}, ttl time.Duration) {
-	m.store[key] = val
-}
-
-func (m *mockKVManager) DeleteKV(key string) {
-	delete(m.store, key)
-}
 
 func TestKVBuiltins_Integrated(t *testing.T) {
 	reg := NewRegistry(ServerMode)
