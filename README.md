@@ -574,6 +574,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `sticky-broadcast` | Server | Broadcasts a message to all subscribers of a topic and stores it as the retained value for new subscribers. |
 | `multicast` | Server | Delivers a message to a specific list of client IDs (supports JSON arrays and templates). |
 | `round-robin` | Server | Distributes messages across a pool of client IDs in order (skips disconnected clients). Supports custom `message:` template. |
+| `sample`      | Shared | Pass every Nth message (set by `rate: N`) and drop the rest. Supports template expressions. |
 
 **Validation Features:**
 - **Unknown Builtins**: Using an unknown builtin name in handler configuration causes an immediate startup error.
@@ -755,6 +756,13 @@ handlers:
     message: '{"task": "{{.Message | trimPrefix \"work:\"}}", "id": "{{.ConnectionID}}"}'
     on_empty: "No workers available to process {{.Message}}"
     respond: "Dispatched work to backend"
+
+  # Sample Example
+  - name: throttle-monitoring
+    match: "*"
+    builtin: sample
+    rate: 10
+    respond: "Processing message #{{.MessageIndex}} (1-in-10 sampling)"
 
 ```
 

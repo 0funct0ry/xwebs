@@ -46,6 +46,7 @@ func init() {
 	MustRegister(&MulticastBuiltin{})
 	MustRegister(&StickyBroadcastBuiltin{})
 	MustRegister(&RoundRobinBuiltin{})
+	MustRegister(&SampleBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -1723,4 +1724,63 @@ func (b *RoundRobinBuiltin) handleEmpty(d *Dispatcher, a *Action, tmplCtx *templ
 			Timestamp: time.Now(),
 		},
 	})
+}
+
+// SampleBuiltin passes every Nth message and drops the rest.
+type SampleBuiltin struct{}
+
+func (b *SampleBuiltin) Name() string { return "sample" }
+func (b *SampleBuiltin) Description() string {
+	return "Pass every Nth message and drop the rest."
+}
+func (b *SampleBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *SampleBuiltin) Validate(a Action) error {
+	if a.Rate == "" {
+		return fmt.Errorf("builtin sample: missing 'rate' (number of messages)")
+	}
+	return nil
+}
+
+func (b *SampleBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	// 1. Evaluate rate template
+	rateStr, err := d.templateEngine.Execute("sample-rate", a.Rate, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in rate expression: %w", err)
+	}
+	rateStr = strings.TrimSpace(rateStr)
+	if rateStr == "" {
+		return fmt.Errorf("builtin sample: rate evaluates to empty string")
+	}
+
+	// 2. Parse rate as integer
+	rate, err := strconv.Atoi(rateStr)
+	if err != nil {
+		return fmt.Errorf("builtin sample: invalid rate %q (must be an integer): %w", rateStr, err)
+	}
+	if rate <= 0 {
+		return fmt.Errorf("builtin sample: rate must be positive (got %d)", rate)
+	}
+
+	// 3. Get next count from registry
+	key := a.HandlerName + ":" + a.Command
+	if a.HandlerName == "" {
+		key = "anon:" + a.Command
+	}
+
+	count := d.registry.GetNextSampleCount(key)
+
+	// 4. Check if we should pass or drop
+	if count%rate != 0 {
+		if d.verbose {
+			d.errorf("  [handler] sample: dropping message %d (rate: %d)\n", count, rate)
+		}
+		return ErrDrop
+	}
+
+	if d.verbose {
+		d.errorf("  [handler] sample: passing message %d (rate: %d)\n", count, rate)
+	}
+
+	return nil
 }

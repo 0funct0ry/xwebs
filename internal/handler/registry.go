@@ -78,6 +78,7 @@ type Registry struct {
 	luaStates             map[string]interface{}    // handlerName -> *lua.LTable
 	throttleTimestamps    map[string]time.Time      // handlerName:connID -> last broadcast time
 	roundRobinIndices     map[string]int            // actionKey -> index
+	sampleIndices         map[string]int            // actionKey -> count
 	Mode                  RegistryMode
 	mu                    sync.RWMutex
 }
@@ -107,6 +108,7 @@ func NewRegistry(mode RegistryMode) *Registry {
 		luaStates:             make(map[string]interface{}),
 		throttleTimestamps:    make(map[string]time.Time),
 		roundRobinIndices:     make(map[string]int),
+		sampleIndices:         make(map[string]int),
 		Mode:                  mode,
 		global: RegistryStats{
 			maxSlowLog: 50,
@@ -215,6 +217,12 @@ func (r *Registry) UpdateHandler(h Handler) error {
 			delete(r.roundRobinIndices, k)
 		}
 	}
+	// Clean up sample indices for this handler
+	for k := range r.sampleIndices {
+		if strings.HasPrefix(k, h.Name+":") {
+			delete(r.sampleIndices, k)
+		}
+	}
 
 	r.handlers[index] = h
 	r.sort()
@@ -271,6 +279,7 @@ func (r *Registry) ReplaceHandlers(handlers []Handler) error {
 	r.luaStates = make(map[string]interface{})
 	r.throttleTimestamps = make(map[string]time.Time)
 	r.roundRobinIndices = make(map[string]int)
+	r.sampleIndices = make(map[string]int)
 
 	r.handlers = handlers
 	r.sort()
@@ -312,6 +321,12 @@ func (r *Registry) Delete(name string) error {
 	for k := range r.roundRobinIndices {
 		if strings.HasPrefix(k, name+":") {
 			delete(r.roundRobinIndices, k)
+		}
+	}
+	// Clean up sample indices
+	for k := range r.sampleIndices {
+		if strings.HasPrefix(k, name+":") {
+			delete(r.sampleIndices, k)
 		}
 	}
 
@@ -397,6 +412,14 @@ func (r *Registry) RenameHandler(oldName, newName string) error {
 			newKey := newName + ":" + strings.TrimPrefix(k, oldName+":")
 			r.roundRobinIndices[newKey] = v
 			delete(r.roundRobinIndices, k)
+		}
+	}
+	// Migrate sample indices
+	for k, v := range r.sampleIndices {
+		if strings.HasPrefix(k, oldName+":") {
+			newKey := newName + ":" + strings.TrimPrefix(k, oldName+":")
+			r.sampleIndices[newKey] = v
+			delete(r.sampleIndices, k)
 		}
 	}
 
@@ -1246,4 +1269,20 @@ func (r *Registry) ResetRoundRobin(key string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.roundRobinIndices, key)
+}
+
+// GetNextSampleCount returns the next count for a sample action, atomically.
+func (r *Registry) GetNextSampleCount(key string) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.sampleIndices[key]++
+	return r.sampleIndices[key]
+}
+
+// ResetSample clears the sample count for a specific handler or action key.
+func (r *Registry) ResetSample(key string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.sampleIndices, key)
 }
