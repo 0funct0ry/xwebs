@@ -49,6 +49,7 @@ func init() {
 	MustRegister(&RoundRobinBuiltin{})
 	MustRegister(&SampleBuiltin{})
 	MustRegister(&OnceBuiltin{})
+	MustRegister(&DebounceBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -1596,8 +1597,10 @@ func (b *MulticastBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action
 // and stores it as the retained value for that topic.
 type StickyBroadcastBuiltin struct{}
 
-func (b *StickyBroadcastBuiltin) Name() string        { return "sticky-broadcast" }
-func (b *StickyBroadcastBuiltin) Description() string { return "Broadcast and retain a message for a topic." }
+func (b *StickyBroadcastBuiltin) Name() string { return "sticky-broadcast" }
+func (b *StickyBroadcastBuiltin) Description() string {
+	return "Broadcast and retain a message for a topic."
+}
 func (b *StickyBroadcastBuiltin) Scope() BuiltinScope { return ServerOnly }
 
 func (b *StickyBroadcastBuiltin) Validate(a Action) error {
@@ -1660,8 +1663,10 @@ func (b *StickyBroadcastBuiltin) Execute(ctx context.Context, d *Dispatcher, a *
 // RoundRobinBuiltin distributes messages across a pool of client IDs.
 type RoundRobinBuiltin struct{}
 
-func (b *RoundRobinBuiltin) Name() string        { return "round-robin" }
-func (b *RoundRobinBuiltin) Description() string { return "Cycle messages across a pool of client IDs." }
+func (b *RoundRobinBuiltin) Name() string { return "round-robin" }
+func (b *RoundRobinBuiltin) Description() string {
+	return "Cycle messages across a pool of client IDs."
+}
 func (b *RoundRobinBuiltin) Scope() BuiltinScope { return ServerOnly }
 
 func (b *RoundRobinBuiltin) Validate(a Action) error {
@@ -1893,4 +1898,131 @@ func (b *OnceBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmp
 	// subsequent matches won't even reach here (handler will be disabled).
 
 	return nil
+}
+
+// DebounceBuiltin suppresses repeated matching messages within a time window and only processes the last one.
+type DebounceBuiltin struct{}
+
+func (b *DebounceBuiltin) Name() string { return "debounce" }
+func (b *DebounceBuiltin) Description() string {
+	return "Suppress repeated matching messages within a time window and only process the last one."
+}
+func (b *DebounceBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *DebounceBuiltin) Validate(a Action) error {
+	if a.Window == "" && a.Duration == "" && a.Delay == "" {
+		return fmt.Errorf("builtin debounce: missing 'window', 'duration', or 'delay'")
+	}
+	if a.Scope != "" {
+		s := strings.ToLower(a.Scope)
+		if s != "client" && s != "global" {
+			return fmt.Errorf("builtin debounce: invalid scope %q (must be 'client' or 'global')", a.Scope)
+		}
+	}
+	return nil
+}
+
+func (b *DebounceBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	// 1. Resolve window duration
+	windowStr := a.Window
+	if windowStr == "" {
+		windowStr = a.Duration
+	}
+	if windowStr == "" {
+		windowStr = a.Delay
+	}
+
+	evaluatedWindow, err := d.templateEngine.Execute("debounce-window", windowStr, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("rendering debounce window template: %w", err)
+	}
+	dur, err := time.ParseDuration(evaluatedWindow)
+	if err != nil {
+		return fmt.Errorf("invalid debounce duration %q: %w", evaluatedWindow, err)
+	}
+
+	// 2. Determine scope and key
+	scope := strings.ToLower(a.Scope)
+	if scope == "" {
+		scope = "client"
+	}
+
+	var key string
+	handlerName := a.HandlerName
+	if handlerName == "" {
+		handlerName = "anon"
+	}
+
+	if scope == "client" {
+		key = "debounce:client:" + handlerName + ":" + d.conn.GetID()
+	} else {
+		key = "debounce:global:" + handlerName
+	}
+
+	if d.verbose {
+		d.errorf("  [handler] debounce: starting window of %v for key %q\n", dur, key)
+	}
+
+	// 3. Debounce
+	// We capture the current dispatcher and action in a closure.
+	// Note: msg is provided by handleMessage to ExecuteAction.
+	// But ExecuteAction takes msg as an argument.
+	// The msg variable is available in the scope of Dispatcher.ExecuteAction call.
+	// However, we are in DebounceBuiltin.Execute, which also receives msg via ExecuteAction?
+	// Wait, DebounceBuiltin.Execute does NOT receive msg.
+	// Ah, I need to pass msg to Execute.
+	// Let's check the signature of Execute in builtins_impl.go.
+	// It is: func (b *SomeBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error
+	// It does NOT have msg!
+	// But tmplCtx has the message content.
+	// Wait, I can reconstruct the message or I can change the signature if needed.
+	// Actually, most builtins use tmplCtx.MessageBytes or tmplCtx.Message.
+
+	// I'll check if I can get the raw message from d.
+	// Dispatcher doesn't seem to store the "current" message in a field, it's passed around.
+
+	// I'll reconstruct a *ws.Message from tmplCtx for the debouncer.
+	msg := &ws.Message{
+		Type: ws.TextMessage,
+		Data: tmplCtx.MessageBytes,
+		Metadata: ws.MessageMetadata{
+			Direction:    tmplCtx.Direction,
+			Timestamp:    tmplCtx.Timestamp,
+			MessageIndex: tmplCtx.MessageIndex,
+		},
+	}
+	if tmplCtx.MessageType == "binary" {
+		msg.Type = ws.BinaryMessage
+	}
+
+	d.registry.Debounce(key, dur, msg, func(m *ws.Message) {
+		if d.verbose {
+			d.errorf("  [handler] debounce: window expired for %q, executing response\n", key)
+		}
+
+		// Re-populate context for the debounced message
+		callbackCtx := template.NewContext()
+		d.populateTemplateContext(callbackCtx, m)
+
+		// Execute respond if present
+		if a.Respond != "" {
+			resp, err := d.templateEngine.Execute("debounce-respond", a.Respond, callbackCtx)
+			if err != nil {
+				d.errorf("  [handler] debounce: error rendering respond template: %v\n", err)
+				return
+			}
+			if resp != "" {
+				_ = d.conn.Write(&ws.Message{
+					Type: ws.TextMessage,
+					Data: []byte(resp),
+					Metadata: ws.MessageMetadata{
+						Direction: "sent",
+						Timestamp: time.Now(),
+					},
+				})
+			}
+		}
+	})
+
+	return ErrDrop
 }

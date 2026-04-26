@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-
 func TestKVBuiltins_Integrated(t *testing.T) {
 	reg := NewRegistry(ServerMode)
 	engine := template.New(false)

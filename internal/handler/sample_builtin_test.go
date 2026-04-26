@@ -94,7 +94,7 @@ func TestDispatcher_Sample(t *testing.T) {
 	d := NewDispatcher(r, conn, engine, false, nil, nil, false, nil, nil, nil, nil)
 
 	h := &Handler{
-		Name: "sampler",
+		Name:  "sampler",
 		Match: Matcher{Pattern: "*"},
 		Actions: []Action{
 			{Type: "builtin", Command: "sample", Rate: "2"},

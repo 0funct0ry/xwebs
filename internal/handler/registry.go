@@ -68,7 +68,7 @@ type Registry struct {
 	debouncers            map[string]*debouncer
 	stats                 map[string]*HandlerStats
 	global                RegistryStats
-	disabled              map[string]string // handlerName -> reason (empty if enabled, non-empty if disabled)
+	disabled              map[string]string         // handlerName -> reason (empty if enabled, non-empty if disabled)
 	sequenceIndices       map[string]int            // handlerName -> index
 	sequenceClientIndices map[string]map[string]int // handlerName -> connID -> index
 	scopedLimiters        map[string]*rate.Limiter  // key -> limiter
@@ -1317,4 +1317,44 @@ func (r *Registry) ResetSample(key string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.sampleIndices, key)
+}
+
+// ClearConnResources removes all resources associated with a specific connection ID.
+func (r *Registry) ClearConnResources(connID string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Clear sequence indices
+	for hName := range r.sequenceClientIndices {
+		delete(r.sequenceClientIndices[hName], connID)
+	}
+
+	// Clear throttle timestamps
+	suffix := ":" + connID
+	for k := range r.throttleTimestamps {
+		if strings.HasSuffix(k, suffix) {
+			delete(r.throttleTimestamps, k)
+		}
+	}
+
+	// Clear scoped limiters
+	for k := range r.scopedLimiters {
+		if strings.HasSuffix(k, suffix) {
+			delete(r.scopedLimiters, k)
+			delete(r.scopedLimiterRates, k)
+			delete(r.scopedLimiterBursts, k)
+		}
+	}
+
+	// Clear debouncers
+	for k, d := range r.debouncers {
+		if strings.HasSuffix(k, suffix) {
+			d.mu.Lock()
+			if d.timer != nil {
+				d.timer.Stop()
+			}
+			d.mu.Unlock()
+			delete(r.debouncers, k)
+		}
+	}
 }

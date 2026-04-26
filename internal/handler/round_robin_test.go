@@ -12,16 +12,16 @@ import (
 )
 
 type rrMockServerStats struct {
-	clients   []template.ClientInfo
-	sentMsgs  map[string][]*ws.Message
-	paused    bool
+	clients  []template.ClientInfo
+	sentMsgs map[string][]*ws.Message
+	paused   bool
 }
 
-func (m *rrMockServerStats) GetClientCount() int { return len(m.clients) }
-func (m *rrMockServerStats) GetUptime() time.Duration { return time.Hour }
-func (m *rrMockServerStats) GetClients() []template.ClientInfo { return m.clients }
-func (m *rrMockServerStats) IsPaused() bool { return m.paused }
-func (m *rrMockServerStats) WaitIfPaused() {}
+func (m *rrMockServerStats) GetClientCount() int                                 { return len(m.clients) }
+func (m *rrMockServerStats) GetUptime() time.Duration                            { return time.Hour }
+func (m *rrMockServerStats) GetClients() []template.ClientInfo                   { return m.clients }
+func (m *rrMockServerStats) IsPaused() bool                                      { return m.paused }
+func (m *rrMockServerStats) WaitIfPaused()                                       {}
 func (m *rrMockServerStats) Broadcast(msg *ws.Message, excludeIDs ...string) int { return 0 }
 func (m *rrMockServerStats) Send(id string, msg *ws.Message) error {
 	if m.sentMsgs == nil {
@@ -162,7 +162,7 @@ func TestRoundRobinOnEmpty(t *testing.T) {
 
 	err := builtin.Execute(context.Background(), d, action, tmplCtx)
 	assert.NoError(t, err)
-	
+
 	// Should have sent on_empty to sender
 	require.Len(t, conn.messages, 1)
 	assert.Equal(t, "No backend available", string(conn.messages[0].Data))
@@ -178,12 +178,12 @@ func TestRoundRobinTemplatePool(t *testing.T) {
 
 	conn := &mockConn{}
 	engine := template.New(false)
-	
+
 	// Set a variable for the pool
 	vars := map[string]interface{}{
 		"backends": []string{"c1", "c2"},
 	}
-	
+
 	d := NewDispatcher(reg, conn, engine, true, vars, nil, false, nil, stats, nil, nil)
 
 	action := &Action{
@@ -230,7 +230,7 @@ func TestRoundRobinCustomMessage(t *testing.T) {
 
 	err := builtin.Execute(context.Background(), d, action, tmplCtx)
 	assert.NoError(t, err)
-	
+
 	require.Len(t, stats.sentMsgs["c1"], 1)
 	assert.Equal(t, "Custom: original", string(stats.sentMsgs["c1"][0].Data))
 }

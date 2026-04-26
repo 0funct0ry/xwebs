@@ -69,7 +69,7 @@ type Handler struct {
 	Scope        string                 `yaml:"scope,omitempty"`        // For rate-limit builtin
 	OnLimit      string                 `yaml:"on_limit,omitempty"`     // For rate-limit builtin
 	Expect       string                 `yaml:"expect,omitempty"`       // For gate builtin
-	OnClosed     string                 `yaml:"on_closed,omitempty"`     // For gate builtin
+	OnClosed     string                 `yaml:"on_closed,omitempty"`    // For gate builtin
 	Labels       map[string]string      `yaml:"labels,omitempty"`       // For metric builtin
 	Targets      string                 `yaml:"targets,omitempty"`      // For multicast builtin
 	Pool         string                 `yaml:"pool,omitempty"`         // For round-robin builtin (template)
@@ -115,21 +115,21 @@ type PipelineStep struct {
 	Headers     map[string]string `yaml:"headers,omitempty"`    // For http builtin
 	Body        string            `yaml:"body,omitempty"`       // For http builtin
 	IgnoreError bool              `yaml:"ignore_error,omitempty"`
-	Rate        string            `yaml:"rate,omitempty"`     // For rate-limit builtin
-	Burst       int               `yaml:"burst,omitempty"`    // For rate-limit builtin
-	Scope       string            `yaml:"scope,omitempty"`    // For rate-limit builtin
-	OnLimit     string            `yaml:"on_limit,omitempty"` // For rate-limit builtin
-	Expect      string            `yaml:"expect,omitempty"`   // For gate builtin
+	Rate        string            `yaml:"rate,omitempty"`      // For rate-limit builtin
+	Burst       int               `yaml:"burst,omitempty"`     // For rate-limit builtin
+	Scope       string            `yaml:"scope,omitempty"`     // For rate-limit builtin
+	OnLimit     string            `yaml:"on_limit,omitempty"`  // For rate-limit builtin
+	Expect      string            `yaml:"expect,omitempty"`    // For gate builtin
 	OnClosed    string            `yaml:"on_closed,omitempty"` // For gate builtin
-	Duration    string            `yaml:"duration,omitempty"` // For delay builtin (supports templates)
-	Max         string            `yaml:"max,omitempty"`      // For delay builtin — cap on dynamic duration
-	Code        string            `yaml:"code,omitempty"`     // For close builtin
-	Reason      string            `yaml:"reason,omitempty"`   // For close builtin
-	Name        string            `yaml:"name,omitempty"`     // For metric builtin
-	Labels      map[string]string `yaml:"labels,omitempty"`   // For metric builtin
-	Targets     string            `yaml:"targets,omitempty"`  // For multicast builtin
-	Pool        string            `yaml:"pool,omitempty"`     // For round-robin builtin
-	OnEmpty     string            `yaml:"on_empty,omitempty"` // For round-robin builtin
+	Duration    string            `yaml:"duration,omitempty"`  // For delay builtin (supports templates)
+	Max         string            `yaml:"max,omitempty"`       // For delay builtin — cap on dynamic duration
+	Code        string            `yaml:"code,omitempty"`      // For close builtin
+	Reason      string            `yaml:"reason,omitempty"`    // For close builtin
+	Name        string            `yaml:"name,omitempty"`      // For metric builtin
+	Labels      map[string]string `yaml:"labels,omitempty"`    // For metric builtin
+	Targets     string            `yaml:"targets,omitempty"`   // For multicast builtin
+	Pool        string            `yaml:"pool,omitempty"`      // For round-robin builtin
+	OnEmpty     string            `yaml:"on_empty,omitempty"`  // For round-robin builtin
 }
 
 // Matcher specifies how to match an incoming WebSocket message.
@@ -205,7 +205,7 @@ type Action struct {
 	Scope       string            `yaml:"scope,omitempty"`      // For rate-limit builtin
 	OnLimit     string            `yaml:"on_limit,omitempty"`   // For rate-limit builtin
 	Expect      string            `yaml:"expect,omitempty"`     // For gate builtin
-	OnClosed    string            `yaml:"on_closed,omitempty"`   // For gate builtin
+	OnClosed    string            `yaml:"on_closed,omitempty"`  // For gate builtin
 	Duration    string            `yaml:"duration,omitempty"`   // For delay builtin (supports templates)
 	Max         string            `yaml:"max,omitempty"`        // For delay builtin — cap on dynamic duration
 	Code        string            `yaml:"code,omitempty"`       // For close builtin

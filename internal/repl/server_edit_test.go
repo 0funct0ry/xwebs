@@ -77,7 +77,7 @@ func (m *mockServerContext) PublishToTopic(topic string, msg *ws.Message) (int, 
 func (m *mockServerContext) PublishSticky(topic string, msg *ws.Message) (int, error) {
 	return 0, nil
 }
-func (m *mockServerContext) ClearRetained(topic string) {}
+func (m *mockServerContext) ClearRetained(topic string)                          {}
 func (m *mockServerContext) SubscribeClientToTopic(clientID, topic string) error { return nil }
 func (m *mockServerContext) UnsubscribeClientFromTopic(clientID, topic string) (int, error) {
 	return 0, nil

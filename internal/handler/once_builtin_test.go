@@ -13,7 +13,7 @@ import (
 
 func TestOnceBuiltin(t *testing.T) {
 	reg := NewRegistry(ServerMode)
-	
+
 	// Create a mock connection
 	conn := &mockConn{}
 
@@ -72,11 +72,11 @@ func TestOnceBuiltin(t *testing.T) {
 func TestOnceBuiltin_Scope(t *testing.T) {
 	reg := NewRegistry(ClientMode)
 	h := Handler{
-		Name: "client-once",
-		Match: Matcher{Pattern: "*"},
+		Name:    "client-once",
+		Match:   Matcher{Pattern: "*"},
 		Builtin: "once",
 	}
-	
+
 	// 'once' is ServerOnly, so adding it to a ClientMode registry should fail validation
 	err := reg.Add(h)
 	assert.Error(t, err)

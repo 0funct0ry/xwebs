@@ -20,23 +20,23 @@ func (m *mockConnection) Write(msg *ws.Message) error {
 }
 
 func (m *mockConnection) CloseWithCode(code int, reason string) error { return nil }
-func (m *mockConnection) Subscribe() <-chan *ws.Message             { return nil }
-func (m *mockConnection) Unsubscribe(ch <-chan *ws.Message)         {}
-func (m *mockConnection) Done() <-chan struct{}                     { return nil }
-func (m *mockConnection) IsCompressionEnabled() bool                { return false }
-func (m *mockConnection) GetID() string                             { return m.id }
-func (m *mockConnection) GetURL() string                            { return "" }
-func (m *mockConnection) GetSubprotocol() string                    { return "" }
-func (m *mockConnection) RemoteAddr() string                        { return "127.0.0.1:12345" }
-func (m *mockConnection) LocalAddr() string                         { return "127.0.0.1:8080" }
-func (m *mockConnection) ConnectedAt() time.Time                    { return time.Now() }
-func (m *mockConnection) MessageCount() uint64                      { return 0 }
-func (m *mockConnection) MsgsIn() uint64                            { return 0 }
-func (m *mockConnection) MsgsOut() uint64                           { return 0 }
-func (m *mockConnection) LastMsgReceivedAt() time.Time              { return time.Now() }
-func (m *mockConnection) LastMsgSentAt() time.Time                  { return time.Now() }
-func (m *mockConnection) RTT() time.Duration                        { return 0 }
-func (m *mockConnection) AvgRTT() time.Duration                     { return 0 }
+func (m *mockConnection) Subscribe() <-chan *ws.Message               { return nil }
+func (m *mockConnection) Unsubscribe(ch <-chan *ws.Message)           {}
+func (m *mockConnection) Done() <-chan struct{}                       { return nil }
+func (m *mockConnection) IsCompressionEnabled() bool                  { return false }
+func (m *mockConnection) GetID() string                               { return m.id }
+func (m *mockConnection) GetURL() string                              { return "" }
+func (m *mockConnection) GetSubprotocol() string                      { return "" }
+func (m *mockConnection) RemoteAddr() string                          { return "127.0.0.1:12345" }
+func (m *mockConnection) LocalAddr() string                           { return "127.0.0.1:8080" }
+func (m *mockConnection) ConnectedAt() time.Time                      { return time.Now() }
+func (m *mockConnection) MessageCount() uint64                        { return 0 }
+func (m *mockConnection) MsgsIn() uint64                              { return 0 }
+func (m *mockConnection) MsgsOut() uint64                             { return 0 }
+func (m *mockConnection) LastMsgReceivedAt() time.Time                { return time.Now() }
+func (m *mockConnection) LastMsgSentAt() time.Time                    { return time.Now() }
+func (m *mockConnection) RTT() time.Duration                          { return 0 }
+func (m *mockConnection) AvgRTT() time.Duration                       { return 0 }
 
 func TestTopicStore_StickyPublish(t *testing.T) {
 	ts := newTopicStore()
@@ -73,7 +73,7 @@ func TestTopicStore_StickyPublish(t *testing.T) {
 	// 5. Verify Unsubscribe doesn't delete topic if retained message exists
 	ts.Unsubscribe(conn1.id, topic)
 	ts.Unsubscribe(conn2.id, topic)
-	
+
 	info, ok := ts.GetTopic(topic)
 	assert.True(t, ok)
 	assert.Equal(t, 0, len(info.Subscribers))

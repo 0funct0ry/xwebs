@@ -996,6 +996,11 @@ func (d *Dispatcher) HandleConnect() {
 
 // HandleDisconnect runs all on_disconnect actions in priority order.
 func (d *Dispatcher) HandleDisconnect() {
+	// Clean up registry resources for this connection
+	if d.registry != nil && d.conn != nil {
+		d.registry.ClearConnResources(d.conn.GetID())
+	}
+
 	_, onDisconnect, _ := d.registry.LifecycleHandlers()
 	d.sortHandlers(onDisconnect)
 

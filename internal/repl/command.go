@@ -1318,6 +1318,8 @@ func (r *REPL) RegisterCommonCommands() {
 				r.Printf("  --sequential          Run handler actions sequentially (disable concurrency)\n")
 				r.Printf("  --rate-limit <limit>  Rate limit (e.g. '10/s')\n")
 				r.Printf("  --debounce <duration> Debounce time (e.g. '500ms')\n")
+				r.Printf("  -w, --window <dur>    Window duration for 'debounce' or 'throttle-broadcast'\n")
+				r.Printf("  --scope <type>        Scope for 'debounce' or 'rate-limit' (client|global)\n")
 				r.Printf("  --file <path>         File path for 'file-send' or 'template' builtin\n")
 				r.Printf("  --path <path>         File path for 'file-write' builtin\n")
 				r.Printf("  --content <template>  Content template for 'file-write' builtin\n")
@@ -1499,7 +1501,7 @@ func (r *REPL) RegisterCommonCommands() {
 			fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 			fs.SetOutput(nil) // Suppress automatic usage printing on error
 
-			var name, match, matchType, run, respond, builtin, topic, rateLimit, debounce, code, reason, message, target, script, targets string
+			var name, match, matchType, run, respond, builtin, topic, rateLimit, debounce, code, reason, message, target, script, targets, window, scope string
 			var labels map[string]string
 			var priority, maxMemory int
 			var exclusive, sequential bool
@@ -1518,6 +1520,8 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.StringVar(&code, "code", "", "Close code for close builtin")
 			fs.StringVar(&reason, "reason", "", "Close reason for close builtin")
 			fs.StringVarP(&debounce, "debounce", "d", "", "Debounce duration")
+			fs.StringVarP(&window, "window", "w", "", "Window duration")
+			fs.StringVar(&scope, "scope", "", "Scope")
 			fs.StringVarP(&message, "message", "M", "", "Message template (for broadcast or log)")
 			fs.StringVar(&target, "target", "", "Target URL (forward) or destination type (log: stdout|file|both)")
 			var file, path, content, mode string
@@ -1573,6 +1577,8 @@ func (r *REPL) RegisterCommonCommands() {
 				},
 				RateLimit: rateLimit,
 				Debounce:  debounce,
+				Window:    window,
+				Scope:     scope,
 				Code:      code,
 				Reason:    reason,
 				File:      file,

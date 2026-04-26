@@ -579,6 +579,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `sample`      | Shared | Pass every Nth message (set by `rate: N`) and drop the rest. Supports template expressions. |
 | `gate`        | Server | Conditional message processing based on KV store values (checks `key` against `expect`). |
 | `once`        | Server | Executes exactly once and then permanently disables the handler. |
+| `debounce`    | Shared | Suppresses repeated matching messages within a window and only processes the last one. |
 
 **Validation Features:**
 - **Unknown Builtins**: Using an unknown builtin name in handler configuration causes an immediate startup error.
@@ -783,6 +784,14 @@ handlers:
     match: "setup"
     builtin: once
     respond: "Server initialised! This handler is now disabled."
+
+  # Debounce Example
+  - name: burst-control
+    match: "burst:*"
+    builtin: debounce
+    window: "2s"
+    scope: client
+    respond: "Final burst message: {{.Message}}"
 
 ```
 
