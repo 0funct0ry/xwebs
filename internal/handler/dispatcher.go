@@ -499,6 +499,10 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 				Targets:     h.Targets,
 				Pool:        h.Pool,
 				OnEmpty:     h.OnEmpty,
+				Field:       h.Field,
+				Split:       h.Split,
+				HandlerA:    h.HandlerA,
+				HandlerB:    h.HandlerB,
 				Rules:       h.Rules,
 				BaseDir:     h.BaseDir,
 				HandlerName: h.Name,
@@ -601,6 +605,10 @@ func (d *Dispatcher) executePipeline(ctx context.Context, handlerName string, pi
 			action.Targets = step.Targets
 			action.Pool = step.Pool
 			action.OnEmpty = step.OnEmpty
+			action.Field = step.Field
+			action.Split = step.Split
+			action.HandlerA = step.HandlerA
+			action.HandlerB = step.HandlerB
 			action.Rules = step.Rules
 			action.Default = step.Default
 			action.BaseDir = d.registry.GetHandlerBaseDir(handlerName)

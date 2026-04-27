@@ -1554,6 +1554,12 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.StringArrayVarP(&ruleWhens, "rule-when", "W", nil, "Condition for rule-engine rule")
 			fs.StringArrayVarP(&ruleResponds, "rule-respond", "S", nil, "Response for rule-engine rule")
 			fs.StringVarP(&defaultResp, "default", "D", "", "Default response template")
+			var field, handlerA, handlerB string
+			var split int
+			fs.StringVar(&field, "field", "", "Field to hash for ab-test")
+			fs.IntVar(&split, "split", 0, "Percentage for handler_a in ab-test")
+			fs.StringVar(&handlerA, "handler-a", "", "Handler A for ab-test")
+			fs.StringVar(&handlerB, "handler-b", "", "Handler B for ab-test")
 
 			if err := fs.Parse(args[1:]); err != nil {
 				if errors.Is(err, pflag.ErrHelp) {
@@ -1614,6 +1620,13 @@ func (r *REPL) RegisterCommonCommands() {
 				MaxMemory: maxMemory,
 				Targets:   targets,
 				Default:   defaultResp,
+				Field:     field,
+				HandlerA:  handlerA,
+				HandlerB:  handlerB,
+			}
+
+			if fs.Changed("split") {
+				h.Split = &split
 			}
 
 			if len(ruleWhens) > 0 {

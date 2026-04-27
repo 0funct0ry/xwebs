@@ -602,6 +602,10 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("      --default, -D <tmpl>  Default response for rule-engine or KV builtins\n")
 				r.Printf("      --rule-when, -W <pat> Condition for rule-engine rule (repeatable)\n")
 				r.Printf("      --rule-respond, -S <t> Response for rule-engine rule (repeatable)\n")
+				r.Printf("      --field <jq>          Field to hash for 'ab-test' builtin (jq expression)\n")
+				r.Printf("      --split <n>           Percentage for handler_a in 'ab-test' (0-100, default 50)\n")
+				r.Printf("      --handler-a <name>    Target handler A for 'ab-test'\n")
+				r.Printf("      --handler-b <name>    Target handler B for 'ab-test'\n")
 				return nil
 			}
 
@@ -610,10 +614,10 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 				fs.SetOutput(r.Stdout())
 
-				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue string
+				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue, field, handlerA, handlerB string
 				var ruleWhens, ruleResponds, responses, headers []string
 				var labels map[string]string
-				var priority, burst, maxMemory int
+				var priority, burst, maxMemory, split int
 				var exclusive, sequential, loop, perClient, stickyBroadcast bool
 
 				fs.StringVarP(&name, "name", "n", "", "Name of the handler")
@@ -667,6 +671,10 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.StringArrayVarP(&ruleWhens, "rule-when", "W", nil, "Condition for rule-engine rule")
 				fs.StringArrayVarP(&ruleResponds, "rule-respond", "S", nil, "Response for rule-engine rule")
 				fs.StringToStringVar(&labels, "labels", nil, "Labels for metric builtin (key=val,key2=val2)")
+				fs.StringVar(&field, "field", "", "Field to hash for ab-test")
+				fs.IntVar(&split, "split", 0, "Percentage for handler_a in ab-test")
+				fs.StringVar(&handlerA, "handler-a", "", "Handler A for ab-test")
+				fs.StringVar(&handlerB, "handler-b", "", "Handler B for ab-test")
 
 				if err := fs.Parse(args[1:]); err != nil {
 					if errors.Is(err, pflag.ErrHelp) {
@@ -739,7 +747,14 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					Value:      value,
 					TTL:        ttl,
 					Default:    defaultValue,
+					Field:      field,
+					HandlerA:   handlerA,
+					HandlerB:   handlerB,
 					Rules:      make([]handler.Rule, 0),
+				}
+
+				if fs.Changed("split") {
+					h.Split = &split
 				}
 
 				if len(ruleWhens) > 0 && len(ruleWhens) == len(ruleResponds) {

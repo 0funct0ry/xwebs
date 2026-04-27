@@ -527,6 +527,10 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `--rule-when <pat>` | `-W`  | Condition for rule-engine rule (repeatable)                                |
 | `--rule-respond <t>`| `-S`  | Response template for rule-engine rule (repeatable)                        |
 | `--default <tmpl>`  | `-D`  | Default response for rule-engine or KV builtins                            |
+| `--field <jq>`      |       | JQ expression to extract field for `ab-test`                               |
+| `--split <n>`      |       | Percentage (0-100) routed to handler A for `ab-test`                       |
+| `--handler-a <n>`   |       | Name of handler A for `ab-test`                                            |
+| `--handler-b <n>`   |       | Name of handler B for `ab-test`                                            |
 
 Example — add pub-sub handlers directly from the REPL:
 
@@ -584,6 +588,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `once`        | Server | Executes exactly once and then permanently disables the handler. |
 | `debounce`    | Shared | Suppresses repeated matching messages within a window and only processes the last one. |
 | `rule-engine`  | Shared | Evaluates a list of condition-and-action rules in order; first-match wins. |
+| `ab-test`     | Server | Routes messages to one of two handlers based on a deterministic hash of a message field. |
 
 **Validation Features:**
 - **Unknown Builtins**: Using an unknown builtin name in handler configuration causes an immediate startup error.
@@ -809,6 +814,23 @@ handlers:
       - when: { regex: "^/msg (@\\w+) (.*)" }
         respond: "Sending private message to {{index .Matches 0}}..."
     default: "Unrecognized command: {{.Message}}"
+  
+  # A/B Test Example
+  - name: feature-experiment
+    match: "*"
+    builtin: ab-test
+    field: ".user_id"
+    split: 50
+    handler_a: "v1-handler"
+    handler_b: "v2-handler"
+
+  - name: v1-handler
+    match: "v1-internal"
+    respond: "Version 1 logic"
+
+  - name: v2-handler
+    match: "v2-internal"
+    respond: "Version 2 logic"
 
 ```
 

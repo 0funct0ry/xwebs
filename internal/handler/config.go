@@ -80,6 +80,10 @@ type Handler struct {
 	Targets      string                 `yaml:"targets,omitempty"`      // For multicast builtin
 	Pool         string                 `yaml:"pool,omitempty"`         // For round-robin builtin (template)
 	OnEmpty      string                 `yaml:"on_empty,omitempty"`     // For round-robin builtin (template)
+	Field        string                 `yaml:"field,omitempty"`        // For ab-test builtin (jq expression)
+	Split        *int                   `yaml:"split,omitempty"`        // For ab-test builtin (percentage for handler_a, default 50)
+	HandlerA     string                 `yaml:"handler_a,omitempty"`    // For ab-test builtin
+	HandlerB     string                 `yaml:"handler_b,omitempty"`    // For ab-test builtin
 	Rules        []Rule                 `yaml:"rules,omitempty"`        // For rule-engine builtin
 	BaseDir      string                 `yaml:"-"`                      // Directory from which the handler was loaded
 }
@@ -137,6 +141,10 @@ type PipelineStep struct {
 	Targets     string            `yaml:"targets,omitempty"`   // For multicast builtin
 	Pool        string            `yaml:"pool,omitempty"`      // For round-robin builtin
 	OnEmpty     string            `yaml:"on_empty,omitempty"`  // For round-robin builtin
+	Field       string            `yaml:"field,omitempty"`     // For ab-test builtin
+	Split       *int              `yaml:"split,omitempty"`     // For ab-test builtin
+	HandlerA    string            `yaml:"handler_a,omitempty"`  // For ab-test builtin
+	HandlerB    string            `yaml:"handler_b,omitempty"`  // For ab-test builtin
 	Rules       []Rule            `yaml:"rules,omitempty"`     // For rule-engine builtin
 }
 
@@ -223,6 +231,10 @@ type Action struct {
 	Targets     string            `yaml:"targets,omitempty"`    // For multicast builtin
 	Pool        string            `yaml:"pool,omitempty"`       // For round-robin builtin
 	OnEmpty     string            `yaml:"on_empty,omitempty"`   // For round-robin builtin
+	Field       string            `yaml:"field,omitempty"`       // For ab-test builtin
+	Split       *int              `yaml:"split,omitempty"`       // For ab-test builtin
+	HandlerA    string            `yaml:"handler_a,omitempty"`    // For ab-test builtin
+	HandlerB    string            `yaml:"handler_b,omitempty"`    // For ab-test builtin
 	Rules       []Rule            `yaml:"rules,omitempty"`     // For rule-engine builtin
 	BaseDir     string            `yaml:"-"`                    // For relative path resolution in builtins
 	HandlerName string            `yaml:"-"`                    // Internal use only
@@ -381,6 +393,10 @@ func (c *Config) Validate(mode RegistryMode) error {
 				Targets:   h.Targets,
 				Pool:      h.Pool,
 				OnEmpty:   h.OnEmpty,
+				Field:     h.Field,
+				Split:     h.Split,
+				HandlerA:  h.HandlerA,
+				HandlerB:  h.HandlerB,
 				Rules:     h.Rules,
 			}
 			if err := bh.Validate(tmpAction); err != nil {

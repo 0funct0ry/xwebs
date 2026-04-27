@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"net/http"
 	"os"
@@ -12,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/itchyny/gojq"
 
 	"github.com/0funct0ry/xwebs/internal/observability"
 	"github.com/0funct0ry/xwebs/internal/template"
@@ -48,6 +51,7 @@ func init() {
 	MustRegister(&StickyBroadcastBuiltin{})
 	MustRegister(&RoundRobinBuiltin{})
 	MustRegister(&SampleBuiltin{})
+	MustRegister(&ABTestBuiltin{})
 	MustRegister(&OnceBuiltin{})
 	MustRegister(&DebounceBuiltin{})
 	MustRegister(&RuleEngineBuiltin{})
@@ -1772,6 +1776,87 @@ func (b *RoundRobinBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Actio
 
 	// 6. All failed
 	return b.handleEmpty(d, a, tmplCtx)
+}
+
+// ABTestBuiltin routes messages to one of two handlers based on a deterministic hash of a field.
+type ABTestBuiltin struct{}
+
+func (b *ABTestBuiltin) Name() string { return "ab-test" }
+func (b *ABTestBuiltin) Description() string {
+	return "Route messages to one of two handlers based on a deterministic hash of a field."
+}
+func (b *ABTestBuiltin) Scope() BuiltinScope { return ServerOnly }
+
+func (b *ABTestBuiltin) Validate(a Action) error {
+	if a.Field == "" {
+		return fmt.Errorf("builtin ab-test: missing 'field' (jq expression)")
+	}
+	if a.HandlerA == "" {
+		return fmt.Errorf("builtin ab-test: missing 'handler_a'")
+	}
+	if a.HandlerB == "" {
+		return fmt.Errorf("builtin ab-test: missing 'handler_b'")
+	}
+	if a.Split != nil && (*a.Split < 0 || *a.Split > 100) {
+		return fmt.Errorf("builtin ab-test: 'split' must be between 0 and 100")
+	}
+	return nil
+}
+
+func (b *ABTestBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	// 1. Extract field value using jq
+	var data interface{}
+	if err := json.Unmarshal(tmplCtx.MessageBytes, &data); err != nil {
+		// Not JSON, can't use jq field meaningfully if it expects structure.
+		// Fallback to raw message as string for simple values.
+		data = string(tmplCtx.MessageBytes)
+	}
+
+	query, err := gojq.Parse(a.Field)
+	if err != nil {
+		return fmt.Errorf("builtin ab-test: invalid jq expression %q: %w", a.Field, err)
+	}
+
+	iter := query.Run(data)
+	v, ok := iter.Next()
+	if !ok {
+		v = "" // No result
+	}
+	if err, ok := v.(error); ok {
+		return fmt.Errorf("builtin ab-test: jq evaluation error: %w", err)
+	}
+
+	// 2. Deterministic hash
+	h := fnv.New32a()
+	h.Write([]byte(fmt.Sprintf("%v", v)))
+	hashVal := h.Sum32()
+	bucket := int(hashVal % 100)
+
+	// 3. Routing decision
+	split := 50
+	if a.Split != nil {
+		split = *a.Split
+	}
+
+	var chosen string
+	if bucket < split {
+		chosen = a.HandlerA
+	} else {
+		chosen = a.HandlerB
+	}
+
+	if d.verbose {
+		d.errorf("  [handler] ab-test: routing to handler %q (bucket %d, split %d)\n", chosen, bucket, split)
+	}
+
+	// 4. Retrieve and execute chosen handler
+	targetHandler, ok := d.registry.GetHandler(chosen)
+	if !ok {
+		return fmt.Errorf("builtin ab-test: chosen handler %q not found", chosen)
+	}
+
+	msg := d.connToMessage(tmplCtx)
+	return d.Execute(ctx, &targetHandler, msg, nil)
 }
 
 func (b *RoundRobinBuiltin) handleEmpty(d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
