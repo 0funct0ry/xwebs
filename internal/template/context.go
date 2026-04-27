@@ -159,6 +159,7 @@ type TemplateContext struct {
 	HttpBody   string                 `json:"http_body,omitempty"`   // Response body from http builtin
 	KvValue    interface{}            `json:"kv_value,omitempty"`    // Result of kv-get builtin
 	KvKeys     []string               `json:"kv_keys,omitempty"`     // Result of kv-list builtin
+	RedisValue interface{}            `json:"redis_value,omitempty"` // Result of redis-get builtin
 
 	// Pattern Matching
 	Matches []string `json:"matches,omitempty"` // Capture groups from glob/regex matching

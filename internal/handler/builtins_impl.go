@@ -57,6 +57,7 @@ func init() {
 	MustRegister(&RuleEngineBuiltin{})
 	MustRegister(&ShadowBuiltin{})
 	MustRegister(&RedisSetBuiltin{})
+	MustRegister(&RedisGetBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -291,6 +292,60 @@ func (b *RedisSetBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action,
 		} else {
 			d.errorf("  [handler] redis-set: %s = %v\n", key, val)
 		}
+	}
+	return nil
+}
+
+// RedisGetBuiltin retrieves a value from Redis.
+type RedisGetBuiltin struct{}
+
+func (b *RedisGetBuiltin) Name() string { return "redis-get" }
+func (b *RedisGetBuiltin) Description() string {
+	return "Fetch a value from Redis into .RedisValue."
+}
+func (b *RedisGetBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *RedisGetBuiltin) Validate(a Action) error {
+	if a.Key == "" {
+		return fmt.Errorf("builtin redis-get missing key")
+	}
+	return nil
+}
+
+func (b *RedisGetBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	if d.redisManager == nil {
+		return fmt.Errorf("builtin redis-get: redis manager not initialized (check --redis-url)")
+	}
+
+	key, err := d.templateEngine.Execute("redis-key", a.Key, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in redis key: %w", err)
+	}
+
+	val, err := d.redisManager.Get(ctx, key)
+	if err != nil {
+		return fmt.Errorf("redis get error: %w", err)
+	}
+
+	if val != nil {
+		tmplCtx.RedisValue = val
+	} else {
+		// Not found, use default
+		if a.Default != "" {
+			defaultVal, err := d.templateEngine.Execute("redis-default", a.Default, tmplCtx)
+			if err != nil {
+				d.errorf("  [handler] redis-get: error rendering default template: %v\n", err)
+				tmplCtx.RedisValue = ""
+			} else {
+				tmplCtx.RedisValue = defaultVal
+			}
+		} else {
+			tmplCtx.RedisValue = ""
+		}
+	}
+
+	if d.verbose {
+		d.errorf("  [handler] redis-get: %s = %v (default=%q)\n", key, tmplCtx.RedisValue, a.Default)
 	}
 	return nil
 }

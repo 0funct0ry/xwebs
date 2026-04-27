@@ -495,7 +495,7 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `--priority <n>`        | `-p`  | Execution priority (higher runs first)                                     |
 | `--run <cmd>`           | `-r`  | Shell command to execute on match                                          |
 | `--respond <tmpl>`      | `-R`  | Response template sent back to the client                                  |
-| `--builtin <name>`      | `-B`  | Builtin action: `subscribe`, `unsubscribe`, `publish`, `template`, `kv-*`, `sequence`. |
+| `--builtin <name>`      | `-B`  | Builtin action: `subscribe`, `unsubscribe`, `publish`, `template`, `kv-*`, `sequence`, `redis-*`. |
 | `--topic <template>`    |       | Topic name template for builtin actions (required for `subscribe`, `unsubscribe`, `publish`) |
 | `--file <path>`         |       | Template file path for `template` builtin (can include template expressions) |
 | `--exclusive`           | `-e`  | Stop further handler matching after this one fires                         |
@@ -587,6 +587,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `multicast` | Server | Delivers a message to a specific list of client IDs (supports JSON arrays and templates). |
 | `round-robin` | Server | Distributes messages across a pool of client IDs in order (skips disconnected clients). Supports custom `message:` template. |
 | `redis-set` | Shared | Stores a key-value pair in a configured Redis instance (supports templates and TTL). |
+| `redis-get` | Shared | Retrieves a value from Redis into `.RedisValue` (supports default values and templates). |
 | `sample`      | Shared | Pass every Nth message (set by `rate: N`) and drop the rest. Supports template expressions. |
 | `gate`        | Server | Conditional message processing based on KV store values (checks `key` against `expect`). |
 | `once`        | Server | Executes exactly once and then permanently disables the handler. |

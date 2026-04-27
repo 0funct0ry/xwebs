@@ -74,6 +74,7 @@ type KVManager interface {
 // RedisManager defines the required interface for Redis operations.
 type RedisManager interface {
 	Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error
+	Get(ctx context.Context, key string) (interface{}, error)
 	Close() error
 }
 

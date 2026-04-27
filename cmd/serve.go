@@ -326,7 +326,7 @@ Available Builtin Actions (Server):
 				return fmt.Errorf("initializing redis: %w", err)
 			}
 			if !quiet {
-				fmt.Fprintf(os.Stderr, "✓ Connected to Redis at %s\n", redisURL)
+				fmt.Fprintf(os.Stderr, "✓ Redis configured at %s (connection will be established on use)\n", redisURL)
 			}
 		}
 

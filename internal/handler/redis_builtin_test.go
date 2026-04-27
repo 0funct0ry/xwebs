@@ -19,6 +19,11 @@ func (m *MockRedisManager) Set(ctx context.Context, key string, value interface{
 	return args.Error(0)
 }
 
+func (m *MockRedisManager) Get(ctx context.Context, key string) (interface{}, error) {
+	args := m.Called(ctx, key)
+	return args.Get(0), args.Error(1)
+}
+
 func (m *MockRedisManager) Close() error {
 	args := m.Called()
 	return args.Error(0)
@@ -139,6 +144,125 @@ func TestRedisSetBuiltin(t *testing.T) {
 		a := &Action{
 			Key:   "test-key",
 			Value: "test-value",
+		}
+		tmplCtx := template.NewContext()
+
+		err := builtin.Execute(context.Background(), dNoRedis, a, tmplCtx)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "redis manager not initialized")
+	})
+}
+
+func TestRedisGetBuiltin(t *testing.T) {
+	engine := template.New(false)
+	builtin := &RedisGetBuiltin{}
+
+	t.Run("basic get", func(t *testing.T) {
+		mockRedis := new(MockRedisManager)
+		d := &Dispatcher{
+			redisManager:   mockRedis,
+			templateEngine: engine,
+		}
+		a := &Action{
+			Key: "test-key",
+		}
+		tmplCtx := template.NewContext()
+
+		mockRedis.On("Get", mock.Anything, "test-key").Return("test-value", nil).Once()
+
+		err := builtin.Execute(context.Background(), d, a, tmplCtx)
+		assert.NoError(t, err)
+		assert.Equal(t, "test-value", tmplCtx.RedisValue)
+		mockRedis.AssertExpectations(t)
+	})
+
+	t.Run("get missing with default", func(t *testing.T) {
+		mockRedis := new(MockRedisManager)
+		d := &Dispatcher{
+			redisManager:   mockRedis,
+			templateEngine: engine,
+		}
+		a := &Action{
+			Key:     "test-key",
+			Default: "my-default",
+		}
+		tmplCtx := template.NewContext()
+
+		mockRedis.On("Get", mock.Anything, "test-key").Return(nil, nil).Once()
+
+		err := builtin.Execute(context.Background(), d, a, tmplCtx)
+		assert.NoError(t, err)
+		assert.Equal(t, "my-default", tmplCtx.RedisValue)
+		mockRedis.AssertExpectations(t)
+	})
+
+	t.Run("get missing without default", func(t *testing.T) {
+		mockRedis := new(MockRedisManager)
+		d := &Dispatcher{
+			redisManager:   mockRedis,
+			templateEngine: engine,
+		}
+		a := &Action{
+			Key: "test-key",
+		}
+		tmplCtx := template.NewContext()
+
+		mockRedis.On("Get", mock.Anything, "test-key").Return(nil, nil).Once()
+
+		err := builtin.Execute(context.Background(), d, a, tmplCtx)
+		assert.NoError(t, err)
+		assert.Equal(t, "", tmplCtx.RedisValue)
+		mockRedis.AssertExpectations(t)
+	})
+
+	t.Run("template expressions in key and default", func(t *testing.T) {
+		mockRedis := new(MockRedisManager)
+		d := &Dispatcher{
+			redisManager:   mockRedis,
+			templateEngine: engine,
+		}
+		a := &Action{
+			Key:     "key-{{.MessageIndex}}",
+			Default: "default-for-{{.Message}}",
+		}
+		tmplCtx := template.NewContext()
+		tmplCtx.MessageIndex = 10
+		tmplCtx.Message = "foo"
+
+		mockRedis.On("Get", mock.Anything, "key-10").Return(nil, nil).Once()
+
+		err := builtin.Execute(context.Background(), d, a, tmplCtx)
+		assert.NoError(t, err)
+		assert.Equal(t, "default-for-foo", tmplCtx.RedisValue)
+		mockRedis.AssertExpectations(t)
+	})
+
+	t.Run("redis error", func(t *testing.T) {
+		mockRedis := new(MockRedisManager)
+		d := &Dispatcher{
+			redisManager:   mockRedis,
+			templateEngine: engine,
+		}
+		a := &Action{
+			Key: "test-key",
+		}
+		tmplCtx := template.NewContext()
+
+		mockRedis.On("Get", mock.Anything, "test-key").Return(nil, assert.AnError).Once()
+
+		err := builtin.Execute(context.Background(), d, a, tmplCtx)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "redis get error")
+		mockRedis.AssertExpectations(t)
+	})
+
+	t.Run("missing redis manager", func(t *testing.T) {
+		dNoRedis := &Dispatcher{
+			redisManager:   nil,
+			templateEngine: engine,
+		}
+		a := &Action{
+			Key: "test-key",
 		}
 		tmplCtx := template.NewContext()
 

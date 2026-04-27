@@ -25,14 +25,6 @@ func NewRedisManager(url string) (RedisManager, error) {
 
 	client := redis.NewClient(opts)
 
-	// Ping to verify connection
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := client.Ping(ctx).Err(); err != nil {
-		return nil, fmt.Errorf("connecting to redis: %w", err)
-	}
-
 	return &redisManager{client: client}, nil
 }
 
@@ -41,6 +33,17 @@ func (m *redisManager) Set(ctx context.Context, key string, value interface{}, t
 		return fmt.Errorf("redis manager not initialized (check --redis-url)")
 	}
 	return m.client.Set(ctx, key, value, ttl).Err()
+}
+
+func (m *redisManager) Get(ctx context.Context, key string) (interface{}, error) {
+	if m == nil || m.client == nil {
+		return nil, fmt.Errorf("redis manager not initialized (check --redis-url)")
+	}
+	val, err := m.client.Get(ctx, key).Result()
+	if err == redis.Nil {
+		return nil, nil
+	}
+	return val, err
 }
 
 func (m *redisManager) Close() error {
