@@ -8,6 +8,7 @@ import (
 func ConfigFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&cfgFile, "config", "c", "", "config file path (default searches ~/.xwebs.yaml then .xwebs.yaml)")
 	cmd.Flags().StringVar(&profile, "profile", "", "profile name for configuration")
+	cmd.Flags().StringVar(&redisURL, "redis-url", "redis://localhost:6379", "Redis connection URL")
 }
 
 // OutputFlags registers output and logging flags.

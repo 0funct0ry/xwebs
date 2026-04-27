@@ -70,6 +70,12 @@ type KVManager interface {
 	SetKV(key string, val interface{}, ttl time.Duration)
 	DeleteKV(key string)
 }
+ 
+// RedisManager defines the required interface for Redis operations.
+type RedisManager interface {
+	Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error
+	Close() error
+}
 
 // Dispatcher coordinates the execution of handlers for a connection.
 type Dispatcher struct {
@@ -91,13 +97,14 @@ type Dispatcher struct {
 	serverStats     ServerStatProvider
 	topicManager    TopicManager
 	kvManager       KVManager
-
+	redisManager    RedisManager
+ 
 	bufferMu sync.Mutex
 	buffer   []*ws.Message
 }
 
 // NewDispatcher creates a new dispatcher.
-func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine, verbose bool, vars map[string]interface{}, session map[string]interface{}, sandbox bool, allowlist []string, serverStats ServerStatProvider, topicManager TopicManager, kvManager KVManager) *Dispatcher {
+func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine, verbose bool, vars map[string]interface{}, session map[string]interface{}, sandbox bool, allowlist []string, serverStats ServerStatProvider, topicManager TopicManager, kvManager KVManager, redisManager RedisManager) *Dispatcher {
 
 	// Initialize system environment
 	env := make(map[string]string)
@@ -120,6 +127,7 @@ func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine,
 		serverStats:      serverStats,
 		topicManager:     topicManager,
 		kvManager:        kvManager,
+		redisManager:     redisManager,
 		systemEnv:        env,
 		Log: func(f string, a ...interface{}) {
 			fmt.Printf(f, a...)
@@ -1151,5 +1159,6 @@ func (d *Dispatcher) cloneWithConn(conn Connection) *Dispatcher {
 		serverStats:      d.serverStats,
 		topicManager:     d.topicManager,
 		kvManager:        d.kvManager,
+		redisManager:     d.redisManager,
 	}
 }

@@ -15,7 +15,7 @@ func TestStickyBroadcastBuiltin(t *testing.T) {
 	conn := &mockConn{}
 	tm := new(mockTopicManager)
 	engine := template.New(false)
-	d := NewDispatcher(registry, conn, engine, true, nil, nil, false, nil, nil, tm, nil)
+	d := NewDispatcher(registry, conn, engine, true, nil, nil, false, nil, nil, tm, nil, nil)
 
 	ctx := context.Background()
 	msg := &ws.Message{Data: []byte("trigger"), Metadata: ws.MessageMetadata{Direction: "received"}}

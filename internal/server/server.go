@@ -42,6 +42,7 @@ type Server struct {
 	startTime   time.Time
 	securityMgr *SecurityManager
 	staticMgr   *StaticManager
+	redisMgr    handler.RedisManager
 
 	state     serverState
 	paused    atomic.Bool
@@ -64,6 +65,7 @@ func New(opts ...Option) (*Server, error) {
 		startTime:   time.Now(),
 		state:       serverRunning,
 		staticMgr:   NewStaticManager(options.Logger),
+		redisMgr:    options.RedisManager,
 	}
 	s.pauseCond = sync.NewCond(&s.mu)
 
@@ -393,6 +395,7 @@ func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
 			s,        // Server implements ServerStatProvider
 			s.topics, // Server.topics implements TopicManager
 			s,        // Server implements KVManager
+			s.redisMgr,
 		)
 
 		// Setup logging/error handlers for dispatcher

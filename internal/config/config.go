@@ -41,6 +41,7 @@ type AppConfig struct {
 	Aliases   map[string]string   `mapstructure:"aliases"`
 	Bookmarks map[string]Bookmark `mapstructure:"bookmarks"`
 	REPL      REPLConfig          `mapstructure:"repl"`
+	RedisURL  string              `mapstructure:"redis-url"`
 }
 
 // ConnDetails contains all information needed to establish a connection.

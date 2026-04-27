@@ -29,6 +29,7 @@ var (
 	respondTemplate string
 	sandboxEnabled  bool
 	allowlist       []string
+	redisURL        string
 )
 
 var validLogLevels = []string{"debug", "info", "warn", "error"}
@@ -125,6 +126,7 @@ func initConfig() {
 		syncFlag("no-shell-func", &noShellFunc)
 		syncFlag("respond", &respondTemplate)
 		syncFlag("sandbox", &sandboxEnabled)
+		syncFlag("redis-url", &redisURL)
 
 		// String slices need manual syncing from Viper if not set via flags
 		if !activeCmd.Flags().Changed("on") && viper.IsSet("on") {

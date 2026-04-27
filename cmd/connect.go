@@ -166,6 +166,18 @@ Available Builtin Actions (Client):
 		target := args[0]
 		tmplEngine := template.New(noShellFunc)
 
+		var redisMgr handler.RedisManager
+		if redisURL != "" {
+			var err error
+			redisMgr, err = handler.NewRedisManager(redisURL)
+			if err != nil {
+				return fmt.Errorf("initializing redis: %w", err)
+			}
+			if !quiet {
+				fmt.Fprintf(os.Stderr, "✓ Connected to Redis at %s\n", redisURL)
+			}
+		}
+
 		// Set colors based on global settings
 		colorsEnabled := true
 		switch color {
@@ -714,7 +726,7 @@ Available Builtin Actions (Client):
 						if cc.repl != nil {
 							sessionVars = cc.repl.GetVars()
 						}
-						tempDispatcher := handler.NewDispatcher(reg, nil, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist, nil, nil, nil)
+						tempDispatcher := handler.NewDispatcher(reg, nil, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist, nil, nil, nil, redisMgr)
 						if isInteractive && r != nil {
 
 							tempDispatcher.Log = func(f string, a ...interface{}) { r.Printf(f, a...) }
@@ -787,7 +799,7 @@ Available Builtin Actions (Client):
 					if cc.repl != nil {
 						sessionVars = cc.repl.GetVars()
 					}
-					dispatcher = handler.NewDispatcher(handlerReg, conn, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist, nil, nil, nil)
+					dispatcher = handler.NewDispatcher(handlerReg, conn, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist, nil, nil, nil, redisMgr)
 					cc.dispatcher = dispatcher
 					if isInteractive && r != nil {
 

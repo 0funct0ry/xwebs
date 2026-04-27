@@ -318,6 +318,18 @@ Available Builtin Actions (Server):
 			}
 		}
 
+		var redisMgr handler.RedisManager
+		if redisURL != "" {
+			var err error
+			redisMgr, err = handler.NewRedisManager(redisURL)
+			if err != nil {
+				return fmt.Errorf("initializing redis: %w", err)
+			}
+			if !quiet {
+				fmt.Fprintf(os.Stderr, "✓ Connected to Redis at %s\n", redisURL)
+			}
+		}
+
 		srvOpts := []server.Option{
 			server.WithPort(servePort),
 			server.WithPaths(servePaths),
@@ -341,6 +353,7 @@ Available Builtin Actions (Server):
 			server.WithStaticServePort(staticPort),
 			server.WithStaticGenerate(doGenerate),
 			server.WithStaticGenerateStyle(staticGenerateStyle),
+			server.WithRedisManager(redisMgr),
 		}
 
 		if staticRoot != "" {

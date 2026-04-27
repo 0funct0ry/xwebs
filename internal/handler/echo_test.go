@@ -15,7 +15,7 @@ func TestEchoBuiltin_Behavior(t *testing.T) {
 	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
-	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil)
+	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil, nil)
 
 	t.Run("Verbatim Echo", func(t *testing.T) {
 		conn.mu.Lock()

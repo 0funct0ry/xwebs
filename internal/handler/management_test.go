@@ -69,7 +69,7 @@ func TestDispatcher_ExecuteRecordsStats(t *testing.T) {
 
 	tmplEngine := template.New(false)
 	conn := &mockConn{}
-	d := NewDispatcher(r, conn, tmplEngine, false, nil, nil, false, nil, nil, nil, nil)
+	d := NewDispatcher(r, conn, tmplEngine, false, nil, nil, false, nil, nil, nil, nil, nil)
 
 	msg := &ws.Message{Data: []byte("hi")}
 	h, _ := r.GetHandler("exec-test")

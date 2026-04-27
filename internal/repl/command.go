@@ -1342,6 +1342,9 @@ func (r *REPL) RegisterCommonCommands() {
 				r.Printf("  --rule-when, -W <matcher> Condition for rule-engine rule (repeatable)\n")
 				r.Printf("  --rule-respond, -S <tmpl> Response for rule-engine rule (repeatable)\n")
 				r.Printf("  --default, -D <tmpl>      Default response for rule-engine or KV builtins\n")
+				r.Printf("  --key <template>      Key template for KV or Redis builtins\n")
+				r.Printf("  --value <template>    Value template for KV or Redis builtins\n")
+				r.Printf("  --ttl <duration>      TTL template for KV or Redis builtins\n")
 				return nil
 			}
 
@@ -1506,6 +1509,7 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.SetOutput(nil) // Suppress automatic usage printing on error
 
 			var name, match, matchType, run, respond, builtin, topic, rateLimit, debounce, code, reason, message, target, script, targets, window, scope string
+			var key, value, ttl string
 			var labels map[string]string
 			var priority, maxMemory int
 			var exclusive, sequential bool
@@ -1528,6 +1532,9 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.StringVar(&scope, "scope", "", "Scope")
 			fs.StringVarP(&message, "message", "M", "", "Message template (for broadcast or log)")
 			fs.StringVar(&target, "target", "", "Target URL (forward) or destination type (log: stdout|file|both)")
+			fs.StringVar(&key, "key", "", "Key template for KV or Redis builtins")
+			fs.StringVar(&value, "value", "", "Value template for KV or Redis builtins")
+			fs.StringVar(&ttl, "ttl", "", "TTL template for KV or Redis builtins")
 			var file, path, content, mode string
 			var responses []string
 			var loop, perClient bool
@@ -1623,6 +1630,9 @@ func (r *REPL) RegisterCommonCommands() {
 				Field:     field,
 				HandlerA:  handlerA,
 				HandlerB:  handlerB,
+				Key:       key,
+				Value:     value,
+				TTL:       ttl,
 			}
 
 			if fs.Changed("split") {

@@ -526,11 +526,14 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `--on-closed <tmpl>` |       | Response template if gate is closed (supports templates)                   |
 | `--rule-when <pat>` | `-W`  | Condition for rule-engine rule (repeatable)                                |
 | `--rule-respond <t>`| `-S`  | Response template for rule-engine rule (repeatable)                        |
-| `--default <tmpl>`  | `-D`  | Default response for rule-engine or KV builtins                            |
 | `--field <jq>`      |       | JQ expression to extract field for `ab-test`                               |
 | `--split <n>`      |       | Percentage (0-100) routed to handler A for `ab-test`                       |
 | `--handler-a <n>`   |       | Name of handler A for `ab-test`                                            |
 | `--handler-b <n>`   |       | Name of handler B for `ab-test`                                            |
+| `--key <template>`  |       | Key template for KV or Redis builtins                                      |
+| `--value <template>`|       | Value template for KV or Redis builtins                                    |
+| `--ttl <duration>`  |       | TTL template for KV or Redis builtins                                      |
+| `--default <tmpl>`  | `-D`  | Default response for rule-engine or KV builtins                            |
 
 Example — add pub-sub handlers directly from the REPL:
 
@@ -583,6 +586,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `sticky-broadcast` | Server | Broadcasts a message to all subscribers of a topic and stores it as the retained value for new subscribers. |
 | `multicast` | Server | Delivers a message to a specific list of client IDs (supports JSON arrays and templates). |
 | `round-robin` | Server | Distributes messages across a pool of client IDs in order (skips disconnected clients). Supports custom `message:` template. |
+| `redis-set` | Shared | Stores a key-value pair in a configured Redis instance (supports templates and TTL). |
 | `sample`      | Shared | Pass every Nth message (set by `rate: N`) and drop the rest. Supports template expressions. |
 | `gate`        | Server | Conditional message processing based on KV store values (checks `key` against `expect`). |
 | `once`        | Server | Executes exactly once and then permanently disables the handler. |
@@ -794,6 +798,15 @@ handlers:
     match: "setup"
     builtin: once
     respond: "Server initialised! This handler is now disabled."
+ 
+  # Redis Example
+  - name: persist-state
+    match: "state:*"
+    builtin: redis-set
+    key: "xwebs:state:{{.ConnectionID}}"
+    value: "{{.Message | trimPrefix \"state:\"}}"
+    ttl: "1h"
+    respond: "State persisted to Redis"
 
   # Debounce Example
   - name: burst-control

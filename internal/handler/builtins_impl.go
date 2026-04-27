@@ -56,6 +56,7 @@ func init() {
 	MustRegister(&DebounceBuiltin{})
 	MustRegister(&RuleEngineBuiltin{})
 	MustRegister(&ShadowBuiltin{})
+	MustRegister(&RedisSetBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -232,6 +233,63 @@ func (b *KVSetBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tm
 			d.errorf("  [handler] kv-set: %s = %v (ttl: %v)\n", key, val, ttl)
 		} else {
 			d.errorf("  [handler] kv-set: %s = %v\n", key, val)
+		}
+	}
+	return nil
+}
+
+// RedisSetBuiltin stores a key-value pair in Redis.
+type RedisSetBuiltin struct{}
+
+func (b *RedisSetBuiltin) Name() string { return "redis-set" }
+func (b *RedisSetBuiltin) Description() string {
+	return "Store a key-value pair in Redis with optional TTL."
+}
+func (b *RedisSetBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *RedisSetBuiltin) Validate(a Action) error {
+	if a.Key == "" {
+		return fmt.Errorf("builtin redis-set missing key")
+	}
+	if a.Value == "" {
+		return fmt.Errorf("builtin redis-set missing value")
+	}
+	return nil
+}
+
+func (b *RedisSetBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	if d.redisManager == nil {
+		return fmt.Errorf("builtin redis-set: redis manager not initialized (check --redis-url)")
+	}
+
+	key, err := d.templateEngine.Execute("redis-key", a.Key, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in redis key: %w", err)
+	}
+	val, err := d.templateEngine.Execute("redis-value", a.Value, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in redis value: %w", err)
+	}
+
+	ttl := time.Duration(0)
+	if a.TTL != "" {
+		ttlStr, err := d.templateEngine.Execute("redis-ttl", a.TTL, tmplCtx)
+		if err == nil {
+			if dur, err := time.ParseDuration(ttlStr); err == nil {
+				ttl = dur
+			}
+		}
+	}
+
+	if err := d.redisManager.Set(ctx, key, val, ttl); err != nil {
+		return fmt.Errorf("redis set error: %w", err)
+	}
+
+	if d.verbose {
+		if ttl > 0 {
+			d.errorf("  [handler] redis-set: %s = %v (ttl: %v)\n", key, val, ttl)
+		} else {
+			d.errorf("  [handler] redis-set: %s = %v\n", key, val)
 		}
 	}
 	return nil

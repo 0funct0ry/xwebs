@@ -18,7 +18,7 @@ func TestOnceBuiltin(t *testing.T) {
 	conn := &mockConn{}
 
 	engine := template.New(false)
-	dispatcher := NewDispatcher(reg, conn, engine, true, nil, nil, false, nil, nil, nil, nil)
+	dispatcher := NewDispatcher(reg, conn, engine, true, nil, nil, false, nil, nil, nil, nil, nil)
 
 	// 1. Add a handler with 'once' builtin
 	h := Handler{
