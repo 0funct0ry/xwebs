@@ -405,11 +405,11 @@ func (c *Config) Validate(mode RegistryMode) error {
 		}
 
 		// Validate top-level target (shorthand usage)
-		if h.Target != "" && h.Builtin != "forward" && h.Builtin != "log" {
-			return fmt.Errorf("handler %q: target property is only allowed for 'forward' or 'log' builtins", h.Name)
+		if h.Target != "" && h.Builtin != "forward" && h.Builtin != "log" && h.Builtin != "shadow" {
+			return fmt.Errorf("handler %q: target property is only allowed for 'forward', 'log', or 'shadow' builtins", h.Name)
 		}
-		if h.Builtin == "forward" && h.Target == "" {
-			return fmt.Errorf("handler %q: 'forward' builtin requires a target", h.Name)
+		if (h.Builtin == "forward" || h.Builtin == "shadow") && h.Target == "" {
+			return fmt.Errorf("handler %q: %q builtin requires a target", h.Name, h.Builtin)
 		}
 	}
 

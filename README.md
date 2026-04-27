@@ -589,6 +589,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `debounce`    | Shared | Suppresses repeated matching messages within a window and only processes the last one. |
 | `rule-engine`  | Shared | Evaluates a list of condition-and-action rules in order; first-match wins. |
 | `ab-test`     | Server | Routes messages to one of two handlers based on a deterministic hash of a message field. |
+| `shadow`      | Server | Forwards messages to another handler asynchronously and silently. |
 
 **Validation Features:**
 - **Unknown Builtins**: Using an unknown builtin name in handler configuration causes an immediate startup error.
@@ -831,6 +832,19 @@ handlers:
   - name: v2-handler
     match: "v2-internal"
     respond: "Version 2 logic"
+
+  # Shadow Example (Server Only)
+  - name: shadow-validation
+    match: "*"
+    builtin: shadow
+    target: "new-experimental-handler"
+    respond: "Processed by production logic"
+
+  - name: new-experimental-handler
+    match: "DISABLED"
+    builtin: file-write
+    path: "shadow_validation.log"
+    content: "New Logic Output: {{.Message}}\n"
 
 ```
 

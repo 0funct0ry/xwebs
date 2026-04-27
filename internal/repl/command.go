@@ -1333,7 +1333,7 @@ func (r *REPL) RegisterCommonCommands() {
 				r.Printf("  --body <template>     Body for 'http' builtin\n")
 				r.Printf("  --timeout <duration>  Timeout for 'http' builtin (e.g. '5s')\n")
 				r.Printf("  --message <template>  Message template for 'log' builtin\n")
-				r.Printf("  --target <type>       Target for 'log' builtin (stdout|file|both)\n")
+				r.Printf("  --target <type>       Target for 'forward' (URL), 'log' (stdout|file|both), or 'shadow' (handler name)\n")
 				r.Printf("  --path <path>         File path for 'log' builtin\n")
 				r.Printf("  --labels <key=val,...> Labels for 'metric' builtin (key=val,key2=val2)\n")
 				r.Printf("  --script <script>     Inline Lua script\n")

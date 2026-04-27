@@ -55,6 +55,7 @@ func init() {
 	MustRegister(&OnceBuiltin{})
 	MustRegister(&DebounceBuiltin{})
 	MustRegister(&RuleEngineBuiltin{})
+	MustRegister(&ShadowBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -2111,6 +2112,66 @@ func (b *DebounceBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action,
 	})
 
 	return ErrDrop
+}
+
+// ShadowBuiltin forwards messages to another handler asynchronously and silently.
+type ShadowBuiltin struct{}
+
+func (b *ShadowBuiltin) Name() string { return "shadow" }
+func (b *ShadowBuiltin) Description() string {
+	return "Forward messages to another handler asynchronously and silently (server-only)."
+}
+func (b *ShadowBuiltin) Scope() BuiltinScope { return ServerOnly }
+
+func (b *ShadowBuiltin) Validate(a Action) error {
+	if a.Target == "" {
+		return fmt.Errorf("builtin shadow: missing 'target' (handler name)")
+	}
+	return nil
+}
+
+func (b *ShadowBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	target, err := d.templateEngine.Execute("shadow-target", a.Target, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("rendering shadow target template: %w", err)
+	}
+	target = strings.TrimSpace(target)
+	if target == "" {
+		return fmt.Errorf("builtin shadow: target evaluates to empty string")
+	}
+
+	targetHandler, ok := d.registry.GetHandler(target)
+	if !ok {
+		return fmt.Errorf("builtin shadow: handler %q not found", target)
+	}
+
+	// Reconstruct message from context
+	msg := d.connToMessage(tmplCtx)
+
+	// Execute asynchronously
+	go func() {
+		// Create a silent connection that discards all writes
+		silent := &silentConn{Connection: d.conn}
+
+		// Use a fresh context for the shadow execution
+		shadowCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		// Execute the target handler using a cloned dispatcher with the silent connection
+		shadowD := d.cloneWithConn(silent)
+
+		if err := shadowD.Execute(shadowCtx, &targetHandler, msg, nil); err != nil {
+			if d.verbose {
+				d.errorf("  [handler] shadow error for handler %q: %v\n", target, err)
+			}
+		}
+	}()
+
+	if d.verbose {
+		d.errorf("  [handler] shadow: dispatched message to handler %q asynchronously\n", target)
+	}
+
+	return nil
 }
 
 // RuleEngineBuiltin evaluates a list of conditions and executes the first matching one.

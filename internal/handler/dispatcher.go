@@ -1119,3 +1119,37 @@ func (d *Dispatcher) connToMessage(ctx *template.TemplateContext) *ws.Message {
 		},
 	}
 }
+
+// silentConn wraps a Connection and discards all writes and closures.
+type silentConn struct {
+	Connection
+}
+
+func (s *silentConn) Write(msg *ws.Message) error {
+	return nil // Discard
+}
+
+func (s *silentConn) CloseWithCode(code int, reason string) error {
+	return nil // Discard
+}
+
+func (d *Dispatcher) cloneWithConn(conn Connection) *Dispatcher {
+	return &Dispatcher{
+		registry:         d.registry,
+		conn:             conn,
+		templateEngine:   d.templateEngine,
+		verbose:          d.verbose,
+		Log:              d.Log,
+		Error:            d.Error,
+		variables:        d.variables,
+		sessionVariables: d.sessionVariables,
+		systemEnv:        d.systemEnv,
+		sandbox:          d.sandbox,
+		allowlist:        d.allowlist,
+		_handlerHits:     d._handlerHits,
+		_activeHandlers:  d._activeHandlers,
+		serverStats:      d.serverStats,
+		topicManager:     d.topicManager,
+		kvManager:        d.kvManager,
+	}
+}
