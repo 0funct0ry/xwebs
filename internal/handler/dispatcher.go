@@ -75,6 +75,7 @@ type KVManager interface {
 type RedisManager interface {
 	Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error
 	Get(ctx context.Context, key string) (interface{}, error)
+	Del(ctx context.Context, key string) error
 	Close() error
 }
 

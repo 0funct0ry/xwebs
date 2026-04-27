@@ -58,6 +58,7 @@ func init() {
 	MustRegister(&ShadowBuiltin{})
 	MustRegister(&RedisSetBuiltin{})
 	MustRegister(&RedisGetBuiltin{})
+	MustRegister(&RedisDelBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -346,6 +347,40 @@ func (b *RedisGetBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action,
 
 	if d.verbose {
 		d.errorf("  [handler] redis-get: %s = %v (default=%q)\n", key, tmplCtx.RedisValue, a.Default)
+	}
+	return nil
+}
+
+// RedisDelBuiltin deletes a key from Redis.
+type RedisDelBuiltin struct{}
+
+func (b *RedisDelBuiltin) Name() string        { return "redis-del" }
+func (b *RedisDelBuiltin) Description() string { return "Delete a key from Redis." }
+func (b *RedisDelBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *RedisDelBuiltin) Validate(a Action) error {
+	if a.Key == "" {
+		return fmt.Errorf("builtin redis-del missing key")
+	}
+	return nil
+}
+
+func (b *RedisDelBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	if d.redisManager == nil {
+		return fmt.Errorf("builtin redis-del: redis manager not initialized (check --redis-url)")
+	}
+
+	key, err := d.templateEngine.Execute("redis-key", a.Key, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in redis key: %w", err)
+	}
+
+	if err := d.redisManager.Del(ctx, key); err != nil {
+		return fmt.Errorf("redis del error: %w", err)
+	}
+
+	if d.verbose {
+		d.errorf("  [handler] redis-del: %s\n", key)
 	}
 	return nil
 }

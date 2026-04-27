@@ -588,6 +588,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `round-robin` | Server | Distributes messages across a pool of client IDs in order (skips disconnected clients). Supports custom `message:` template. |
 | `redis-set` | Shared | Stores a key-value pair in a configured Redis instance (supports templates and TTL). |
 | `redis-get` | Shared | Retrieves a value from Redis into `.RedisValue` (supports default values and templates). |
+| `redis-del` | Shared | Deletes a key from Redis (supports templates). |
 | `sample`      | Shared | Pass every Nth message (set by `rate: N`) and drop the rest. Supports template expressions. |
 | `gate`        | Server | Conditional message processing based on KV store values (checks `key` against `expect`). |
 | `once`        | Server | Executes exactly once and then permanently disables the handler. |
@@ -808,6 +809,12 @@ handlers:
     value: "{{.Message | trimPrefix \"state:\"}}"
     ttl: "1h"
     respond: "State persisted to Redis"
+
+  - name: clear-state
+    match: "clear:*"
+    builtin: redis-del
+    key: "xwebs:state:{{.ConnectionID}}"
+    respond: "State cleared from Redis"
 
   # Debounce Example
   - name: burst-control

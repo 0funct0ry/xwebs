@@ -46,6 +46,13 @@ func (m *redisManager) Get(ctx context.Context, key string) (interface{}, error)
 	return val, err
 }
 
+func (m *redisManager) Del(ctx context.Context, key string) error {
+	if m == nil || m.client == nil {
+		return fmt.Errorf("redis manager not initialized (check --redis-url)")
+	}
+	return m.client.Del(ctx, key).Err()
+}
+
 func (m *redisManager) Close() error {
 	if m == nil || m.client == nil {
 		return nil
