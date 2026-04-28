@@ -36,6 +36,7 @@ type Handler struct {
 	Topic        string                 `yaml:"topic,omitempty"`      // Topic name (template) for subscribe/unsubscribe/publish builtins
 	Key          string                 `yaml:"key,omitempty"`        // Key (template) for KV builtins
 	Value        string                 `yaml:"value,omitempty"`      // Value (template) for KV builtins
+	Channel      string                 `yaml:"channel,omitempty"`    // Channel name (template) for redis-publish builtin
 	Target       string                 `yaml:"target,omitempty"`     // Upstream target URL for forward builtin
 	Pipeline     []PipelineStep         `yaml:"pipeline,omitempty"`   // Multi-step pipeline
 	Timeout      string                 `yaml:"timeout,omitempty"`    // Per-handler timeout
@@ -103,6 +104,7 @@ type PipelineStep struct {
 	Topic       string            `yaml:"topic,omitempty"`  // Topic name (template) for subscribe/unsubscribe/publish builtins
 	Key         string            `yaml:"key,omitempty"`    // Key (template) for KV builtins
 	Value       string            `yaml:"value,omitempty"`  // Value (template) for KV builtins
+	Channel     string            `yaml:"channel,omitempty"` // Channel name (template) for redis-publish builtin
 	Target      string            `yaml:"target,omitempty"` // Upstream target URL for forward builtin
 	As          string            `yaml:"as,omitempty"`     // Key to store results in .Steps.<name>
 	Timeout     string            `yaml:"timeout,omitempty"`
@@ -194,6 +196,7 @@ type Action struct {
 	Topic       string            `yaml:"topic,omitempty"`   // Topic name (template) for subscribe/unsubscribe/publish builtins
 	Key         string            `yaml:"key,omitempty"`     // Key (template) for KV builtins
 	Value       string            `yaml:"value,omitempty"`   // Value (template) for KV builtins
+	Channel     string            `yaml:"channel,omitempty"` // Channel name (template) for redis-publish builtin
 	Target      string            `yaml:"target,omitempty"`  // For "log" action (e.g. filename or "stdout", "stderr")
 	Timeout     string            `yaml:"timeout,omitempty"` // Timeout for shell/builtin actions
 	Delay       string            `yaml:"delay,omitempty"`   // Delay before execution
@@ -357,6 +360,7 @@ func (c *Config) Validate(mode RegistryMode) error {
 				Topic:     h.Topic,
 				Key:       h.Key,
 				Value:     h.Value,
+				Channel:   h.Channel,
 				Target:    h.Target,
 				Message:   h.Message,
 				TTL:       h.TTL,

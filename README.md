@@ -495,7 +495,7 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `--priority <n>`        | `-p`  | Execution priority (higher runs first)                                     |
 | `--run <cmd>`           | `-r`  | Shell command to execute on match                                          |
 | `--respond <tmpl>`      | `-R`  | Response template sent back to the client                                  |
-| `--builtin <name>`      | `-B`  | Builtin action: `subscribe`, `unsubscribe`, `publish`, `template`, `kv-*`, `sequence`, `redis-*`. |
+| `--builtin <name>`      | `-B`  | Builtin action: `subscribe`, `unsubscribe`, `publish`, `template`, `kv-*`, `sequence`, `redis-*`, `redis-publish`. |
 | `--topic <template>`    |       | Topic name template for builtin actions (required for `subscribe`, `unsubscribe`, `publish`) |
 | `--file <path>`         |       | Template file path for `template` builtin (can include template expressions) |
 | `--exclusive`           | `-e`  | Stop further handler matching after this one fires                         |
@@ -589,6 +589,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `redis-set` | Shared | Stores a key-value pair in a configured Redis instance (supports templates and TTL). |
 | `redis-get` | Shared | Retrieves a value from Redis into `.RedisValue` (supports default values and templates). |
 | `redis-del` | Shared | Deletes a key from Redis (supports templates). |
+| `redis-publish` | Shared | Publishes a message to a Redis Pub/Sub channel (supports templates). |
 | `sample`      | Shared | Pass every Nth message (set by `rate: N`) and drop the rest. Supports template expressions. |
 | `gate`        | Server | Conditional message processing based on KV store values (checks `key` against `expect`). |
 | `once`        | Server | Executes exactly once and then permanently disables the handler. |
@@ -726,6 +727,14 @@ handlers:
       X-API-Key: "{{kv \"api_key\"}}"
     body: '{"alert": "{{.Message | jq ".data"}}", "from": "{{.Conn.ID}}"}'
     respond: "Webhook sent! Status: {{.HttpStatus}}, Response: {{.HttpBody}}"
+ 
+  # Redis Publish Example
+  - name: redis-fanout
+    match: "event:*"
+    builtin: redis-publish
+    channel: "events"
+    message: '{"event": "{{.Message | trimPrefix "event:"}}", "from": "{{.Conn.ID}}"}'
+    respond: "Event published to Redis channel 'events'"
  
   # Structured Logging Example
   - name: traffic-audit

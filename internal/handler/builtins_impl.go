@@ -59,6 +59,7 @@ func init() {
 	MustRegister(&RedisSetBuiltin{})
 	MustRegister(&RedisGetBuiltin{})
 	MustRegister(&RedisDelBuiltin{})
+	MustRegister(&RedisPublishBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -384,6 +385,50 @@ func (b *RedisDelBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action,
 	}
 	return nil
 }
+ 
+// RedisPublishBuiltin publishes a message to a Redis Pub/Sub channel.
+type RedisPublishBuiltin struct{}
+ 
+func (b *RedisPublishBuiltin) Name() string { return "redis-publish" }
+func (b *RedisPublishBuiltin) Description() string {
+	return "Publish a message to a Redis Pub/Sub channel."
+}
+func (b *RedisPublishBuiltin) Scope() BuiltinScope { return Shared }
+ 
+func (b *RedisPublishBuiltin) Validate(a Action) error {
+	if a.Channel == "" {
+		return fmt.Errorf("builtin redis-publish missing channel")
+	}
+	if a.Message == "" {
+		return fmt.Errorf("builtin redis-publish missing message")
+	}
+	return nil
+}
+ 
+func (b *RedisPublishBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	if d.redisManager == nil {
+		return fmt.Errorf("builtin redis-publish: redis manager not initialized (check --redis-url)")
+	}
+ 
+	channel, err := d.templateEngine.Execute("redis-channel", a.Channel, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in redis channel: %w", err)
+	}
+	msg, err := d.templateEngine.Execute("redis-message", a.Message, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in redis message: %w", err)
+	}
+ 
+	if err := d.redisManager.Publish(ctx, channel, msg); err != nil {
+		return fmt.Errorf("redis publish error: %w", err)
+	}
+ 
+	if d.verbose {
+		d.errorf("  [handler] redis-publish: %s -> %s\n", channel, msg)
+	}
+	return nil
+}
+
 
 // KVGetBuiltin retrieves a value from the server's shared key-value store.
 type KVGetBuiltin struct{}

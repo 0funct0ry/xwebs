@@ -606,6 +606,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("      --split <n>           Percentage for handler_a in 'ab-test' (0-100, default 50)\n")
 				r.Printf("      --handler-a <name>    Target handler A for 'ab-test'\n")
 				r.Printf("      --handler-b <name>    Target handler B for 'ab-test'\n")
+				r.Printf("      --channel <name>      Redis channel name for 'redis-publish' builtin\n")
 				return nil
 			}
 
@@ -614,7 +615,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 				fs.SetOutput(r.Stdout())
 
-				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue, field, handlerA, handlerB string
+				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue, field, handlerA, handlerB, channel string
 				var ruleWhens, ruleResponds, responses, headers []string
 				var labels map[string]string
 				var priority, burst, maxMemory, split int
@@ -675,6 +676,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.IntVar(&split, "split", 0, "Percentage for handler_a in ab-test")
 				fs.StringVar(&handlerA, "handler-a", "", "Handler A for ab-test")
 				fs.StringVar(&handlerB, "handler-b", "", "Handler B for ab-test")
+				fs.StringVar(&channel, "channel", "", "Redis channel name for redis-publish")
 
 				if err := fs.Parse(args[1:]); err != nil {
 					if errors.Is(err, pflag.ErrHelp) {
@@ -750,6 +752,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					Field:      field,
 					HandlerA:   handlerA,
 					HandlerB:   handlerB,
+					Channel:    channel,
 					Rules:      make([]handler.Rule, 0),
 				}
 

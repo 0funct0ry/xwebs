@@ -28,6 +28,11 @@ func (m *MockRedisManager) Del(ctx context.Context, key string) error {
 	args := m.Called(ctx, key)
 	return args.Error(0)
 }
+ 
+func (m *MockRedisManager) Publish(ctx context.Context, channel string, message interface{}) error {
+	args := m.Called(ctx, channel, message)
+	return args.Error(0)
+}
 
 func (m *MockRedisManager) Close() error {
 	args := m.Called()
@@ -347,6 +352,87 @@ func TestRedisDelBuiltin(t *testing.T) {
 		}
 		tmplCtx := template.NewContext()
 
+		err := builtin.Execute(context.Background(), dNoRedis, a, tmplCtx)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "redis manager not initialized")
+	})
+}
+ 
+func TestRedisPublishBuiltin(t *testing.T) {
+	engine := template.New(false)
+	builtin := &RedisPublishBuiltin{}
+ 
+	t.Run("basic publish", func(t *testing.T) {
+		mockRedis := new(MockRedisManager)
+		d := &Dispatcher{
+			redisManager:   mockRedis,
+			templateEngine: engine,
+		}
+		a := &Action{
+			Channel: "test-channel",
+			Message: "test-message",
+		}
+		tmplCtx := template.NewContext()
+ 
+		mockRedis.On("Publish", mock.Anything, "test-channel", "test-message").Return(nil).Once()
+ 
+		err := builtin.Execute(context.Background(), d, a, tmplCtx)
+		assert.NoError(t, err)
+		mockRedis.AssertExpectations(t)
+	})
+ 
+	t.Run("template expressions", func(t *testing.T) {
+		mockRedis := new(MockRedisManager)
+		d := &Dispatcher{
+			redisManager:   mockRedis,
+			templateEngine: engine,
+		}
+		a := &Action{
+			Channel: "chan-{{.MessageIndex}}",
+			Message: "msg-{{.Message}}",
+		}
+		tmplCtx := template.NewContext()
+		tmplCtx.MessageIndex = 1
+		tmplCtx.Message = "hello"
+ 
+		mockRedis.On("Publish", mock.Anything, "chan-1", "msg-hello").Return(nil).Once()
+ 
+		err := builtin.Execute(context.Background(), d, a, tmplCtx)
+		assert.NoError(t, err)
+		mockRedis.AssertExpectations(t)
+	})
+ 
+	t.Run("redis error", func(t *testing.T) {
+		mockRedis := new(MockRedisManager)
+		d := &Dispatcher{
+			redisManager:   mockRedis,
+			templateEngine: engine,
+		}
+		a := &Action{
+			Channel: "test-channel",
+			Message: "test-message",
+		}
+		tmplCtx := template.NewContext()
+ 
+		mockRedis.On("Publish", mock.Anything, "test-channel", "test-message").Return(assert.AnError).Once()
+ 
+		err := builtin.Execute(context.Background(), d, a, tmplCtx)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "redis publish error")
+		mockRedis.AssertExpectations(t)
+	})
+ 
+	t.Run("missing redis manager", func(t *testing.T) {
+		dNoRedis := &Dispatcher{
+			redisManager:   nil,
+			templateEngine: engine,
+		}
+		a := &Action{
+			Channel: "test-channel",
+			Message: "test-message",
+		}
+		tmplCtx := template.NewContext()
+ 
 		err := builtin.Execute(context.Background(), dNoRedis, a, tmplCtx)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "redis manager not initialized")

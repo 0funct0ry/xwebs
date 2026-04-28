@@ -76,6 +76,7 @@ type RedisManager interface {
 	Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error
 	Get(ctx context.Context, key string) (interface{}, error)
 	Del(ctx context.Context, key string) error
+	Publish(ctx context.Context, channel string, message interface{}) error
 	Close() error
 }
 
@@ -473,6 +474,7 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 				Topic:       h.Topic,
 				Key:         h.Key,
 				Value:       h.Value,
+				Channel:     h.Channel,
 				Target:      h.Target,
 				Message:     h.Message,
 				Timeout:     h.Timeout,
@@ -582,6 +584,7 @@ func (d *Dispatcher) executePipeline(ctx context.Context, handlerName string, pi
 			action.Topic = step.Topic
 			action.Key = step.Key
 			action.Value = step.Value
+			action.Channel = step.Channel
 			action.Target = step.Target
 			action.Message = step.Message
 			action.TTL = step.TTL

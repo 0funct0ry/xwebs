@@ -52,6 +52,13 @@ func (m *redisManager) Del(ctx context.Context, key string) error {
 	}
 	return m.client.Del(ctx, key).Err()
 }
+ 
+func (m *redisManager) Publish(ctx context.Context, channel string, message interface{}) error {
+	if m == nil || m.client == nil {
+		return fmt.Errorf("redis manager not initialized (check --redis-url)")
+	}
+	return m.client.Publish(ctx, channel, message).Err()
+}
 
 func (m *redisManager) Close() error {
 	if m == nil || m.client == nil {
