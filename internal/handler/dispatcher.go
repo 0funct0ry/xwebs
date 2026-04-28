@@ -14,6 +14,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+
 	"github.com/0funct0ry/xwebs/internal/shell"
 	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/0funct0ry/xwebs/internal/ws"
@@ -77,6 +79,8 @@ type RedisManager interface {
 	Get(ctx context.Context, key string) (interface{}, error)
 	Del(ctx context.Context, key string) error
 	Publish(ctx context.Context, channel string, message interface{}) error
+	Subscribe(ctx context.Context, channels ...string) *redis.PubSub
+	PSubscribe(ctx context.Context, patterns ...string) *redis.PubSub
 	Close() error
 }
 

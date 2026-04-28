@@ -42,8 +42,9 @@ type Handler struct {
 	Timeout      string                 `yaml:"timeout,omitempty"`    // Per-handler timeout
 	Retry        *RetryConfig           `yaml:"retry,omitempty"`      // Automatic retry on failure
 	RateLimit    string                 `yaml:"rate_limit,omitempty"` // Per-handler rate limit (e.g. "10/s", "100/m")
-	Debounce     string                 `yaml:"debounce,omitempty"`   // Per-handler debounce duration (e.g. "500ms")
-	Delay        string                 `yaml:"delay,omitempty"`      // Per-handler delay (e.g. "1s")
+	Debounce          string                 `yaml:"debounce,omitempty"`   // Per-handler debounce duration (e.g. "500ms")
+	Delay             string                 `yaml:"delay,omitempty"`      // Per-handler delay (e.g. "1s")
+	ReconnectInterval string                 `yaml:"reconnect_interval,omitempty"` // For redis-subscribe builtin
 	Message      string                 `yaml:"message,omitempty"`    // Message content (template) for broadcast/publish builtins
 	Window       string                 `yaml:"window,omitempty"`     // For throttle-broadcast builtin
 	TTL          string                 `yaml:"ttl,omitempty"`        // TTL (template) for KV builtins
@@ -101,15 +102,16 @@ type RetryConfig struct {
 type PipelineStep struct {
 	Run         string            `yaml:"run,omitempty"`
 	Builtin     string            `yaml:"builtin,omitempty"`
-	Topic       string            `yaml:"topic,omitempty"`  // Topic name (template) for subscribe/unsubscribe/publish builtins
-	Key         string            `yaml:"key,omitempty"`    // Key (template) for KV builtins
-	Value       string            `yaml:"value,omitempty"`  // Value (template) for KV builtins
+	Topic       string            `yaml:"topic,omitempty"`   // Topic name (template) for subscribe/unsubscribe/publish builtins
+	Key         string            `yaml:"key,omitempty"`     // Key (template) for KV builtins
+	Value       string            `yaml:"value,omitempty"`   // Value (template) for KV builtins
 	Channel     string            `yaml:"channel,omitempty"` // Channel name (template) for redis-publish builtin
-	Target      string            `yaml:"target,omitempty"` // Upstream target URL for forward builtin
-	As          string            `yaml:"as,omitempty"`     // Key to store results in .Steps.<name>
+	Target      string            `yaml:"target,omitempty"`  // Upstream target URL for forward builtin
+	As          string            `yaml:"as,omitempty"`      // Key to store results in .Steps.<name>
 	Timeout     string            `yaml:"timeout,omitempty"`
-	Delay       string            `yaml:"delay,omitempty"`
-	Respond     string            `yaml:"respond,omitempty"`
+	Delay             string            `yaml:"delay,omitempty"`
+	Respond           string            `yaml:"respond,omitempty"`
+	ReconnectInterval string            `yaml:"reconnect_interval,omitempty"` // For redis-subscribe builtin
 	Message     string            `yaml:"message,omitempty"`    // Message content (template) for broadcast/publish builtins
 	Window      string            `yaml:"window,omitempty"`     // For throttle-broadcast builtin
 	TTL         string            `yaml:"ttl,omitempty"`        // TTL (template) for KV builtins
@@ -145,8 +147,8 @@ type PipelineStep struct {
 	OnEmpty     string            `yaml:"on_empty,omitempty"`  // For round-robin builtin
 	Field       string            `yaml:"field,omitempty"`     // For ab-test builtin
 	Split       *int              `yaml:"split,omitempty"`     // For ab-test builtin
-	HandlerA    string            `yaml:"handler_a,omitempty"`  // For ab-test builtin
-	HandlerB    string            `yaml:"handler_b,omitempty"`  // For ab-test builtin
+	HandlerA    string            `yaml:"handler_a,omitempty"` // For ab-test builtin
+	HandlerB    string            `yaml:"handler_b,omitempty"` // For ab-test builtin
 	Rules       []Rule            `yaml:"rules,omitempty"`     // For rule-engine builtin
 }
 
@@ -199,8 +201,9 @@ type Action struct {
 	Channel     string            `yaml:"channel,omitempty"` // Channel name (template) for redis-publish builtin
 	Target      string            `yaml:"target,omitempty"`  // For "log" action (e.g. filename or "stdout", "stderr")
 	Timeout     string            `yaml:"timeout,omitempty"` // Timeout for shell/builtin actions
-	Delay       string            `yaml:"delay,omitempty"`   // Delay before execution
-	Respond     string            `yaml:"respond,omitempty"` // Override response for echo or generic follow-up
+	Delay             string            `yaml:"delay,omitempty"`   // Delay before execution
+	Respond           string            `yaml:"respond,omitempty"` // Override response for echo or generic follow-up
+	ReconnectInterval string            `yaml:"reconnect_interval,omitempty"` // For redis-subscribe builtin
 	Window      string            `yaml:"window,omitempty"`  // For throttle-broadcast builtin
 	TTL         string            `yaml:"ttl,omitempty"`     // TTL (template) for KV builtins
 	Default     string            `yaml:"default,omitempty"` // Default value (template) for KV builtins
@@ -234,11 +237,11 @@ type Action struct {
 	Targets     string            `yaml:"targets,omitempty"`    // For multicast builtin
 	Pool        string            `yaml:"pool,omitempty"`       // For round-robin builtin
 	OnEmpty     string            `yaml:"on_empty,omitempty"`   // For round-robin builtin
-	Field       string            `yaml:"field,omitempty"`       // For ab-test builtin
-	Split       *int              `yaml:"split,omitempty"`       // For ab-test builtin
-	HandlerA    string            `yaml:"handler_a,omitempty"`    // For ab-test builtin
-	HandlerB    string            `yaml:"handler_b,omitempty"`    // For ab-test builtin
-	Rules       []Rule            `yaml:"rules,omitempty"`     // For rule-engine builtin
+	Field       string            `yaml:"field,omitempty"`      // For ab-test builtin
+	Split       *int              `yaml:"split,omitempty"`      // For ab-test builtin
+	HandlerA    string            `yaml:"handler_a,omitempty"`  // For ab-test builtin
+	HandlerB    string            `yaml:"handler_b,omitempty"`  // For ab-test builtin
+	Rules       []Rule            `yaml:"rules,omitempty"`      // For rule-engine builtin
 	BaseDir     string            `yaml:"-"`                    // For relative path resolution in builtins
 	HandlerName string            `yaml:"-"`                    // Internal use only
 }
@@ -285,7 +288,10 @@ func (c *Config) Validate(mode RegistryMode) error {
 		hasExecution := len(h.Actions) > 0 || h.Run != "" || h.Respond != "" ||
 			h.Builtin != "" || len(h.Pipeline) > 0 || h.Script != "" || h.File != ""
 
-		if !hasMatch && hasExecution {
+		// redis-subscribe is a source builtin and doesn't require a match condition
+		isRedisSubscribe := h.Builtin == "redis-subscribe"
+
+		if !hasMatch && hasExecution && !isRedisSubscribe {
 			return fmt.Errorf("handler %q is missing a match condition (pattern, regex, jq, json_path, json_schema, template, binary, all, or any)", h.Name)
 		}
 
@@ -367,9 +373,10 @@ func (c *Config) Validate(mode RegistryMode) error {
 				Default:   h.Default,
 				Timeout:   h.Timeout,
 				Delay:     h.Delay,
-				Respond:   h.Respond,
-				Responses: h.Responses,
-				Loop:      h.Loop,
+				Respond:           h.Respond,
+				ReconnectInterval: h.ReconnectInterval,
+				Responses:         h.Responses,
+				Loop:              h.Loop,
 				PerClient: h.PerClient,
 				File:      h.File,
 				Script:    h.Script,

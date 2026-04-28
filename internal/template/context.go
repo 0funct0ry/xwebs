@@ -182,6 +182,10 @@ type TemplateContext struct {
 
 	// Sticky Broadcast
 	Retained interface{} `json:"retained,omitempty"`
+
+	// Redis Subscribe
+	Channel string `json:"channel,omitempty"`
+	Source  string `json:"source,omitempty"`
 }
 
 // NewContext creates a new TemplateContext with initialized maps.

@@ -48,7 +48,7 @@ type Options struct {
 	StaticServePort     int
 	StaticGenerate      bool
 	StaticGenerateStyle string
- 
+
 	RedisManager handler.RedisManager
 }
 
@@ -249,7 +249,7 @@ func WithStaticGenerateStyle(style string) Option {
 		o.StaticGenerateStyle = style
 	}
 }
- 
+
 // WithRedisManager sets the Redis manager.
 func WithRedisManager(m handler.RedisManager) Option {
 	return func(o *Options) {

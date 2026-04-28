@@ -3,9 +3,9 @@ package repl
 import (
 	"context"
 	"encoding/base64"
-	"errors"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -556,7 +556,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("  -p, --priority <n>        Numeric priority (higher runs first)\n")
 				r.Printf("  -r, --run <cmd>           Shell command to run on match\n")
 				r.Printf("  -R, --respond <tmpl>      Response template to send back\n")
-				r.Printf("  -B, --builtin <name>      Builtin action (subscribe, unsubscribe, publish, forward)\n")
+				r.Printf("  -B, --builtin <name>      Builtin action (subscribe, unsubscribe, publish, forward, redis-subscribe)\n")
 				r.Printf("      --topic <template>    Topic name template for builtin actions\n")
 				r.Printf("      --target <url>        Upstream target URL for 'forward' builtin\n")
 				r.Printf("  -M, --message <template>  Message template for broadcast or publish\n")
@@ -606,7 +606,8 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("      --split <n>           Percentage for handler_a in 'ab-test' (0-100, default 50)\n")
 				r.Printf("      --handler-a <name>    Target handler A for 'ab-test'\n")
 				r.Printf("      --handler-b <name>    Target handler B for 'ab-test'\n")
-				r.Printf("      --channel <name>      Redis channel name for 'redis-publish' builtin\n")
+				r.Printf("      --channel <name>      Redis channel name for 'redis-publish' or 'redis-subscribe'\n")
+				r.Printf("      --reconnect-interval <dur> Reconnect interval for 'redis-subscribe'\n")
 				return nil
 			}
 
@@ -615,7 +616,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 				fs.SetOutput(r.Stdout())
 
-				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue, field, handlerA, handlerB, channel string
+				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue, field, handlerA, handlerB, channel, reconnectInterval string
 				var ruleWhens, ruleResponds, responses, headers []string
 				var labels map[string]string
 				var priority, burst, maxMemory, split int
@@ -676,7 +677,8 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.IntVar(&split, "split", 0, "Percentage for handler_a in ab-test")
 				fs.StringVar(&handlerA, "handler-a", "", "Handler A for ab-test")
 				fs.StringVar(&handlerB, "handler-b", "", "Handler B for ab-test")
-				fs.StringVar(&channel, "channel", "", "Redis channel name for redis-publish")
+				fs.StringVar(&channel, "channel", "", "Redis channel name for redis-publish or redis-subscribe")
+				fs.StringVar(&reconnectInterval, "reconnect-interval", "", "Reconnect interval for redis-subscribe")
 
 				if err := fs.Parse(args[1:]); err != nil {
 					if errors.Is(err, pflag.ErrHelp) {
@@ -685,7 +687,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					return fmt.Errorf("parsing flags: %w", err)
 				}
 
-				if match == "" {
+				if match == "" && builtin != "redis-subscribe" {
 					return fmt.Errorf("-m/--match is required")
 				}
 
@@ -753,6 +755,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					HandlerA:   handlerA,
 					HandlerB:   handlerB,
 					Channel:    channel,
+					ReconnectInterval: reconnectInterval,
 					Rules:      make([]handler.Rule, 0),
 				}
 

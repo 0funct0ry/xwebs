@@ -60,6 +60,20 @@ func (m *redisManager) Publish(ctx context.Context, channel string, message inte
 	return m.client.Publish(ctx, channel, message).Err()
 }
 
+func (m *redisManager) Subscribe(ctx context.Context, channels ...string) *redis.PubSub {
+	if m == nil || m.client == nil {
+		return nil
+	}
+	return m.client.Subscribe(ctx, channels...)
+}
+
+func (m *redisManager) PSubscribe(ctx context.Context, patterns ...string) *redis.PubSub {
+	if m == nil || m.client == nil {
+		return nil
+	}
+	return m.client.PSubscribe(ctx, patterns...)
+}
+
 func (m *redisManager) Close() error {
 	if m == nil || m.client == nil {
 		return nil

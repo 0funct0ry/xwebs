@@ -60,6 +60,7 @@ func init() {
 	MustRegister(&RedisGetBuiltin{})
 	MustRegister(&RedisDelBuiltin{})
 	MustRegister(&RedisPublishBuiltin{})
+	MustRegister(&RedisSubscribeBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -427,6 +428,32 @@ func (b *RedisPublishBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Act
 		d.errorf("  [handler] redis-publish: %s -> %s\n", channel, msg)
 	}
 	return nil
+}
+
+// RedisSubscribeBuiltin subscribes to a Redis channel and broadcasts messages.
+// This is a source builtin, meaning it is started by the server at load time.
+type RedisSubscribeBuiltin struct{}
+
+func (b *RedisSubscribeBuiltin) Name() string { return "redis-subscribe" }
+func (b *RedisSubscribeBuiltin) Description() string {
+	return "Subscribe to a Redis channel and deliver messages to WebSocket clients."
+}
+func (b *RedisSubscribeBuiltin) Scope() BuiltinScope { return ServerOnly }
+
+func (b *RedisSubscribeBuiltin) Validate(a Action) error {
+	if a.Channel == "" {
+		return fmt.Errorf("builtin redis-subscribe missing channel")
+	}
+	if a.ReconnectInterval != "" {
+		if _, err := time.ParseDuration(a.ReconnectInterval); err != nil {
+			return fmt.Errorf("invalid reconnect_interval %q: %w", a.ReconnectInterval, err)
+		}
+	}
+	return nil
+}
+
+func (b *RedisSubscribeBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	return fmt.Errorf("builtin %q is a source action and cannot be executed in a reactive flow", b.Name())
 }
 
 

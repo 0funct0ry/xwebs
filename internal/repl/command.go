@@ -3,8 +3,8 @@ package repl
 import (
 	"bufio"
 	"context"
-	"errors"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -1313,7 +1313,7 @@ func (r *REPL) RegisterCommonCommands() {
 				r.Printf("  --priority <n>        Numeric priority (higher runs first)\n")
 				r.Printf("  --run <cmd>           Shell command to run on match\n")
 				r.Printf("  --respond <tmpl>      Response template to send after run\n")
-				r.Printf("  -B, --builtin <name>  Builtin action (noop)\n")
+				r.Printf("  -B, --builtin <name>  Builtin action (noop, redis-subscribe)\n")
 				r.Printf("  --topic <template>    Topic name template for builtin actions\n")
 				r.Printf("  --exclusive           Stop further matching if this handler matches\n")
 				r.Printf("  --sequential          Run handler actions sequentially (disable concurrency)\n")
@@ -1345,6 +1345,9 @@ func (r *REPL) RegisterCommonCommands() {
 				r.Printf("  --key <template>      Key template for KV or Redis builtins\n")
 				r.Printf("  --value <template>    Value template for KV or Redis builtins\n")
 				r.Printf("  --ttl <duration>      TTL template for KV or Redis builtins\n")
+				r.Printf("  --channel <name>      Redis channel for 'redis-publish' or 'redis-subscribe'\n")
+				r.Printf("  --reconnect-interval <dur> Reconnect interval for 'redis-subscribe'\n")
+				r.Printf("  --on-error <tmpl>     Error template for 'redis-subscribe'\n")
 				return nil
 			}
 
@@ -1508,7 +1511,7 @@ func (r *REPL) RegisterCommonCommands() {
 			fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 			fs.SetOutput(nil) // Suppress automatic usage printing on error
 
-			var name, match, matchType, run, respond, builtin, topic, rateLimit, debounce, code, reason, message, target, script, targets, window, scope string
+			var name, match, matchType, run, respond, builtin, topic, rateLimit, debounce, code, reason, message, target, script, targets, window, scope, channel, reconnectInterval, onError string
 			var key, value, ttl string
 			var labels map[string]string
 			var priority, maxMemory int
@@ -1567,6 +1570,9 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.IntVar(&split, "split", 0, "Percentage for handler_a in ab-test")
 			fs.StringVar(&handlerA, "handler-a", "", "Handler A for ab-test")
 			fs.StringVar(&handlerB, "handler-b", "", "Handler B for ab-test")
+			fs.StringVar(&channel, "channel", "", "Redis channel name for redis-publish or redis-subscribe")
+			fs.StringVar(&reconnectInterval, "reconnect-interval", "", "Reconnect interval for redis-subscribe")
+			fs.StringVar(&onError, "on-error", "", "Error response template")
 
 			if err := fs.Parse(args[1:]); err != nil {
 				if errors.Is(err, pflag.ErrHelp) {
@@ -1578,7 +1584,7 @@ func (r *REPL) RegisterCommonCommands() {
 			}
 
 			// Validation
-			if match == "" {
+			if match == "" && builtin != "redis-subscribe" {
 				return fmt.Errorf("--match is required")
 			}
 
@@ -1633,6 +1639,9 @@ func (r *REPL) RegisterCommonCommands() {
 				Key:       key,
 				Value:     value,
 				TTL:       ttl,
+				Channel:   channel,
+				ReconnectInterval: reconnectInterval,
+				OnErrorMsg: onError,
 			}
 
 			if fs.Changed("split") {

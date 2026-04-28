@@ -90,7 +90,7 @@ func TestRuleEngineBuiltin(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			conn := &ruleEngineMockConn{}
 			dispatcher := NewDispatcher(registry, conn, engine, true, nil, nil, false, nil, nil, nil, nil, nil)
-			
+
 			tmplCtx := template.NewContext()
 			msg := &ws.Message{Data: []byte(tt.msg), Metadata: ws.MessageMetadata{Direction: "received"}}
 			dispatcher.populateTemplateContext(tmplCtx, msg)

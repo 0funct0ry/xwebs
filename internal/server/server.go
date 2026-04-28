@@ -18,6 +18,7 @@ import (
 	"github.com/0funct0ry/xwebs/internal/ws"
 	"github.com/0funct0ry/xwebs/ui"
 	"github.com/gorilla/websocket"
+	"github.com/redis/go-redis/v9"
 )
 
 type serverState int32
@@ -47,6 +48,9 @@ type Server struct {
 	state     serverState
 	paused    atomic.Bool
 	pauseCond *sync.Cond
+
+	sourceMu      sync.Mutex
+	sourceCancels map[string]context.CancelFunc
 }
 
 // New creates a new WebSocket server with the given options.
@@ -66,6 +70,7 @@ func New(opts ...Option) (*Server, error) {
 		state:       serverRunning,
 		staticMgr:   NewStaticManager(options.Logger),
 		redisMgr:    options.RedisManager,
+		sourceCancels: make(map[string]context.CancelFunc),
 	}
 	s.pauseCond = sync.NewCond(&s.mu)
 
@@ -251,6 +256,9 @@ func (s *Server) Start(ctx context.Context) error {
 		}
 	}()
 
+	// Start source handlers (e.g. redis-subscribe)
+	s.startSourceHandlers(ctx)
+
 	select {
 	case <-ctx.Done():
 		return s.Stop()
@@ -283,6 +291,9 @@ func (s *Server) Stop() error {
 
 	// Close all managed static servers
 	s.staticMgr.StopAll()
+
+	// Stop all source handlers
+	s.stopSourceHandlers()
 
 	// Wait for all connections to finish cleaning up
 	s.wg.Wait()
@@ -713,22 +724,39 @@ func (s *Server) GetTemplateEngine() *template.Engine {
 }
 
 // AddHandler adds a new message handler to the server at runtime.
+// AddHandler registers a new message handler at runtime and starts it if it's a source.
 func (s *Server) AddHandler(h handler.Handler) error {
-	return s.registry.Add(h)
+	if err := s.registry.Add(h); err != nil {
+		return err
+	}
+	s.startSourceHandler(h, context.Background())
+	return nil
 }
 
 // UpdateHandler replaces an existing message handler at runtime.
 func (s *Server) UpdateHandler(h handler.Handler) error {
-	return s.registry.UpdateHandler(h)
+	s.stopSourceHandler(h.Name)
+	if err := s.registry.UpdateHandler(h); err != nil {
+		return err
+	}
+	s.startSourceHandler(h, context.Background())
+	return nil
 }
 
 // DeleteHandler removes a message handler from the server at runtime.
 func (s *Server) DeleteHandler(name string) error {
+	s.stopSourceHandler(name)
 	return s.registry.Delete(name)
 }
 
 // RenameHandler renames a message handler at runtime.
 func (s *Server) RenameHandler(oldName, newName string) error {
+	s.sourceMu.Lock()
+	if cancel, ok := s.sourceCancels[oldName]; ok {
+		s.sourceCancels[newName] = cancel
+		delete(s.sourceCancels, oldName)
+	}
+	s.sourceMu.Unlock()
 	return s.registry.RenameHandler(oldName, newName)
 }
 
@@ -744,21 +772,36 @@ func (s *Server) GetVariables() map[string]interface{} {
 
 // ReloadHandlers replaces all handlers in the registry.
 func (s *Server) ReloadHandlers(handlers []handler.Handler, variables map[string]interface{}) error {
+	// Stop existing source handlers before replacing
+	s.stopSourceHandlers()
+
 	if err := s.registry.ReplaceHandlers(handlers); err != nil {
 		return err
 	}
 	s.opts.Handlers = handlers
 	s.opts.Variables = variables
+
+	// Start new source handlers
+	// We use background context as the server is already running
+	s.startSourceHandlers(context.Background())
+
 	return nil
 }
 
 // EnableHandler enables a handler by name.
 func (s *Server) EnableHandler(name string) error {
-	return s.registry.EnableHandler(name)
+	if err := s.registry.EnableHandler(name); err != nil {
+		return err
+	}
+	if h, ok := s.registry.GetHandler(name); ok {
+		s.startSourceHandler(h, context.Background())
+	}
+	return nil
 }
 
 // DisableHandler disables a handler by name.
 func (s *Server) DisableHandler(name string) error {
+	s.stopSourceHandler(name)
 	return s.registry.DisableHandler(name)
 }
 
@@ -874,6 +917,268 @@ func (s *Server) StartStaticServe(port int, root string, path string, isFile boo
 		Path:  path,
 		IsDir: !isFile,
 	})
+}
+
+func (s *Server) startSourceHandlers(ctx context.Context) {
+	for _, h := range s.registry.Handlers() {
+		s.startSourceHandler(h, ctx)
+	}
+}
+
+func (s *Server) startSourceHandler(h handler.Handler, ctx context.Context) {
+	if h.Builtin != "redis-subscribe" || s.registry.IsDisabled(h.Name) {
+		return
+	}
+
+	s.sourceMu.Lock()
+	defer s.sourceMu.Unlock()
+
+	// Already running?
+	if _, ok := s.sourceCancels[h.Name]; ok {
+		return
+	}
+
+	if s.redisMgr == nil {
+		// Default to localhost if not configured
+		mgr, err := handler.NewRedisManager("redis://localhost:6379")
+		if err != nil {
+			s.errorf("  [server] error initializing default redis for %q: %v\n", h.Name, err)
+			return
+		}
+		s.redisMgr = mgr
+		s.logf("  [server] initialized default Redis: redis://localhost:6379\n")
+	}
+
+	// Capture handler for closure
+	handlerCopy := h
+	sourceCtx, cancel := context.WithCancel(ctx)
+	s.sourceCancels[h.Name] = cancel
+	go s.runRedisSubscribe(sourceCtx, &handlerCopy)
+}
+
+func (s *Server) stopSourceHandlers() {
+	s.sourceMu.Lock()
+	defer s.sourceMu.Unlock()
+
+	for name, cancel := range s.sourceCancels {
+		cancel()
+		delete(s.sourceCancels, name)
+	}
+}
+
+func (s *Server) stopSourceHandler(name string) {
+	s.sourceMu.Lock()
+	defer s.sourceMu.Unlock()
+
+	if cancel, ok := s.sourceCancels[name]; ok {
+		cancel()
+		delete(s.sourceCancels, name)
+	}
+}
+
+func (s *Server) runRedisSubscribe(ctx context.Context, h *handler.Handler) {
+	s.logf("  [source:%s] starting redis-subscribe on %q\n", h.Name, h.Channel)
+
+	baseInterval := 2 * time.Second
+	if h.ReconnectInterval != "" {
+		if d, err := time.ParseDuration(h.ReconnectInterval); err == nil {
+			baseInterval = d
+		}
+	}
+
+	attempt := 0
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		// (Re)connect and subscribe
+		var pubsub *redis.PubSub
+		isPattern := strings.ContainsAny(h.Channel, "*?")
+		if isPattern {
+			pubsub = s.redisMgr.PSubscribe(ctx, h.Channel)
+		} else {
+			pubsub = s.redisMgr.Subscribe(ctx, h.Channel)
+		}
+
+		if pubsub == nil {
+			s.errorf("  [source:%s] failed to subscribe to %q (redis manager not initialized)\n", h.Name, h.Channel)
+			return
+		}
+
+		// Wait for subscription confirmation
+		_, err := pubsub.Receive(ctx)
+		if err != nil {
+			s.errorf("  [source:%s] subscription error for %q: %v\n", h.Name, h.Channel, err)
+			
+			// Trigger on_error if configured (only on first failure of a connection attempt)
+			if attempt == 0 && h.OnErrorMsg != "" {
+				s.broadcastSourceError(h)
+			}
+
+			// Backoff and retry
+			attempt++
+			wait := baseInterval * time.Duration(1<<(uint(attempt-1)))
+			if wait > 30*time.Second {
+				wait = 30 * time.Second
+			}
+			
+			select {
+			case <-ctx.Done():
+				pubsub.Close()
+				return
+			case <-time.After(wait):
+				pubsub.Close()
+				continue
+			}
+		}
+
+		s.logf("  [source:%s] subscribed to %q\n", h.Name, h.Channel)
+		attempt = 0 // Reset on success
+
+		// Message loop
+	loop:
+		for {
+			msg, err := pubsub.ReceiveMessage(ctx)
+			if err != nil {
+				// Context cancellation is not an error we want to log as a disconnect
+				if ctx.Err() != nil {
+					pubsub.Close()
+					return
+				}
+				break loop
+			}
+			s.handleRedisMessage(h, msg)
+		}
+
+		pubsub.Close()
+		s.errorf("  [source:%s] redis connection lost for %q, reconnecting...\n", h.Name, h.Channel)
+		// Trigger on_error on disconnect
+		if h.OnErrorMsg != "" {
+			s.broadcastSourceError(h)
+		}
+
+		// Exponential backoff
+		attempt++
+		wait := baseInterval * time.Duration(1<<(uint(attempt-1)))
+		if wait > 30*time.Second {
+			wait = 30 * time.Second
+		}
+		
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(wait):
+			continue
+		}
+	}
+}
+
+func (s *Server) handleRedisMessage(h *handler.Handler, msg *redis.Message) {
+	if s.opts.Verbose {
+		s.logf("  [source:%s] received redis message on %q: %s\n", h.Name, msg.Channel, msg.Payload)
+	}
+
+	tmplCtx := template.NewContext()
+	tmplCtx.Message = msg.Payload
+	tmplCtx.Channel = msg.Channel
+	tmplCtx.Source = "redis"
+	tmplCtx.Vars["Message"] = msg.Payload
+	tmplCtx.Vars["Source"] = "redis"
+	tmplCtx.Vars["Channel"] = msg.Channel
+	
+	// Add server context
+	uptime := s.GetUptime()
+	tmplCtx.Server = &template.ServerContext{
+		ClientCount:     s.GetClientCount(),
+		Clients:         s.GetClients(),
+		Uptime:          uptime,
+		UptimeFormatted: template.FormatUptime(uptime),
+	}
+
+	// 1. Transform message if respond: is set
+	payload := msg.Payload
+	if h.Respond != "" {
+		res, err := s.opts.TemplateEngine.Execute("respond", h.Respond, tmplCtx)
+		if err != nil {
+			s.errorf("  [source:%s] error rendering respond template: %v\n", h.Name, err)
+			return
+		}
+		payload = res
+	}
+
+	wsMsg := &ws.Message{
+		Type: ws.TextMessage,
+		Data: []byte(payload),
+		Metadata: ws.MessageMetadata{
+			Direction: "sent",
+			Timestamp: time.Now(),
+		},
+	}
+
+	// 2. Deliver message
+	if h.Topic != "" {
+		topic, err := s.opts.TemplateEngine.Execute("topic", h.Topic, tmplCtx)
+		if err != nil {
+			s.errorf("  [source:%s] error rendering topic template: %v\n", h.Name, err)
+			return
+		}
+		topic = strings.TrimSpace(topic)
+		if topic != "" {
+			delivered, _ := s.topics.Publish(topic, wsMsg)
+			if s.opts.Verbose {
+				s.logf("  [source:%s] delivered to topic %q (%d clients)\n", h.Name, topic, delivered)
+			}
+		}
+	} else if h.Target != "" {
+		target, err := s.opts.TemplateEngine.Execute("target", h.Target, tmplCtx)
+		if err != nil {
+			s.errorf("  [source:%s] error rendering target template: %v\n", h.Name, err)
+			return
+		}
+		target = strings.TrimSpace(target)
+		if target != "" {
+			if err := s.Send(target, wsMsg); err != nil && s.opts.Verbose {
+				s.errorf("  [source:%s] failed to send to client %q: %v\n", h.Name, target, err)
+			}
+		}
+	} else {
+		// Broadcast to all
+		count := s.Broadcast(wsMsg)
+		if s.opts.Verbose {
+			s.logf("  [source:%s] broadcasted to %d clients\n", h.Name, count)
+		}
+	}
+}
+
+func (s *Server) broadcastSourceError(h *handler.Handler) {
+	tmplCtx := template.NewContext()
+	tmplCtx.Source = "redis"
+	tmplCtx.Channel = h.Channel
+	tmplCtx.Vars["Source"] = "redis"
+	tmplCtx.Vars["Channel"] = h.Channel
+
+	res, err := s.opts.TemplateEngine.Execute("on_error", h.OnErrorMsg, tmplCtx)
+	if err != nil {
+		s.errorf("  [source:%s] error rendering on_error template: %v\n", h.Name, err)
+		return
+	}
+
+	if res == "" {
+		return
+	}
+
+	wsMsg := &ws.Message{
+		Type: ws.TextMessage,
+		Data: []byte(res),
+		Metadata: ws.MessageMetadata{
+			Direction: "sent",
+			Timestamp: time.Now(),
+		},
+	}
+	s.Broadcast(wsMsg)
 }
 
 // StopStaticServe stops the static server on the given port.
