@@ -61,6 +61,8 @@ func init() {
 	MustRegister(&RedisDelBuiltin{})
 	MustRegister(&RedisPublishBuiltin{})
 	MustRegister(&RedisSubscribeBuiltin{})
+	MustRegister(&RedisLPushBuiltin{})
+	MustRegister(&RedisRPopBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -426,6 +428,103 @@ func (b *RedisPublishBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Act
  
 	if d.verbose {
 		d.errorf("  [handler] redis-publish: %s -> %s\n", channel, msg)
+	}
+	return nil
+}
+
+// RedisLPushBuiltin pushes a value onto the left of a Redis list.
+type RedisLPushBuiltin struct{}
+
+func (b *RedisLPushBuiltin) Name() string { return "redis-lpush" }
+func (b *RedisLPushBuiltin) Description() string {
+	return "Push a value onto the left of a Redis list."
+}
+func (b *RedisLPushBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *RedisLPushBuiltin) Validate(a Action) error {
+	if a.Key == "" {
+		return fmt.Errorf("builtin redis-lpush missing key")
+	}
+	if a.Value == "" {
+		return fmt.Errorf("builtin redis-lpush missing value")
+	}
+	return nil
+}
+
+func (b *RedisLPushBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	if d.redisManager == nil {
+		return fmt.Errorf("builtin redis-lpush: redis manager not initialized (check --redis-url)")
+	}
+
+	key, err := d.templateEngine.Execute("redis-key", a.Key, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in redis key: %w", err)
+	}
+	val, err := d.templateEngine.Execute("redis-value", a.Value, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in redis value: %w", err)
+	}
+
+	if err := d.redisManager.LPush(ctx, key, val); err != nil {
+		return fmt.Errorf("redis lpush error: %w", err)
+	}
+
+	if d.verbose {
+		d.errorf("  [handler] redis-lpush: %s <- %v\n", key, val)
+	}
+	return nil
+}
+
+// RedisRPopBuiltin pops a value from the right of a Redis list.
+type RedisRPopBuiltin struct{}
+
+func (b *RedisRPopBuiltin) Name() string { return "redis-rpop" }
+func (b *RedisRPopBuiltin) Description() string {
+	return "Pop a value from the right of a Redis list into .RedisValue."
+}
+func (b *RedisRPopBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *RedisRPopBuiltin) Validate(a Action) error {
+	if a.Key == "" {
+		return fmt.Errorf("builtin redis-rpop missing key")
+	}
+	return nil
+}
+
+func (b *RedisRPopBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	if d.redisManager == nil {
+		return fmt.Errorf("builtin redis-rpop: redis manager not initialized (check --redis-url)")
+	}
+
+	key, err := d.templateEngine.Execute("redis-key", a.Key, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in redis key: %w", err)
+	}
+
+	val, err := d.redisManager.RPop(ctx, key)
+	if err != nil {
+		return fmt.Errorf("redis rpop error: %w", err)
+	}
+
+	if val != "" {
+		tmplCtx.RedisValue = val
+	} else {
+		// Empty list, use default if provided
+		if a.Default != "" {
+			defaultVal, err := d.templateEngine.Execute("redis-default", a.Default, tmplCtx)
+			if err != nil {
+				d.errorf("  [handler] redis-rpop: error rendering default template: %v\n", err)
+				tmplCtx.RedisValue = ""
+			} else {
+				tmplCtx.RedisValue = defaultVal
+			}
+		} else {
+			tmplCtx.RedisValue = ""
+		}
+	}
+
+	if d.verbose {
+		d.errorf("  [handler] redis-rpop: %s -> %v (default=%q)\n", key, tmplCtx.RedisValue, a.Default)
 	}
 	return nil
 }

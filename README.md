@@ -589,6 +589,8 @@ Topics are created automatically when the first client subscribes and removed wh
 | `redis-set` | Shared | Stores a key-value pair in a configured Redis instance (supports templates and TTL). |
 | `redis-get` | Shared | Retrieves a value from Redis into `.RedisValue` (supports default values and templates). |
 | `redis-del` | Shared | Deletes a key from Redis (supports templates). |
+| `redis-lpush` | Shared | Pushes a value onto the left of a Redis list (supports templates). |
+| `redis-rpop` | Shared | Pops a value from the right of a Redis list into `.RedisValue` (supports default and templates). |
 | `redis-publish` | Shared | Publishes a message to a Redis Pub/Sub channel (supports templates). |
 | `sample`      | Shared | Pass every Nth message (set by `rate: N`) and drop the rest. Supports template expressions. |
 | `gate`        | Server | Conditional message processing based on KV store values (checks `key` against `expect`). |
@@ -824,6 +826,21 @@ handlers:
     builtin: redis-del
     key: "xwebs:state:{{.ConnectionID}}"
     respond: "State cleared from Redis"
+
+  # Redis List Example (Queue)
+  - name: enqueue-work
+    match: "work:*"
+    builtin: redis-lpush
+    key: "xwebs:queue:tasks"
+    value: "{{.Message | trimPrefix \"work:\"}}"
+    respond: "Task enqueued"
+
+  - name: dequeue-work
+    match: "next-task"
+    builtin: redis-rpop
+    key: "xwebs:queue:tasks"
+    default: "no-tasks"
+    respond: "Next task: {{.RedisValue}}"
 
   # Debounce Example
   - name: burst-control

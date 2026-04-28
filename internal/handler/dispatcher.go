@@ -73,7 +73,6 @@ type KVManager interface {
 	DeleteKV(key string)
 }
  
-// RedisManager defines the required interface for Redis operations.
 type RedisManager interface {
 	Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error
 	Get(ctx context.Context, key string) (interface{}, error)
@@ -81,6 +80,8 @@ type RedisManager interface {
 	Publish(ctx context.Context, channel string, message interface{}) error
 	Subscribe(ctx context.Context, channels ...string) *redis.PubSub
 	PSubscribe(ctx context.Context, patterns ...string) *redis.PubSub
+	LPush(ctx context.Context, key string, values ...interface{}) error
+	RPop(ctx context.Context, key string) (string, error)
 	Close() error
 }
 

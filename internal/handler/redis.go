@@ -74,6 +74,24 @@ func (m *redisManager) PSubscribe(ctx context.Context, patterns ...string) *redi
 	return m.client.PSubscribe(ctx, patterns...)
 }
 
+func (m *redisManager) LPush(ctx context.Context, key string, values ...interface{}) error {
+	if m == nil || m.client == nil {
+		return fmt.Errorf("redis manager not initialized (check --redis-url)")
+	}
+	return m.client.LPush(ctx, key, values...).Err()
+}
+
+func (m *redisManager) RPop(ctx context.Context, key string) (string, error) {
+	if m == nil || m.client == nil {
+		return "", fmt.Errorf("redis manager not initialized (check --redis-url)")
+	}
+	val, err := m.client.RPop(ctx, key).Result()
+	if err == redis.Nil {
+		return "", nil
+	}
+	return val, err
+}
+
 func (m *redisManager) Close() error {
 	if m == nil || m.client == nil {
 		return nil
