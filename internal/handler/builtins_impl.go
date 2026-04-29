@@ -2,6 +2,9 @@ package handler
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
@@ -65,6 +68,7 @@ func init() {
 	MustRegister(&RedisRPopBuiltin{})
 	MustRegister(&RedisIncrBuiltin{})
 	MustRegister(&WebhookBuiltin{})
+	MustRegister(&WebhookHMACBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -2727,6 +2731,129 @@ func (b *WebhookBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, 
 
 	if d.verbose {
 		d.errorf("  [handler] webhook: received status %d (%d bytes)\n", resp.StatusCode, len(respBody))
+	}
+
+	return nil
+}
+
+// WebhookHMACBuiltin POSTs a message to an HTTP endpoint with an HMAC-SHA256 signature.
+type WebhookHMACBuiltin struct{}
+
+func (b *WebhookHMACBuiltin) Name() string { return "webhook-hmac" }
+func (b *WebhookHMACBuiltin) Description() string {
+	return "POST a message to an HTTP endpoint with an HMAC-SHA256 signature (X-Hub-Signature-256)."
+}
+func (b *WebhookHMACBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *WebhookHMACBuiltin) Validate(a Action) error {
+	if a.URL == "" {
+		return fmt.Errorf("builtin webhook-hmac missing url")
+	}
+	if a.Secret == "" {
+		return fmt.Errorf("builtin webhook-hmac missing secret")
+	}
+	return nil
+}
+
+func (b *WebhookHMACBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	// 1. Resolve URL
+	urlStr, err := d.templateEngine.Execute("webhook-hmac-url", a.URL, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in url expression: %w", err)
+	}
+	urlStr = strings.TrimSpace(urlStr)
+	if urlStr == "" {
+		return fmt.Errorf("builtin webhook-hmac: url evaluates to empty string")
+	}
+
+	// 2. Resolve Body (defaults to raw message if not provided)
+	bodyContent := a.Body
+	if bodyContent == "" {
+		bodyContent = tmplCtx.Message
+	}
+
+	bodyStr, err := d.templateEngine.Execute("webhook-hmac-body", bodyContent, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in body expression: %w", err)
+	}
+	bodyBytes := []byte(bodyStr)
+	bodyReader := io.NopCloser(strings.NewReader(bodyStr))
+
+	// 3. Resolve Secret
+	secretStr, err := d.templateEngine.Execute("webhook-hmac-secret", a.Secret, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in secret expression: %w", err)
+	}
+
+	// 4. Calculate HMAC
+	mac := hmac.New(sha256.New, []byte(secretStr))
+	mac.Write(bodyBytes)
+	signature := hex.EncodeToString(mac.Sum(nil))
+
+	// 5. Create Request (always POST)
+	req, err := http.NewRequestWithContext(ctx, "POST", urlStr, bodyReader)
+	if err != nil {
+		return fmt.Errorf("failed to create webhook-hmac request: %w", err)
+	}
+
+	// 6. Add Headers
+	if a.Headers != nil {
+		for k, v := range a.Headers {
+			evalK, _ := d.templateEngine.Execute("webhook-hmac-header-key", k, tmplCtx)
+			evalV, _ := d.templateEngine.Execute("webhook-hmac-header-value", v, tmplCtx)
+			if evalK != "" {
+				req.Header.Set(evalK, evalV)
+			}
+		}
+	}
+
+	// Add HMAC signature header
+	req.Header.Set("X-Hub-Signature-256", "sha256="+signature)
+
+	// Set default Content-Type if not provided and body looks like JSON
+	if req.Header.Get("Content-Type") == "" {
+		trimmedBody := strings.TrimSpace(bodyStr)
+		if (strings.HasPrefix(trimmedBody, "{") && strings.HasSuffix(trimmedBody, "}")) ||
+			(strings.HasPrefix(trimmedBody, "[") && strings.HasSuffix(trimmedBody, "]")) {
+			req.Header.Set("Content-Type", "application/json")
+		}
+	}
+
+	// 7. Set Timeout
+	timeout := 10 * time.Second
+	if a.Timeout != "" {
+		if t, err := time.ParseDuration(a.Timeout); err == nil {
+			timeout = t
+		}
+	}
+
+	client := &http.Client{
+		Timeout: timeout,
+	}
+
+	// 8. Execute Request
+	if d.verbose {
+		d.errorf("  [handler] webhook-hmac: POST %s (timeout: %v)\n", urlStr, timeout)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("webhook-hmac request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// 9. Read Response Body
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read webhook-hmac response body: %w", err)
+	}
+
+	// 10. Update Context
+	tmplCtx.HttpStatus = resp.StatusCode
+	tmplCtx.HttpBody = string(respBody)
+
+	if d.verbose {
+		d.errorf("  [handler] webhook-hmac: received status %d (%d bytes)\n", resp.StatusCode, len(respBody))
 	}
 
 	return nil

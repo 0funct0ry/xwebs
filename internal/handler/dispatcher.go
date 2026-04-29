@@ -481,6 +481,7 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 				Key:         h.Key,
 				Value:       h.Value,
 				By:          h.By,
+				Secret:      h.Secret,
 				Channel:     h.Channel,
 				Target:      h.Target,
 				Message:     h.Message,
@@ -592,6 +593,7 @@ func (d *Dispatcher) executePipeline(ctx context.Context, handlerName string, pi
 			action.Key = step.Key
 			action.Value = step.Value
 			action.By = step.By
+			action.Secret = step.Secret
 			action.Channel = step.Channel
 			action.Target = step.Target
 			action.Message = step.Message

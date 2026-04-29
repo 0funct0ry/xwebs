@@ -556,7 +556,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("  -p, --priority <n>        Numeric priority (higher runs first)\n")
 				r.Printf("  -r, --run <cmd>           Shell command to run on match\n")
 				r.Printf("  -R, --respond <tmpl>      Response template to send back\n")
-				r.Printf("  -B, --builtin <name>      Builtin action (subscribe, unsubscribe, publish, forward, redis-subscribe, redis-incr)\n")
+				r.Printf("  -B, --builtin <name>      Builtin action (subscribe, unsubscribe, publish, forward, redis-subscribe, redis-incr, webhook-hmac)\n")
 				r.Printf("      --topic <template>    Topic name template for builtin actions\n")
 				r.Printf("      --target <url>        Upstream target URL for 'forward' builtin\n")
 				r.Printf("  -M, --message <template>  Message template for broadcast or publish\n")
@@ -608,6 +608,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("      --handler-b <name>    Target handler B for 'ab-test'\n")
 				r.Printf("      --channel <name>      Redis channel name for 'redis-publish' or 'redis-subscribe'\n")
 				r.Printf("      --by <n>              Increment value for 'redis-incr' builtin\n")
+				r.Printf("      --secret <template>   Secret for 'webhook-hmac' builtin\n")
 				r.Printf("      --reconnect-interval <dur> Reconnect interval for 'redis-subscribe'\n")
 				return nil
 			}
@@ -617,7 +618,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 				fs.SetOutput(r.Stdout())
 
-				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue, field, handlerA, handlerB, channel, reconnectInterval, by string
+				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue, field, handlerA, handlerB, channel, reconnectInterval, by, secret string
 				var ruleWhens, ruleResponds, responses, headers []string
 				var labels map[string]string
 				var priority, burst, maxMemory, split int
@@ -680,6 +681,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.StringVar(&handlerB, "handler-b", "", "Handler B for ab-test")
 				fs.StringVar(&channel, "channel", "", "Redis channel name for redis-publish or redis-subscribe")
 				fs.StringVar(&by, "by", "", "Increment value template for redis-incr builtin")
+				fs.StringVar(&secret, "secret", "", "Secret template for webhook-hmac builtin")
 				fs.StringVar(&reconnectInterval, "reconnect-interval", "", "Reconnect interval for redis-subscribe")
 
 				if err := fs.Parse(args[1:]); err != nil {
@@ -758,6 +760,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					HandlerB:   handlerB,
 					Channel:    channel,
 					By:         by,
+					Secret:     secret,
 					ReconnectInterval: reconnectInterval,
 					Rules:      make([]handler.Rule, 0),
 				}

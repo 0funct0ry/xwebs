@@ -495,7 +495,7 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `--priority <n>`        | `-p`  | Execution priority (higher runs first)                                     |
 | `--run <cmd>`           | `-r`  | Shell command to execute on match                                          |
 | `--respond <tmpl>`      | `-R`  | Response template sent back to the client                                  |
-| `--builtin <name>`      | `-B`  | Builtin action: `subscribe`, `unsubscribe`, `publish`, `template`, `kv-*`, `sequence`, `redis-*`, `redis-publish`. |
+| `--builtin <name>`      | `-B`  | Builtin action: `subscribe`, `unsubscribe`, `publish`, `template`, `kv-*`, `sequence`, `redis-*`, `redis-publish`, `webhook-hmac`. |
 | `--topic <template>`    |       | Topic name template for builtin actions (required for `subscribe`, `unsubscribe`, `publish`) |
 | `--file <path>`         |       | Template file path for `template` builtin (can include template expressions) |
 | `--exclusive`           | `-e`  | Stop further handler matching after this one fires                         |
@@ -534,6 +534,7 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `--value <template>`|       | Value template for KV or Redis builtins                                    |
 | `--ttl <duration>`  |       | TTL template for KV or Redis builtins                                      |
 | `--default <tmpl>`  | `-D`  | Default response for rule-engine or KV builtins                            |
+| `--secret <tmpl>`   |       | Secret template for `webhook-hmac` builtin                                |
 
 Example — add pub-sub handlers directly from the REPL:
 
@@ -582,6 +583,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `close` | Shared | Terminates the current connection with an optional code and reason. |
 | `http` | Shared | Makes an outbound HTTP request; response status/body are available in context. |
 | `webhook` | Shared | POSTs a message to an HTTP endpoint; defaults to raw message body. |
+| `webhook-hmac` | Shared | POSTs a message to an HTTP endpoint with an HMAC-SHA256 signature (`X-Hub-Signature-256`). |
 | `metric` | Shared | Increments a Prometheus counter with dynamic name and labels. |
 | `throttle-broadcast` | Server | Broadcasts a message to all clients except those who received one from this handler within the last `window:` duration. |
 | `sticky-broadcast` | Server | Broadcasts a message to all subscribers of a topic and stores it as the retained value for new subscribers. |
@@ -741,6 +743,15 @@ handlers:
       Content-Type: "application/json"
     body: '{"text": "Notification: {{.Message | trimPrefix \"notify:\"}}"}'
     respond: "Slack notified: {{.HttpStatus}}"
+  
+  # Webhook-HMAC Example
+  - name: secure-webhook
+    match: "secure:*"
+    builtin: webhook-hmac
+    url: "https://api.receiver.com/webhook"
+    secret: "{{env \"WEBHOOK_SECRET\"}}"
+    body: '{"payload": "{{.Message | trimPrefix \"secure:\"}}"}'
+    respond: "Secure webhook sent, signature: {{.HttpStatus}}"
  
   # Redis Publish Example
   - name: redis-fanout
