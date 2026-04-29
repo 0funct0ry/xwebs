@@ -1346,6 +1346,7 @@ func (r *REPL) RegisterCommonCommands() {
 				r.Printf("  --value <template>    Value template for KV or Redis builtins\n")
 				r.Printf("  --ttl <duration>      TTL template for KV or Redis builtins\n")
 				r.Printf("  --channel <name>      Redis channel for 'redis-publish' or 'redis-subscribe'\n")
+				r.Printf("  --by <n>              Increment value for 'redis-incr' builtin\n")
 				r.Printf("  --reconnect-interval <dur> Reconnect interval for 'redis-subscribe'\n")
 				r.Printf("  --on-error <tmpl>     Error template for 'redis-subscribe'\n")
 				return nil
@@ -1512,7 +1513,7 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.SetOutput(nil) // Suppress automatic usage printing on error
 
 			var name, match, matchType, run, respond, builtin, topic, rateLimit, debounce, code, reason, message, target, script, targets, window, scope, channel, reconnectInterval, onError string
-			var key, value, ttl string
+			var key, value, ttl, by string
 			var labels map[string]string
 			var priority, maxMemory int
 			var exclusive, sequential bool
@@ -1538,6 +1539,7 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.StringVar(&key, "key", "", "Key template for KV or Redis builtins")
 			fs.StringVar(&value, "value", "", "Value template for KV or Redis builtins")
 			fs.StringVar(&ttl, "ttl", "", "TTL template for KV or Redis builtins")
+			fs.StringVar(&by, "by", "", "Increment value template for redis-incr builtin")
 			var file, path, content, mode string
 			var responses []string
 			var loop, perClient bool
@@ -1638,6 +1640,7 @@ func (r *REPL) RegisterCommonCommands() {
 				HandlerB:  handlerB,
 				Key:       key,
 				Value:     value,
+				By:        by,
 				TTL:       ttl,
 				Channel:   channel,
 				ReconnectInterval: reconnectInterval,

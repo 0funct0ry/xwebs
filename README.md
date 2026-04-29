@@ -591,6 +591,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `redis-del` | Shared | Deletes a key from Redis (supports templates). |
 | `redis-lpush` | Shared | Pushes a value onto the left of a Redis list (supports templates). |
 | `redis-rpop` | Shared | Pops a value from the right of a Redis list into `.RedisValue` (supports default and templates). |
+| `redis-incr` | Shared | Atomically increments a Redis key by 1 or by a specified value (results in `.RedisValue`). |
 | `redis-publish` | Shared | Publishes a message to a Redis Pub/Sub channel (supports templates). |
 | `sample`      | Shared | Pass every Nth message (set by `rate: N`) and drop the rest. Supports template expressions. |
 | `gate`        | Server | Conditional message processing based on KV store values (checks `key` against `expect`). |
@@ -841,6 +842,14 @@ handlers:
     key: "xwebs:queue:tasks"
     default: "no-tasks"
     respond: "Next task: {{.RedisValue}}"
+
+  # Redis Atomic Counter Example
+  - name: count-events
+    match: "event"
+    builtin: redis-incr
+    key: "stats:event_count"
+    by: "1"
+    respond: "Event count: {{.RedisValue}}"
 
   # Debounce Example
   - name: burst-control

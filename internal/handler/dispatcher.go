@@ -82,6 +82,7 @@ type RedisManager interface {
 	PSubscribe(ctx context.Context, patterns ...string) *redis.PubSub
 	LPush(ctx context.Context, key string, values ...interface{}) error
 	RPop(ctx context.Context, key string) (string, error)
+	Incr(ctx context.Context, key string, by int64) (int64, error)
 	Close() error
 }
 
@@ -479,6 +480,7 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 				Topic:       h.Topic,
 				Key:         h.Key,
 				Value:       h.Value,
+				By:          h.By,
 				Channel:     h.Channel,
 				Target:      h.Target,
 				Message:     h.Message,
@@ -589,6 +591,7 @@ func (d *Dispatcher) executePipeline(ctx context.Context, handlerName string, pi
 			action.Topic = step.Topic
 			action.Key = step.Key
 			action.Value = step.Value
+			action.By = step.By
 			action.Channel = step.Channel
 			action.Target = step.Target
 			action.Message = step.Message

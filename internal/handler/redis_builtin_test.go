@@ -55,6 +55,11 @@ func (m *MockRedisManager) RPop(ctx context.Context, key string) (string, error)
 	return args.String(0), args.Error(1)
 }
 
+func (m *MockRedisManager) Incr(ctx context.Context, key string, by int64) (int64, error) {
+	args := m.Called(ctx, key, by)
+	return int64(args.Int(0)), args.Error(1)
+}
+
 func (m *MockRedisManager) Close() error {
 	args := m.Called()
 	return args.Error(0)
@@ -567,6 +572,110 @@ func TestRedisRPopBuiltin(t *testing.T) {
 		err := builtin.Execute(context.Background(), d, a, tmplCtx)
 		assert.NoError(t, err)
 		assert.Equal(t, "none-for-foo", tmplCtx.RedisValue)
+		mockRedis.AssertExpectations(t)
+	})
+}
+
+func TestRedisIncrBuiltin(t *testing.T) {
+	engine := template.New(false)
+	builtin := &RedisIncrBuiltin{}
+
+	t.Run("basic incr", func(t *testing.T) {
+		mockRedis := new(MockRedisManager)
+		d := &Dispatcher{
+			redisManager:   mockRedis,
+			templateEngine: engine,
+		}
+		a := &Action{
+			Key: "test-counter",
+		}
+		tmplCtx := template.NewContext()
+
+		mockRedis.On("Incr", mock.Anything, "test-counter", int64(1)).Return(1, nil).Once()
+
+		err := builtin.Execute(context.Background(), d, a, tmplCtx)
+		assert.NoError(t, err)
+		assert.Equal(t, int64(1), tmplCtx.RedisValue)
+		mockRedis.AssertExpectations(t)
+	})
+
+	t.Run("incr by custom value", func(t *testing.T) {
+		mockRedis := new(MockRedisManager)
+		d := &Dispatcher{
+			redisManager:   mockRedis,
+			templateEngine: engine,
+		}
+		a := &Action{
+			Key: "test-counter",
+			By:  "5",
+		}
+		tmplCtx := template.NewContext()
+
+		mockRedis.On("Incr", mock.Anything, "test-counter", int64(5)).Return(5, nil).Once()
+
+		err := builtin.Execute(context.Background(), d, a, tmplCtx)
+		assert.NoError(t, err)
+		assert.Equal(t, int64(5), tmplCtx.RedisValue)
+		mockRedis.AssertExpectations(t)
+	})
+
+	t.Run("template expressions in key and by", func(t *testing.T) {
+		mockRedis := new(MockRedisManager)
+		d := &Dispatcher{
+			redisManager:   mockRedis,
+			templateEngine: engine,
+		}
+		a := &Action{
+			Key: "counter-{{.MessageIndex}}",
+			By:  "{{index .Session \"Step\"}}",
+		}
+		tmplCtx := template.NewContext()
+		tmplCtx.MessageIndex = 1
+		tmplCtx.Session = map[string]interface{}{
+			"Step": "10",
+		}
+
+		mockRedis.On("Incr", mock.Anything, "counter-1", int64(10)).Return(10, nil).Once()
+
+		err := builtin.Execute(context.Background(), d, a, tmplCtx)
+		assert.NoError(t, err)
+		assert.Equal(t, int64(10), tmplCtx.RedisValue)
+		mockRedis.AssertExpectations(t)
+	})
+
+	t.Run("invalid incr by", func(t *testing.T) {
+		mockRedis := new(MockRedisManager)
+		d := &Dispatcher{
+			redisManager:   mockRedis,
+			templateEngine: engine,
+		}
+		a := &Action{
+			Key: "test-counter",
+			By:  "not-a-number",
+		}
+		tmplCtx := template.NewContext()
+
+		err := builtin.Execute(context.Background(), d, a, tmplCtx)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid increment value")
+	})
+
+	t.Run("redis error", func(t *testing.T) {
+		mockRedis := new(MockRedisManager)
+		d := &Dispatcher{
+			redisManager:   mockRedis,
+			templateEngine: engine,
+		}
+		a := &Action{
+			Key: "test-counter",
+		}
+		tmplCtx := template.NewContext()
+
+		mockRedis.On("Incr", mock.Anything, "test-counter", int64(1)).Return(0, assert.AnError).Once()
+
+		err := builtin.Execute(context.Background(), d, a, tmplCtx)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "redis incr error")
 		mockRedis.AssertExpectations(t)
 	})
 }

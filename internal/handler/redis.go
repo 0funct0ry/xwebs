@@ -92,6 +92,16 @@ func (m *redisManager) RPop(ctx context.Context, key string) (string, error) {
 	return val, err
 }
 
+func (m *redisManager) Incr(ctx context.Context, key string, by int64) (int64, error) {
+	if m == nil || m.client == nil {
+		return 0, fmt.Errorf("redis manager not initialized (check --redis-url)")
+	}
+	if by == 0 || by == 1 {
+		return m.client.Incr(ctx, key).Result()
+	}
+	return m.client.IncrBy(ctx, key, by).Result()
+}
+
 func (m *redisManager) Close() error {
 	if m == nil || m.client == nil {
 		return nil

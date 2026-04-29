@@ -63,6 +63,7 @@ func init() {
 	MustRegister(&RedisSubscribeBuiltin{})
 	MustRegister(&RedisLPushBuiltin{})
 	MustRegister(&RedisRPopBuiltin{})
+	MustRegister(&RedisIncrBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -525,6 +526,58 @@ func (b *RedisRPopBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action
 
 	if d.verbose {
 		d.errorf("  [handler] redis-rpop: %s -> %v (default=%q)\n", key, tmplCtx.RedisValue, a.Default)
+	}
+	return nil
+}
+
+// RedisIncrBuiltin increments a integer value in Redis.
+type RedisIncrBuiltin struct{}
+
+func (b *RedisIncrBuiltin) Name() string { return "redis-incr" }
+func (b *RedisIncrBuiltin) Description() string {
+	return "Atomically increment a Redis key by 1 or by a specified value."
+}
+func (b *RedisIncrBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *RedisIncrBuiltin) Validate(a Action) error {
+	if a.Key == "" {
+		return fmt.Errorf("builtin redis-incr missing key")
+	}
+	return nil
+}
+
+func (b *RedisIncrBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	if d.redisManager == nil {
+		return fmt.Errorf("builtin redis-incr: redis manager not initialized (check --redis-url)")
+	}
+
+	key, err := d.templateEngine.Execute("redis-key", a.Key, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in redis key: %w", err)
+	}
+
+	by := int64(1)
+	if a.By != "" {
+		byStr, err := d.templateEngine.Execute("redis-by", a.By, tmplCtx)
+		if err != nil {
+			return fmt.Errorf("template error in redis by: %w", err)
+		}
+		if bVal, err := strconv.ParseInt(strings.TrimSpace(byStr), 10, 64); err == nil {
+			by = bVal
+		} else {
+			return fmt.Errorf("invalid increment value %q: %w", byStr, err)
+		}
+	}
+
+	newVal, err := d.redisManager.Incr(ctx, key, by)
+	if err != nil {
+		return fmt.Errorf("redis incr error: %w", err)
+	}
+
+	tmplCtx.RedisValue = newVal
+
+	if d.verbose {
+		d.errorf("  [handler] redis-incr: %s incremented by %d -> %d\n", key, by, newVal)
 	}
 	return nil
 }
