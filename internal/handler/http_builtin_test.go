@@ -165,6 +165,79 @@ func TestHttpBuiltin(t *testing.T) {
 	})
 }
 
+func TestHttpGetBuiltin(t *testing.T) {
+	// 1. Create a mock HTTP server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("get ok"))
+	}))
+	defer server.Close()
+
+	// 2. Setup Dispatcher and Context
+	reg := NewRegistry(ServerMode)
+	tmplEngine := template.New(false)
+	d := &Dispatcher{
+		registry:       reg,
+		templateEngine: tmplEngine,
+		verbose:        true,
+		Log:            t.Logf,
+		Error:          t.Logf,
+	}
+
+	tmplCtx := template.NewContext()
+	builtin := &HttpGetBuiltin{}
+
+	t.Run("Basic GET request", func(t *testing.T) {
+		action := &Action{
+			Type:    "builtin",
+			Command: "http-get",
+			URL:     server.URL,
+		}
+
+		err := builtin.Execute(context.Background(), d, action, tmplCtx)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, tmplCtx.HttpStatus)
+		assert.Equal(t, "get ok", tmplCtx.HttpBody)
+	})
+
+	t.Run("GET request ignoring provided Method", func(t *testing.T) {
+		action := &Action{
+			Type:    "builtin",
+			Command: "http-get",
+			URL:     server.URL,
+			Method:  "POST", // Should be ignored
+		}
+
+		err := builtin.Execute(context.Background(), d, action, tmplCtx)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, tmplCtx.HttpStatus)
+		assert.Equal(t, "get ok", tmplCtx.HttpBody)
+	})
+
+	t.Run("Timeout applies", func(t *testing.T) {
+		hangingServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			time.Sleep(50 * time.Millisecond)
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer hangingServer.Close()
+
+		action := &Action{
+			Type:    "builtin",
+			Command: "http-get",
+			URL:     hangingServer.URL,
+			Timeout: "10ms",
+		}
+
+		err := builtin.Execute(context.Background(), d, action, tmplCtx)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "context deadline exceeded")
+	})
+}
+
 type httpMockConnection struct {
 	writeFunc func(m *ws.Message) error
 	msgs      []*ws.Message

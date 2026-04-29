@@ -582,6 +582,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `drop` | Shared | Silently discards the current message and stops further processing. |
 | `close` | Shared | Terminates the current connection with an optional code and reason. |
 | `http` | Shared | Makes an outbound HTTP request; response status/body are available in context. |
+| `http-get` | Shared | Makes an outbound HTTP GET request; response status/body are available in context. |
 | `webhook` | Shared | POSTs a message to an HTTP endpoint; defaults to raw message body. |
 | `webhook-hmac` | Shared | POSTs a message to an HTTP endpoint with an HMAC-SHA256 signature (`X-Hub-Signature-256`). |
 | `metric` | Shared | Increments a Prometheus counter with dynamic name and labels. |
@@ -733,6 +734,14 @@ handlers:
       X-API-Key: "{{kv \"api_key\"}}"
     body: '{"alert": "{{.Message | jq ".data"}}", "from": "{{.Conn.ID}}"}'
     respond: "Webhook sent! Status: {{.HttpStatus}}, Response: {{.HttpBody}}"
+
+  # HTTP GET Integration Example
+  - name: lookup-user
+    match: "user:*"
+    builtin: http-get
+    url: "https://api.service.com/users/{{.Message | trimPrefix \"user:\"}}"
+    timeout: "2s"
+    respond: "User Found: {{.HttpBody}}"
 
   # Webhook Integration Example (Shorthand for POST)
   - name: simple-webhook

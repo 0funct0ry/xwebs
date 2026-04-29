@@ -48,6 +48,7 @@ func init() {
 	MustRegister(&CloseBuiltin{})
 	MustRegister(&LogBuiltin{})
 	MustRegister(&HttpBuiltin{})
+	MustRegister(&HttpGetBuiltin{})
 	MustRegister(&MetricBuiltin{})
 	MustRegister(&ThrottleBroadcastBuiltin{})
 	MustRegister(&MulticastBuiltin{})
@@ -1499,6 +1500,10 @@ func (b *HttpBuiltin) Validate(a Action) error {
 }
 
 func (b *HttpBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	return b.execute(ctx, d, a, tmplCtx, "")
+}
+
+func (b *HttpBuiltin) execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext, forceMethod string) error {
 	// 1. Resolve URL
 	urlStr, err := d.templateEngine.Execute("http-url", a.URL, tmplCtx)
 	if err != nil {
@@ -1509,9 +1514,11 @@ func (b *HttpBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmp
 		return fmt.Errorf("builtin http: url evaluates to empty string")
 	}
 
-	// 2. Resolve Method (default GET)
+	// 2. Resolve Method
 	method := "GET"
-	if a.Method != "" {
+	if forceMethod != "" {
+		method = forceMethod
+	} else if a.Method != "" {
 		m, err := d.templateEngine.Execute("http-method", a.Method, tmplCtx)
 		if err == nil && m != "" {
 			method = strings.ToUpper(strings.TrimSpace(m))
@@ -1584,6 +1591,28 @@ func (b *HttpBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmp
 	}
 
 	return nil
+}
+
+// HttpGetBuiltin makes an outbound HTTP GET request.
+type HttpGetBuiltin struct {
+	HttpBuiltin
+}
+
+func (b *HttpGetBuiltin) Name() string { return "http-get" }
+func (b *HttpGetBuiltin) Description() string {
+	return "Make an outbound HTTP GET request."
+}
+func (b *HttpGetBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *HttpGetBuiltin) Validate(a Action) error {
+	if a.URL == "" {
+		return fmt.Errorf("builtin http-get missing url")
+	}
+	return nil
+}
+
+func (b *HttpGetBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	return b.execute(ctx, d, a, tmplCtx, "GET")
 }
 
 // LogBuiltin writes a structured log entry to stdout, a file, or both.
