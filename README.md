@@ -581,6 +581,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `drop` | Shared | Silently discards the current message and stops further processing. |
 | `close` | Shared | Terminates the current connection with an optional code and reason. |
 | `http` | Shared | Makes an outbound HTTP request; response status/body are available in context. |
+| `webhook` | Shared | POSTs a message to an HTTP endpoint; defaults to raw message body. |
 | `metric` | Shared | Increments a Prometheus counter with dynamic name and labels. |
 | `throttle-broadcast` | Server | Broadcasts a message to all clients except those who received one from this handler within the last `window:` duration. |
 | `sticky-broadcast` | Server | Broadcasts a message to all subscribers of a topic and stores it as the retained value for new subscribers. |
@@ -730,6 +731,16 @@ handlers:
       X-API-Key: "{{kv \"api_key\"}}"
     body: '{"alert": "{{.Message | jq ".data"}}", "from": "{{.Conn.ID}}"}'
     respond: "Webhook sent! Status: {{.HttpStatus}}, Response: {{.HttpBody}}"
+
+  # Webhook Integration Example (Shorthand for POST)
+  - name: simple-webhook
+    match: "notify:*"
+    builtin: webhook
+    url: "https://hooks.slack.com/services/..."
+    headers:
+      Content-Type: "application/json"
+    body: '{"text": "Notification: {{.Message | trimPrefix \"notify:\"}}"}'
+    respond: "Slack notified: {{.HttpStatus}}"
  
   # Redis Publish Example
   - name: redis-fanout

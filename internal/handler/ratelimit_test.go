@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -48,11 +49,11 @@ func TestParseRateLimit(t *testing.T) {
 
 type rateLimitMockConn struct {
 	Connection
-	writeCount int
+	writeCount atomic.Int32
 }
 
 func (m *rateLimitMockConn) Write(msg *ws.Message) error {
-	m.writeCount++
+	m.writeCount.Add(1)
 	return nil
 }
 func (m *rateLimitMockConn) Subscribe() <-chan *ws.Message     { return nil }
@@ -101,16 +102,15 @@ func TestDispatcherRateLimit(t *testing.T) {
 
 	// Wait a bit for async execution to complete since handleMessage spawns goroutines
 	time.Sleep(100 * time.Millisecond)
-	assert.Equal(t, 2, conn.writeCount, "Should have executed 2 times")
-
+	assert.Equal(t, int32(2), conn.writeCount.Load(), "Should have executed 2 times")
 	// Third should be dropped
 	dispatcher.handleMessage(ctx, msg)
 	time.Sleep(100 * time.Millisecond)
-	assert.Equal(t, 2, conn.writeCount, "Should still be 2 due to rate limit")
+	assert.Equal(t, int32(2), conn.writeCount.Load(), "Should still be 2 due to rate limit")
 
 	// Wait 1.1s to allow 2 more tokens
 	time.Sleep(1100 * time.Millisecond)
 	dispatcher.handleMessage(ctx, msg)
 	time.Sleep(100 * time.Millisecond)
-	assert.Equal(t, 3, conn.writeCount, "Should have executed 3 times after waiting")
+	assert.Equal(t, int32(3), conn.writeCount.Load(), "Should have executed 3 times after waiting")
 }

@@ -64,6 +64,7 @@ func init() {
 	MustRegister(&RedisLPushBuiltin{})
 	MustRegister(&RedisRPopBuiltin{})
 	MustRegister(&RedisIncrBuiltin{})
+	MustRegister(&WebhookBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -2621,6 +2622,111 @@ func (b *RuleEngineBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Actio
 
 	if d.verbose {
 		d.errorf("  [handler] rule-engine: no rules matched and no default provided\n")
+	}
+
+	return nil
+}
+
+// WebhookBuiltin POSTs a message to an HTTP endpoint.
+type WebhookBuiltin struct{}
+
+func (b *WebhookBuiltin) Name() string { return "webhook" }
+func (b *WebhookBuiltin) Description() string {
+	return "POST a message to an HTTP endpoint (defaults to raw message body)."
+}
+func (b *WebhookBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *WebhookBuiltin) Validate(a Action) error {
+	if a.URL == "" {
+		return fmt.Errorf("builtin webhook missing url")
+	}
+	return nil
+}
+
+func (b *WebhookBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	// 1. Resolve URL
+	urlStr, err := d.templateEngine.Execute("webhook-url", a.URL, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in url expression: %w", err)
+	}
+	urlStr = strings.TrimSpace(urlStr)
+	if urlStr == "" {
+		return fmt.Errorf("builtin webhook: url evaluates to empty string")
+	}
+
+	// 2. Resolve Body (defaults to raw message if not provided)
+	bodyContent := a.Body
+	if bodyContent == "" {
+		bodyContent = tmplCtx.Message
+	}
+
+	bodyStr, err := d.templateEngine.Execute("webhook-body", bodyContent, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in body expression: %w", err)
+	}
+	bodyReader := strings.NewReader(bodyStr)
+
+	// 3. Create Request (always POST)
+	req, err := http.NewRequestWithContext(ctx, "POST", urlStr, bodyReader)
+	if err != nil {
+		return fmt.Errorf("failed to create webhook request: %w", err)
+	}
+
+	// 4. Add Headers
+	if a.Headers != nil {
+		for k, v := range a.Headers {
+			evalK, _ := d.templateEngine.Execute("webhook-header-key", k, tmplCtx)
+			evalV, _ := d.templateEngine.Execute("webhook-header-value", v, tmplCtx)
+			if evalK != "" {
+				req.Header.Set(evalK, evalV)
+			}
+		}
+	}
+	// Set default Content-Type if not provided and body looks like JSON
+	if req.Header.Get("Content-Type") == "" {
+		trimmedBody := strings.TrimSpace(bodyStr)
+		if (strings.HasPrefix(trimmedBody, "{") && strings.HasSuffix(trimmedBody, "}")) ||
+			(strings.HasPrefix(trimmedBody, "[") && strings.HasSuffix(trimmedBody, "]")) {
+			req.Header.Set("Content-Type", "application/json")
+		}
+	}
+
+	// 5. Set Timeout
+	timeout := 10 * time.Second
+	if a.Timeout != "" {
+		if t, err := time.ParseDuration(a.Timeout); err == nil {
+			timeout = t
+		}
+	}
+
+	client := &http.Client{
+		Timeout: timeout,
+	}
+
+	// 6. Execute Request
+	if d.verbose {
+		d.errorf("  [handler] webhook: POST %s (timeout: %v)\n", urlStr, timeout)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		// Network errors trigger on_error (by returning error here)
+		return fmt.Errorf("webhook request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// 7. Read Response Body
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read webhook response body: %w", err)
+	}
+
+	// 8. Update Context
+	tmplCtx.HttpStatus = resp.StatusCode
+	tmplCtx.HttpBody = string(respBody)
+
+	if d.verbose {
+		d.errorf("  [handler] webhook: received status %d (%d bytes)\n", resp.StatusCode, len(respBody))
 	}
 
 	return nil

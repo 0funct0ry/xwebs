@@ -103,7 +103,6 @@ func (r *REPL) RegisterCommonCommands() {
 		name: "exit",
 		help: "Disconnect and exit",
 		handler: func(ctx context.Context, r *REPL, args []string) error {
-			_ = r.Close()
 			return ErrExit
 		},
 	})

@@ -224,6 +224,8 @@ func (c *Connection) CloseWithCode(code int, reason string) error {
 		c.forceClose()
 	}
 
+	c._mu.Lock()
+	defer c._mu.Unlock()
 	return c._closeErr
 }
 

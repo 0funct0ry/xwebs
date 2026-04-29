@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -16,13 +17,13 @@ type debounceMockConn struct {
 	id      string
 	sent    chan *ws.Message
 	done    chan struct{}
-	msgsIn  uint64
-	msgsOut uint64
+	msgsIn  atomic.Uint64
+	msgsOut atomic.Uint64
 }
 
 func (m *debounceMockConn) Write(msg *ws.Message) error {
 	m.sent <- msg
-	m.msgsOut++
+	m.msgsOut.Add(1)
 	return nil
 }
 func (m *debounceMockConn) CloseWithCode(code int, reason string) error { return nil }
@@ -36,9 +37,9 @@ func (m *debounceMockConn) GetSubprotocol() string                      { return
 func (m *debounceMockConn) RemoteAddr() string                          { return "127.0.0.1" }
 func (m *debounceMockConn) LocalAddr() string                           { return "127.0.0.1" }
 func (m *debounceMockConn) ConnectedAt() time.Time                      { return time.Now() }
-func (m *debounceMockConn) MessageCount() uint64                        { return m.msgsIn + m.msgsOut }
-func (m *debounceMockConn) MsgsIn() uint64                              { return m.msgsIn }
-func (m *debounceMockConn) MsgsOut() uint64                             { return m.msgsOut }
+func (m *debounceMockConn) MessageCount() uint64                        { return m.msgsIn.Load() + m.msgsOut.Load() }
+func (m *debounceMockConn) MsgsIn() uint64                              { return m.msgsIn.Load() }
+func (m *debounceMockConn) MsgsOut() uint64                             { return m.msgsOut.Load() }
 func (m *debounceMockConn) LastMsgReceivedAt() time.Time                { return time.Now() }
 func (m *debounceMockConn) LastMsgSentAt() time.Time                    { return time.Now() }
 func (m *debounceMockConn) RTT() time.Duration                          { return 0 }

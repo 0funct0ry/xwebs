@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -100,7 +101,7 @@ func TestReplayTimingAndReliability(t *testing.T) {
 
 	// 0. Start a parallel reader to verify broadcast (multi-subscriber)
 	// This mimics the main REPL read loop.
-	parallelRecv := 0
+	var parallelRecv atomic.Int32
 	parallelDone := make(chan struct{})
 	go func() {
 		defer close(parallelDone)
@@ -111,7 +112,7 @@ func TestReplayTimingAndReliability(t *testing.T) {
 				if !ok {
 					return
 				}
-				parallelRecv++
+				parallelRecv.Add(1)
 			case <-ctx.Done():
 				return
 			}
@@ -163,7 +164,7 @@ func TestReplayTimingAndReliability(t *testing.T) {
 		// This might happen if the connection wasn't closed yet.
 		// In the test, we'll wait a bit.
 	}
-	if parallelRecv != 2 {
-		t.Errorf("Expected 2 received messages in parallel reader, got %d", parallelRecv)
+	if parallelRecv.Load() != 2 {
+		t.Errorf("Expected 2 received messages in parallel reader, got %d", parallelRecv.Load())
 	}
 }
