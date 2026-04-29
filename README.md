@@ -583,6 +583,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `close` | Shared | Terminates the current connection with an optional code and reason. |
 | `http` | Shared | Makes an outbound HTTP request; response status/body are available in context. |
 | `http-get` | Shared | Makes an outbound HTTP GET request; response status/body are available in context. |
+| `http-graphql` | Shared | Executes a GraphQL query or mutation; response `data` in `.HttpBody`, `errors` in `.GraphQLErrors`. |
 | `webhook` | Shared | POSTs a message to an HTTP endpoint; defaults to raw message body. |
 | `webhook-hmac` | Shared | POSTs a message to an HTTP endpoint with an HMAC-SHA256 signature (`X-Hub-Signature-256`). |
 | `metric` | Shared | Increments a Prometheus counter with dynamic name and labels. |
@@ -742,6 +743,31 @@ handlers:
     url: "https://api.service.com/users/{{.Message | trimPrefix \"user:\"}}"
     timeout: "2s"
     respond: "User Found: {{.HttpBody}}"
+
+  # GraphQL Integration Example
+  - name: query-countries
+    match: "country:*"
+    builtin: http-graphql
+    url: "https://countries.trevorblades.com/"
+    query: |
+      query GetCountry($code: ID!) {
+        country(code: $code) {
+          name
+          native
+          capital
+          emoji
+        }
+      }
+    variables: |
+      {
+        "code": "{{.Message | trimPrefix \"country:\" | upper}}"
+      }
+    respond: |
+      {{if .GraphQLErrors}}
+      Errors: {{.GraphQLErrors | toJSON}}
+      {{else}}
+      Country Info: {{.HttpBody}}
+      {{end}}
 
   # Webhook Integration Example (Shorthand for POST)
   - name: simple-webhook

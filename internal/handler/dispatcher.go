@@ -524,6 +524,8 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 				HandlerA:    h.HandlerA,
 				HandlerB:    h.HandlerB,
 				Rules:       h.Rules,
+				Query:       h.Query,
+				Variables:   h.GraphQLVariables,
 				BaseDir:     h.BaseDir,
 				HandlerName: h.Name,
 			}
@@ -633,6 +635,8 @@ func (d *Dispatcher) executePipeline(ctx context.Context, handlerName string, pi
 			action.HandlerA = step.HandlerA
 			action.HandlerB = step.HandlerB
 			action.Rules = step.Rules
+			action.Query = step.Query
+			action.Variables = step.Variables
 			action.Default = step.Default
 			action.BaseDir = d.registry.GetHandlerBaseDir(handlerName)
 			action.HandlerName = handlerName

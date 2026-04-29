@@ -89,6 +89,8 @@ type Handler struct {
 	HandlerB     string                 `yaml:"handler_b,omitempty"`    // For ab-test builtin
 	Rules        []Rule                 `yaml:"rules,omitempty"`        // For rule-engine builtin
 	Secret       string                 `yaml:"secret,omitempty"`       // For webhook-hmac builtin (template)
+	Query        string                 `yaml:"query,omitempty"`        // For http-graphql builtin
+	GraphQLVariables string             `yaml:"gql_variables,omitempty"` // For http-graphql builtin
 	BaseDir      string                 `yaml:"-"`                      // Directory from which the handler was loaded
 }
 
@@ -154,6 +156,8 @@ type PipelineStep struct {
 	HandlerB    string            `yaml:"handler_b,omitempty"` // For ab-test builtin
 	Rules       []Rule            `yaml:"rules,omitempty"`     // For rule-engine builtin
 	Secret      string            `yaml:"secret,omitempty"`    // For webhook-hmac builtin (template)
+	Query       string            `yaml:"query,omitempty"`     // For http-graphql builtin
+	Variables   string            `yaml:"variables,omitempty"` // For http-graphql builtin
 }
 
 // Matcher specifies how to match an incoming WebSocket message.
@@ -248,6 +252,8 @@ type Action struct {
 	HandlerB    string            `yaml:"handler_b,omitempty"`  // For ab-test builtin
 	Rules       []Rule            `yaml:"rules,omitempty"`      // For rule-engine builtin
 	Secret      string            `yaml:"secret,omitempty"`     // For webhook-hmac builtin (template)
+	Query       string            `yaml:"query,omitempty"`      // For http-graphql builtin
+	Variables   string            `yaml:"variables,omitempty"`  // For http-graphql builtin
 	BaseDir     string            `yaml:"-"`                    // For relative path resolution in builtins
 	HandlerName string            `yaml:"-"`                    // Internal use only
 }
@@ -417,6 +423,8 @@ func (c *Config) Validate(mode RegistryMode) error {
 				HandlerB:  h.HandlerB,
 				Rules:     h.Rules,
 				Secret:    h.Secret,
+				Query:     h.Query,
+				Variables: h.GraphQLVariables,
 			}
 			if err := bh.Validate(tmpAction); err != nil {
 				return fmt.Errorf("handler %q: %w", h.Name, err)

@@ -160,6 +160,7 @@ type TemplateContext struct {
 	KvValue    interface{}            `json:"kv_value,omitempty"`    // Result of kv-get builtin
 	KvKeys     []string               `json:"kv_keys,omitempty"`     // Result of kv-list builtin
 	RedisValue interface{}            `json:"redis_value,omitempty"` // Result of redis-get builtin
+	GraphQLErrors interface{}         `json:"graphql_errors,omitempty"` // Result of http-graphql builtin
 
 	// Pattern Matching
 	Matches []string `json:"matches,omitempty"` // Capture groups from glob/regex matching

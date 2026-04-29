@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -49,6 +50,7 @@ func init() {
 	MustRegister(&LogBuiltin{})
 	MustRegister(&HttpBuiltin{})
 	MustRegister(&HttpGetBuiltin{})
+	MustRegister(&HttpGraphQLBuiltin{})
 	MustRegister(&MetricBuiltin{})
 	MustRegister(&ThrottleBroadcastBuiltin{})
 	MustRegister(&MulticastBuiltin{})
@@ -1613,6 +1615,143 @@ func (b *HttpGetBuiltin) Validate(a Action) error {
 
 func (b *HttpGetBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
 	return b.execute(ctx, d, a, tmplCtx, "GET")
+}
+
+// HttpGraphQLBuiltin makes an outbound GraphQL POST request.
+type HttpGraphQLBuiltin struct {
+	HttpBuiltin
+}
+
+func (b *HttpGraphQLBuiltin) Name() string { return "http-graphql" }
+func (b *HttpGraphQLBuiltin) Description() string {
+	return "Make an outbound GraphQL POST request."
+}
+func (b *HttpGraphQLBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *HttpGraphQLBuiltin) Validate(a Action) error {
+	if a.URL == "" {
+		return fmt.Errorf("builtin http-graphql missing url")
+	}
+	if a.Query == "" {
+		return fmt.Errorf("builtin http-graphql missing query")
+	}
+	return nil
+}
+
+func (b *HttpGraphQLBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	// 1. Render URL
+	urlStr, err := d.templateEngine.Execute("http-url", a.URL, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in url expression: %w", err)
+	}
+
+	// 2. Render Query
+	query, err := d.templateEngine.Execute("graphql-query", a.Query, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in query expression: %w", err)
+	}
+
+	// 3. Render Variables
+	var variables map[string]interface{}
+	if a.Variables != "" {
+		varsStr, err := d.templateEngine.Execute("graphql-variables", a.Variables, tmplCtx)
+		if err != nil {
+			return fmt.Errorf("template error in variables expression: %w", err)
+		}
+		if varsStr != "" {
+			if err := json.Unmarshal([]byte(varsStr), &variables); err != nil {
+				return fmt.Errorf("invalid variables JSON: %w", err)
+			}
+		}
+	}
+
+	// 4. Construct Payload
+	payload := map[string]interface{}{
+		"query": query,
+	}
+	if variables != nil {
+		payload["variables"] = variables
+	}
+	bodyBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal graphql payload: %w", err)
+	}
+
+	// 5. Create Request
+	req, err := http.NewRequestWithContext(ctx, "POST", urlStr, bytes.NewBuffer(bodyBytes))
+	if err != nil {
+		return fmt.Errorf("failed to create http request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	// 6. Set Custom Headers
+	if a.Headers != nil {
+		for k, v := range a.Headers {
+			evalK, err := d.templateEngine.Execute("http-header-key", k, tmplCtx)
+			if err == nil {
+				evalV, err := d.templateEngine.Execute("http-header-val", v, tmplCtx)
+				if err == nil {
+					req.Header.Set(evalK, evalV)
+				}
+			}
+		}
+	}
+
+	// 7. Set Timeout
+	timeout := 10 * time.Second
+	if a.Timeout != "" {
+		if t, err := time.ParseDuration(a.Timeout); err == nil {
+			timeout = t
+		}
+	}
+
+	client := &http.Client{
+		Timeout: timeout,
+	}
+
+	// 8. Execute Request
+	if d.verbose {
+		d.errorf("  [handler] http-graphql: POST %s (timeout: %v)\n", urlStr, timeout)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("graphql request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// 9. Read Response Body
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read graphql response body: %w", err)
+	}
+
+	// 10. Update Context
+	tmplCtx.HttpStatus = resp.StatusCode
+
+	var gqlResponse struct {
+		Data   interface{} `json:"data"`
+		Errors interface{} `json:"errors"`
+	}
+
+	if err := json.Unmarshal(respBody, &gqlResponse); err == nil {
+		if gqlResponse.Data != nil {
+			dataJSON, _ := json.Marshal(gqlResponse.Data)
+			tmplCtx.HttpBody = string(dataJSON)
+		} else {
+			tmplCtx.HttpBody = string(respBody)
+		}
+		tmplCtx.GraphQLErrors = gqlResponse.Errors
+	} else {
+		tmplCtx.HttpBody = string(respBody)
+	}
+
+	if d.verbose {
+		d.errorf("  [handler] http-graphql: received status %d (%d bytes)\n", resp.StatusCode, len(respBody))
+	}
+
+	return nil
 }
 
 // LogBuiltin writes a structured log entry to stdout, a file, or both.
