@@ -52,6 +52,7 @@ func init() {
 	MustRegister(&HttpBuiltin{})
 	MustRegister(&HttpGetBuiltin{})
 	MustRegister(&HttpGraphQLBuiltin{})
+	MustRegister(&HttpMockRespondBuiltin{})
 	MustRegister(&MetricBuiltin{})
 	MustRegister(&ThrottleBroadcastBuiltin{})
 	MustRegister(&MulticastBuiltin{})
@@ -1753,6 +1754,81 @@ func (b *HttpGraphQLBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Acti
 	}
 
 	return nil
+}
+
+// HttpMockRespondBuiltin registers a canned HTTP response at a specific path.
+type HttpMockRespondBuiltin struct{}
+
+func (b *HttpMockRespondBuiltin) Name() string { return "http-mock-respond" }
+func (b *HttpMockRespondBuiltin) Description() string {
+	return "Register a canned HTTP response at a specific path."
+}
+func (b *HttpMockRespondBuiltin) Scope() BuiltinScope { return ServerOnly }
+
+func (b *HttpMockRespondBuiltin) Validate(a Action) error {
+	if a.Path == "" {
+		return fmt.Errorf("builtin http-mock-respond missing path")
+	}
+	if a.Status == "" {
+		return fmt.Errorf("builtin http-mock-respond missing status")
+	}
+	return nil
+}
+
+func (b *HttpMockRespondBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	if d.serverStats == nil {
+		return fmt.Errorf("builtin http-mock-respond: server stats provider not available")
+	}
+
+	// 1. Resolve Path
+	path, err := d.templateEngine.Execute("http-mock-path", a.Path, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in path: %w", err)
+	}
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return fmt.Errorf("builtin http-mock-respond: path evaluates to empty string")
+	}
+
+	// 2. Resolve Status
+	statusStr, err := d.templateEngine.Execute("http-mock-status", a.Status, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in status: %w", err)
+	}
+	status, err := strconv.Atoi(strings.TrimSpace(statusStr))
+	if err != nil {
+		return fmt.Errorf("invalid status code %q: %w", statusStr, err)
+	}
+
+	// 3. Resolve Headers
+	headers := make(map[string]string)
+	if a.Headers != nil {
+		for k, v := range a.Headers {
+			evalK, _ := d.templateEngine.Execute("http-mock-header-key", k, tmplCtx)
+			evalV, _ := d.templateEngine.Execute("http-mock-header-value", v, tmplCtx)
+			if evalK != "" {
+				headers[evalK] = evalV
+			}
+		}
+	}
+
+	// 4. Resolve Body
+	body, err := d.templateEngine.Execute("http-mock-body", a.Body, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in body: %w", err)
+	}
+
+	mock := template.HTTPMockResponse{
+		Status:  status,
+		Headers: headers,
+		Body:    body,
+	}
+
+	if d.verbose {
+		d.errorf("  [handler] registering http-mock at %s (status=%d)\n", path, status)
+	}
+
+	return d.serverStats.RegisterHTTPMock(path, mock)
 }
 
 // LogBuiltin writes a structured log entry to stdout, a file, or both.

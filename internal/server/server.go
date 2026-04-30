@@ -45,6 +45,8 @@ type Server struct {
 	staticMgr   *StaticManager
 	redisMgr    handler.RedisManager
 	sseManager  *SSEManager
+	httpMocks   map[string]template.HTTPMockResponse
+	httpMocksMu sync.RWMutex
 
 	state     serverState
 	paused    atomic.Bool
@@ -71,6 +73,7 @@ func New(opts ...Option) (*Server, error) {
 		state:       serverRunning,
 		staticMgr:   NewStaticManager(options.Logger),
 		redisMgr:    options.RedisManager,
+		httpMocks:   make(map[string]template.HTTPMockResponse),
 	}
 
 	var logf func(string, ...interface{})
@@ -122,24 +125,17 @@ func (s *Server) UpdateOptions(opts ...Option) {
 func (s *Server) Start(ctx context.Context) error {
 	mux := http.NewServeMux()
 
-	hasRoot := false
 	for _, path := range s.opts.Paths {
 		pattern := path
 		if path == "/" {
-			hasRoot = true
 			pattern = "/{$}" // Exact match for root in Go 1.22+
 		}
 		mux.HandleFunc(pattern, s.serveWS)
 	}
 
 	// Register UI and Status routes
-	if s.opts.UIEnabled {
-		// Register UI handler as a catch-all.
-		// Specific routes like /api/*, /api/metrics, and exact WS paths (e.g., /{$}) will take precedence.
-		mux.Handle("/", ui.Handler())
-	} else if !hasRoot {
-		mux.HandleFunc("/{$}", s.serveStatus)
-	}
+	// Note: Specific routes like /api/* and /sse/* take precedence over the root handler.
+	mux.Handle("/", http.HandlerFunc(s.handleHTTPMock))
 
 	// Register API routes
 	mux.HandleFunc("GET /api/health", s.handleAPIHealth)
@@ -689,6 +685,50 @@ func (s *Server) UpdateSSEStreamConfig(stream, onNoConsumers string, bufferSize 
 		return fmt.Errorf("SSE manager not initialized")
 	}
 	return s.sseManager.UpdateStreamConfig(stream, onNoConsumers, bufferSize)
+}
+
+// RegisterHTTPMock registers a canned HTTP response at a specific path.
+func (s *Server) RegisterHTTPMock(path string, mock template.HTTPMockResponse) error {
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	s.httpMocksMu.Lock()
+	defer s.httpMocksMu.Unlock()
+	s.httpMocks[path] = mock
+	return nil
+}
+
+func (s *Server) handleHTTPMock(w http.ResponseWriter, r *http.Request) {
+	s.httpMocksMu.RLock()
+	mock, ok := s.httpMocks[r.URL.Path]
+	s.httpMocksMu.RUnlock()
+
+	if ok {
+		if s.opts.Verbose {
+			s.logf("[http] serving mock response for %s %s\n", r.Method, r.URL.Path)
+		}
+		for k, v := range mock.Headers {
+			w.Header().Set(k, v)
+		}
+		w.WriteHeader(mock.Status)
+		_, _ = w.Write([]byte(mock.Body))
+		return
+	}
+
+	// Fallback to UI or Status
+	if s.opts.UIEnabled {
+		// UI handler handles assets and fallback to index.html for React router
+		ui.Handler().ServeHTTP(w, r)
+		return
+	}
+
+	// Default: show status on root or 404
+	if r.URL.Path == "/" || r.URL.Path == "" {
+		s.serveStatus(w, r)
+		return
+	}
+
+	http.NotFound(w, r)
 }
 
 // ListSSEStreams returns metadata for all SSE streams.

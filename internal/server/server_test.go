@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/0funct0ry/xwebs/internal/template"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -90,4 +91,38 @@ func TestServer_StartAndStop(t *testing.T) {
 
 	err := <-errChan
 	assert.NoError(t, err)
+}
+
+func TestServer_HTTPMock(t *testing.T) {
+	s, _ := New(WithPaths([]string{"/ws"}))
+
+	mockResp := template.HTTPMockResponse{
+		Status:  201,
+		Headers: map[string]string{"X-Test": "val"},
+		Body:    "mock body",
+	}
+	err := s.RegisterHTTPMock("/api/test", mockResp)
+	require.NoError(t, err)
+
+	// Test the mock endpoint
+	req := httptest.NewRequest("GET", "/api/test", nil)
+	w := httptest.NewRecorder()
+	s.handleHTTPMock(w, req)
+
+	assert.Equal(t, 201, w.Code)
+	assert.Equal(t, "val", w.Header().Get("X-Test"))
+	assert.Equal(t, "mock body", w.Body.String())
+
+	// Test fallback for unknown path
+	req = httptest.NewRequest("GET", "/unknown", nil)
+	w = httptest.NewRecorder()
+	s.handleHTTPMock(w, req)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+
+	// Test root fallback (shows status)
+	req = httptest.NewRequest("GET", "/", nil)
+	w = httptest.NewRecorder()
+	s.handleHTTPMock(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "xwebs server")
 }

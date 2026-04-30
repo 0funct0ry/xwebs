@@ -65,6 +65,7 @@ type Handler struct {
 	Max          string                 `yaml:"max,omitempty"`        // For delay builtin — cap on dynamic duration
 	Code         string                 `yaml:"code,omitempty"`       // For close builtin (supports templates)
 	Reason       string                 `yaml:"reason,omitempty"`     // For close builtin (supports templates)
+	Status       string                 `yaml:"status,omitempty"`     // For http-mock-respond builtin (supports templates)
 	Actions      []Action               `yaml:"actions,omitempty"`
 	Variables    map[string]interface{} `yaml:"variables,omitempty"`
 	OnConnect    []Action               `yaml:"on_connect,omitempty"`
@@ -156,6 +157,7 @@ type PipelineStep struct {
 	Max         string            `yaml:"max,omitempty"`       // For delay builtin — cap on dynamic duration
 	Code        string            `yaml:"code,omitempty"`      // For close builtin
 	Reason      string            `yaml:"reason,omitempty"`    // For close builtin
+	Status      string            `yaml:"status,omitempty"`    // For http-mock-respond builtin
 	Name        string            `yaml:"name,omitempty"`      // For metric builtin
 	Labels      map[string]string `yaml:"labels,omitempty"`    // For metric builtin
 	Targets     string            `yaml:"targets,omitempty"`   // For multicast builtin
@@ -257,6 +259,7 @@ type Action struct {
 	Max         string            `yaml:"max,omitempty"`        // For delay builtin — cap on dynamic duration
 	Code        string            `yaml:"code,omitempty"`       // For close builtin
 	Reason      string            `yaml:"reason,omitempty"`     // For close builtin
+	Status      string            `yaml:"status,omitempty"`     // For http-mock-respond builtin
 	Name        string            `yaml:"name,omitempty"`       // For metric builtin (metric name)
 	Labels      map[string]string `yaml:"labels,omitempty"`     // For metric builtin
 	Targets     string            `yaml:"targets,omitempty"`    // For multicast builtin
@@ -429,6 +432,7 @@ func (c *Config) Validate(mode RegistryMode) error {
 				Max:       h.Max,
 				Code:      h.Code,
 				Reason:    h.Reason,
+				Status:    h.Status,
 				URL:       h.URL,
 				Method:    h.Method,
 				Headers:   h.Headers,

@@ -55,6 +55,7 @@ type ServerStatProvider interface {
 	Send(id string, msg *ws.Message) error
 	SendToSSE(stream, event, data, id string) error
 	UpdateSSEStreamConfig(stream, onNoConsumers string, bufferSize int) error
+	RegisterHTTPMock(path string, mock template.HTTPMockResponse) error
 }
 
 // TopicManager defines the required interface for pub/sub topic operations used
@@ -514,6 +515,7 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 				Method:      h.Method,
 				Headers:     h.Headers,
 				Body:        h.Body,
+				Status:      h.Status,
 				Name:        h.Name,
 				Labels:      h.Labels,
 				Script:      h.Script,
@@ -630,6 +632,7 @@ func (d *Dispatcher) executePipeline(ctx context.Context, handlerName string, pi
 			action.Method = step.Method
 			action.Headers = step.Headers
 			action.Body = step.Body
+			action.Status = step.Status
 			action.Name = step.Name
 			action.Labels = step.Labels
 			action.Script = step.Script
@@ -644,7 +647,11 @@ func (d *Dispatcher) executePipeline(ctx context.Context, handlerName string, pi
 			action.Rules = step.Rules
 			action.Query = step.Query
 			action.Variables = step.Variables
-			action.Default = step.Default
+			action.Stream = step.Stream
+			action.Event = step.Event
+			action.ID = step.ID
+			action.OnNoConsumers = step.OnNoConsumers
+			action.BufferSize = step.BufferSize
 			action.BaseDir = d.registry.GetHandlerBaseDir(handlerName)
 			action.HandlerName = handlerName
 		}

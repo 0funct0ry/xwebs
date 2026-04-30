@@ -73,6 +73,7 @@ type ServerContext interface {
 	SendToSSE(stream, event, data, id string) error
 	ClearSSEBuffer(name string) error
 	UpdateSSEStreamConfig(stream, onNoConsumers string, bufferSize int) error
+	RegisterHTTPMock(path string, mock template.HTTPMockResponse) error
 
 	// Observability
 	GetGlobalStats() observability.GlobalStats
@@ -708,7 +709,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("  -p, --priority <n>        Numeric priority (higher runs first)\n")
 				r.Printf("  -r, --run <cmd>           Shell command to run on match\n")
 				r.Printf("  -R, --respond <tmpl>      Response template to send back\n")
-				r.Printf("  -B, --builtin <name>      Builtin action (subscribe, unsubscribe, publish, forward, redis-subscribe, redis-incr, webhook-hmac, http-get, http-graphql, sse-forward)\n")
+				r.Printf("  -B, --builtin <name>      Builtin action (subscribe, unsubscribe, publish, forward, redis-subscribe, redis-incr, webhook-hmac, http-get, http-graphql, sse-forward, http-mock-respond)\n")
 				r.Printf("      --topic <template>    Topic name template for builtin actions\n")
 				r.Printf("      --target <url>        Upstream target URL for 'forward' builtin\n")
 				r.Printf("  -M, --message <template>  Message template for broadcast or publish\n")
@@ -732,8 +733,9 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("      --reason <reason>     Close reason for 'close' builtin (supports templates)\n")
 				r.Printf("      --url <url>           URL for 'http' builtin\n")
 				r.Printf("      --method <method>     Method for 'http' builtin (GET, POST, etc.)\n")
-				r.Printf("      --header <key:val>    Headers for 'http' builtin (repeatable)\n")
-				r.Printf("      --body <template>     Body for 'http' builtin\n")
+				r.Printf("      --header <key:val>    Headers for 'http' or 'http-mock-respond' builtins (repeatable)\n")
+				r.Printf("      --body <template>     Body for 'http' or 'http-mock-respond' builtins\n")
+				r.Printf("      --status <template>   Status code for 'http-mock-respond' builtin\n")
 				r.Printf("      --timeout <duration>  Timeout for 'http' builtin (e.g. '5s')\n")
 				r.Printf("      --message <template>  Message template for 'log', 'publish', or 'round-robin' builtins\n")
 				r.Printf("      --target <type>       Target for 'log' builtin (stdout|file|both)\n")
@@ -776,7 +778,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 				fs.SetOutput(r.Stdout())
 
-				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue, field, handlerA, handlerB, channel, reconnectInterval, by, secret, query, gqlVariables, stream, event, id, onNoConsumers string
+				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue, field, handlerA, handlerB, channel, reconnectInterval, by, secret, query, gqlVariables, stream, event, id, onNoConsumers, status string
 				var ruleWhens, ruleResponds, responses, headers []string
 				var labels map[string]string
 				var priority, burst, maxMemory, split, bufferSize int
@@ -815,7 +817,8 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.StringVar(&url, "url", "", "URL for http builtin")
 				fs.StringVar(&method, "method", "", "Method for http builtin")
 				fs.StringArrayVar(&headers, "header", nil, "Headers for http builtin (key:value)")
-				fs.StringVar(&body, "body", "", "Body for http builtin")
+				fs.StringVar(&body, "body", "", "Body for http or http-mock-respond builtin")
+				fs.StringVar(&status, "status", "", "Status code for http-mock-respond builtin")
 				fs.StringVar(&timeout, "timeout", "", "Timeout for http builtin")
 				fs.StringVar(&script, "script", "", "Inline Lua script")
 				fs.IntVar(&maxMemory, "max-memory", 0, "Max memory for Lua VM in bytes")
@@ -903,6 +906,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					Max:        max,
 					Code:       code,
 					Reason:     reason,
+					Status:     status,
 					URL:        url,
 					Method:     method,
 					Body:       body,

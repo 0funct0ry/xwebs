@@ -590,6 +590,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `http` | Shared | Makes an outbound HTTP request; response status/body are available in context. |
 | `http-get` | Shared | Makes an outbound HTTP GET request; response status/body are available in context. |
 | `http-graphql` | Shared | Executes a GraphQL query or mutation; response `data` in `.HttpBody`, `errors` in `.GraphQLErrors`. |
+| `http-mock-respond` | Server | Registers a canned HTTP response at a specific path. |
 | `webhook` | Shared | POSTs a message to an HTTP endpoint; defaults to raw message body. |
 | `webhook-hmac` | Shared | POSTs a message to an HTTP endpoint with an HMAC-SHA256 signature (`X-Hub-Signature-256`). |
 | `metric` | Shared | Increments a Prometheus counter with dynamic name and labels. |
@@ -795,6 +796,18 @@ handlers:
     body: '{"payload": "{{.Message | trimPrefix \"secure:\"}}"}'
     respond: "Secure webhook sent, signature: {{.HttpStatus}}"
  
+  # HTTP Mock Example
+  - name: register-mock
+    match: "mock:*"
+    builtin: http-mock-respond
+    path: "/api/mock/{{.Message | trimPrefix \"mock:\"}}"
+    status: "201"
+    headers:
+      Content-Type: "application/json"
+      X-Mock-By: "xwebs"
+    body: '{"status": "created", "id": "{{uuid}}"}'
+    respond: "Mock registered at /api/mock/{{.Message | trimPrefix \"mock:\"}}"
+
   # SSE Forward Example
   - name: bridge-to-sse
     match: "alert:*"

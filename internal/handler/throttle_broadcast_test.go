@@ -31,6 +31,7 @@ func (m *mockServerStats) SendToSSE(stream, event, data, id string) error { retu
 func (m *mockServerStats) UpdateSSEStreamConfig(stream, onNoConsumers string, bufferSize int) error {
 	return nil
 }
+func (m *mockServerStats) RegisterHTTPMock(path string, mock template.HTTPMockResponse) error { return nil }
 func (m *mockServerStats) GetGlobalStats() interface{}        { return nil }
 func (m *mockServerStats) GetRegistryStats() (uint64, uint64) { return 0, 0 }
 func (m *mockServerStats) GetTopics() []template.TopicInfo    { return nil }

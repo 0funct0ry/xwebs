@@ -38,6 +38,7 @@ func (m *mockSSEProvider) IsPaused() bool                                      {
 func (m *mockSSEProvider) WaitIfPaused()                                       {}
 func (m *mockSSEProvider) Broadcast(msg *ws.Message, excludeIDs ...string) int { return 0 }
 func (m *mockSSEProvider) Send(id string, msg *ws.Message) error               { return nil }
+func (m *mockSSEProvider) RegisterHTTPMock(path string, mock template.HTTPMockResponse) error { return nil }
 func (m *mockSSEProvider) GetTopics() []template.TopicInfo                     { return nil }
 func (m *mockSSEProvider) GetKVStore() map[string]interface{}                  { return nil }
 func (m *mockSSEProvider) GetGlobalStats() interface{}                         { return nil }

@@ -4,6 +4,13 @@ import (
 	"time"
 )
 
+// HTTPMockResponse holds the details of a canned HTTP response registered by a handler.
+type HTTPMockResponse struct {
+	Status  int               `json:"status"`
+	Headers map[string]string `json:"headers"`
+	Body    string            `json:"body"`
+}
+
 // ConnectionContext provides metadata about the WebSocket connection.
 type ConnectionContext struct {
 	URL                string            `json:"url"`

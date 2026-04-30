@@ -100,6 +100,10 @@ func (m *mockServerContext) UpdateSSEStreamConfig(stream, onNoConsumers string, 
 	return nil
 }
 
+func (m *mockServerContext) RegisterHTTPMock(path string, mock template.HTTPMockResponse) error {
+	return nil
+}
+
 func (m *mockServerContext) GetGlobalStats() observability.GlobalStats {
 	return observability.GlobalStats{}
 }

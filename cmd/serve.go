@@ -171,6 +171,10 @@ func (c *serveContext) UpdateSSEStreamConfig(stream, onNoConsumers string, buffe
 	return c.srv.UpdateSSEStreamConfig(stream, onNoConsumers, bufferSize)
 }
 
+func (c *serveContext) RegisterHTTPMock(path string, mock template.HTTPMockResponse) error {
+	return c.srv.RegisterHTTPMock(path, mock)
+}
+
 func (c *serveContext) GetGlobalStats() observability.GlobalStats   { return c.srv.GetGlobalStats() }
 func (c *serveContext) GetRegistryStats() (uint64, uint64)          { return c.srv.GetRegistryStats() }
 func (c *serveContext) GetSlowLog(limit int) []handler.SlowLogEntry { return c.srv.GetSlowLog(limit) }

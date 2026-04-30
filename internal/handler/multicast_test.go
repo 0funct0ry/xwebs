@@ -40,6 +40,7 @@ func (m *mockMulticastServerStats) SendToSSE(stream, event, data, id string) err
 func (m *mockMulticastServerStats) UpdateSSEStreamConfig(stream, onNoConsumers string, bufferSize int) error {
 	return nil
 }
+func (m *mockMulticastServerStats) RegisterHTTPMock(path string, mock template.HTTPMockResponse) error { return nil }
 func (m *mockMulticastServerStats) GetGlobalStats() interface{} { return nil }
 func (m *mockMulticastServerStats) GetRegistryStats() (uint64, uint64) { return 0, 0 }
 func (m *mockMulticastServerStats) GetTopics() []template.TopicInfo { return nil }
