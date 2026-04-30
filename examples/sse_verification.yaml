@@ -1,0 +1,20 @@
+sse_streams:
+  - name: "alerts"
+    on_no_consumers: "drop"
+  - name: "logs"
+    on_no_consumers: "buffer"
+    buffer_size: 50
+
+handlers:
+  - name: sse-bridge
+    match: "alert:*"
+    builtin: sse-forward
+    stream: "alerts"
+    event: "message"
+    message: "ALERT: {{.Message}}"
+
+  - name: sse-logs
+    match: "log:*"
+    builtin: sse-forward
+    stream: "logs"
+    message: "[{{.Time}}] {{.Message}}"

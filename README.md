@@ -323,6 +323,7 @@ The `serve` command transforms `xwebs` into a WebSocket server. You can host mul
 | `--on` | Define a quick inline handler (`pattern :: run:cmd`) | `--on "ping :: respond:pong"` |
 | `--on-match` | Define a full inline JSON handler | `--on-match '{"match":...}'` |
 | `--respond` | Default response template for inline handlers | `--respond "OK"` |
+| `--sse-streams` | (YAML only) Define named SSE streams served at `/sse/<name>` | (See Handlers section) |
 | `--tls` | Enable TLS (HTTPS/WSS) | `--tls` |
 | `--cert` | Path to certificate file | `--cert server.crt` |
 | `--key` | Path to private key file | `--key server.key` |
@@ -475,6 +476,7 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `:disable <name>`| Disable a handler at runtime to stop it from matching incoming messages |
 | `:stats` | Show global server observability statistics (connections, messages, handler hits) |
 | `:slow [n]` | Show the top `n` slowest handler executions (default 10) |
+| `:sse (streams\|stream\|send\|clear)` | Manage SSE streams: `:sse streams`, `:sse stream <name>`, `:sse send <stream> <msg>`, `:sse clear <stream>` |
 | `:serve` | Manage static serving. Subcommands: `:serve` (show status), `:serve [flags]` (start new), `:serve off [port]` (stop) |
 
 **`:serve` flags:** `-D` (dir), `-F` (file), `-A` (path), `-L` (port), `-g` (generate), `-S` (style).
@@ -495,7 +497,7 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `--priority <n>`        | `-p`  | Execution priority (higher runs first)                                     |
 | `--run <cmd>`           | `-r`  | Shell command to execute on match                                          |
 | `--respond <tmpl>`      | `-R`  | Response template sent back to the client                                  |
-| `--builtin <name>`      | `-B`  | Builtin action: `subscribe`, `unsubscribe`, `publish`, `template`, `kv-*`, `sequence`, `redis-*`, `redis-publish`, `webhook-hmac`. |
+| `--builtin <name>`      | `-B`  | Builtin action: `subscribe`, `unsubscribe`, `publish`, `template`, `kv-*`, `sequence`, `redis-*`, `redis-publish`, `webhook-hmac`, `sse-forward`. |
 | `--topic <template>`    |       | Topic name template for builtin actions (required for `subscribe`, `unsubscribe`, `publish`) |
 | `--file <path>`         |       | Template file path for `template` builtin (can include template expressions) |
 | `--exclusive`           | `-e`  | Stop further handler matching after this one fires                         |
@@ -535,6 +537,10 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `--ttl <duration>`  |       | TTL template for KV or Redis builtins                                      |
 | `--default <tmpl>`  | `-D`  | Default response for rule-engine or KV builtins                            |
 | `--secret <tmpl>`   |       | Secret template for `webhook-hmac` builtin                                |
+| `--stream <template>`  |       | Stream name template for `sse-forward` builtin                            |
+| `--event <template>`   |       | Event type template for `sse-forward` builtin                             |
+| `--on-no-consumers`    |       | Strategy when no consumers are connected (`drop` or `buffer`)              |
+| `--buffer-size <n>`    |       | Buffer size for `sse-forward` when strategy is `buffer`                   |
 
 Example — add pub-sub handlers directly from the REPL:
 
@@ -604,6 +610,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `debounce`    | Shared | Suppresses repeated matching messages within a window and only processes the last one. |
 | `rule-engine`  | Shared | Evaluates a list of condition-and-action rules in order; first-match wins. |
 | `ab-test`     | Server | Routes messages to one of two handlers based on a deterministic hash of a message field. |
+| `sse-forward` | Server | Forwards WebSocket messages to a named SSE stream served at `/sse/<name>`. |
 | `shadow`      | Server | Forwards messages to another handler asynchronously and silently. |
 
 **Validation Features:**
@@ -788,6 +795,16 @@ handlers:
     body: '{"payload": "{{.Message | trimPrefix \"secure:\"}}"}'
     respond: "Secure webhook sent, signature: {{.HttpStatus}}"
  
+  # SSE Forward Example
+  - name: bridge-to-sse
+    match: "alert:*"
+    builtin: sse-forward
+    stream: alerts
+    event: "critical"
+    message: '{"id":"{{now | unix}}","msg":"{{.Message | trimPrefix \"alert:\"}}"}'
+    on_no_consumers: buffer
+    buffer_size: 50
+
   # Redis Publish Example
   - name: redis-fanout
     match: "event:*"

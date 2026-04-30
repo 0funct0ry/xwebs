@@ -48,6 +48,7 @@ type Options struct {
 	StaticServePort     int
 	StaticGenerate      bool
 	StaticGenerateStyle string
+	SSEStreams          []handler.SSEStreamConfig
 
 	RedisManager handler.RedisManager
 }
@@ -254,5 +255,12 @@ func WithStaticGenerateStyle(style string) Option {
 func WithRedisManager(m handler.RedisManager) Option {
 	return func(o *Options) {
 		o.RedisManager = m
+	}
+}
+
+// WithSSEStreams sets the SSE stream configurations.
+func WithSSEStreams(streams []handler.SSEStreamConfig) Option {
+	return func(o *Options) {
+		o.SSEStreams = streams
 	}
 }

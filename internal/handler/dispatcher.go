@@ -53,6 +53,8 @@ type ServerStatProvider interface {
 	WaitIfPaused()
 	Broadcast(msg *ws.Message, excludeIDs ...string) int
 	Send(id string, msg *ws.Message) error
+	SendToSSE(stream, event, data, id string) error
+	UpdateSSEStreamConfig(stream, onNoConsumers string, bufferSize int) error
 }
 
 // TopicManager defines the required interface for pub/sub topic operations used
@@ -526,6 +528,11 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 				Rules:       h.Rules,
 				Query:       h.Query,
 				Variables:   h.GraphQLVariables,
+				Stream:      h.Stream,
+				Event:       h.Event,
+				ID:          h.ID,
+				OnNoConsumers: h.OnNoConsumers,
+				BufferSize:  h.BufferSize,
 				BaseDir:     h.BaseDir,
 				HandlerName: h.Name,
 			}

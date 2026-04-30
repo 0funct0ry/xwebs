@@ -14,7 +14,13 @@ type Config struct {
 	Handlers  []Handler              `yaml:"handlers"`
 	Sandbox   bool                   `yaml:"sandbox"`
 	Allowlist []string               `yaml:"allowlist"`
+	SSEStreams []SSEStreamConfig     `yaml:"sse_streams"`
 	BaseDir   string                 `yaml:"-"` // Directory from which the config was loaded
+}
+
+// SSEStreamConfig defines a named SSE stream served by the server.
+type SSEStreamConfig struct {
+	Name string `yaml:"name"`
 }
 
 // Rule defines a single condition-and-action pair for the rule-engine builtin.
@@ -89,6 +95,11 @@ type Handler struct {
 	HandlerB     string                 `yaml:"handler_b,omitempty"`    // For ab-test builtin
 	Rules        []Rule                 `yaml:"rules,omitempty"`        // For rule-engine builtin
 	Secret       string                 `yaml:"secret,omitempty"`       // For webhook-hmac builtin (template)
+	Stream       string                 `yaml:"stream,omitempty"`       // For sse-forward builtin (template)
+	Event        string                 `yaml:"event,omitempty"`        // For sse-forward builtin (template)
+	ID           string                 `yaml:"id,omitempty"`           // For sse-forward builtin (template)
+	OnNoConsumers string                `yaml:"on_no_consumers,omitempty"` // For sse-forward builtin
+	BufferSize    int                    `yaml:"buffer_size,omitempty"`    // For sse-forward builtin
 	Query        string                 `yaml:"query,omitempty"`        // For http-graphql builtin
 	GraphQLVariables string             `yaml:"gql_variables,omitempty"` // For http-graphql builtin
 	BaseDir      string                 `yaml:"-"`                      // Directory from which the handler was loaded
@@ -156,6 +167,11 @@ type PipelineStep struct {
 	HandlerB    string            `yaml:"handler_b,omitempty"` // For ab-test builtin
 	Rules       []Rule            `yaml:"rules,omitempty"`     // For rule-engine builtin
 	Secret      string            `yaml:"secret,omitempty"`    // For webhook-hmac builtin (template)
+	Stream      string            `yaml:"stream,omitempty"`    // For sse-forward builtin (template)
+	Event       string            `yaml:"event,omitempty"`     // For sse-forward builtin (template)
+	ID          string            `yaml:"id,omitempty"`        // For sse-forward builtin (template)
+	OnNoConsumers string          `yaml:"on_no_consumers,omitempty"` // For sse-forward builtin
+	BufferSize  int               `yaml:"buffer_size,omitempty"`    // For sse-forward builtin
 	Query       string            `yaml:"query,omitempty"`     // For http-graphql builtin
 	Variables   string            `yaml:"variables,omitempty"` // For http-graphql builtin
 }
@@ -252,6 +268,11 @@ type Action struct {
 	HandlerB    string            `yaml:"handler_b,omitempty"`  // For ab-test builtin
 	Rules       []Rule            `yaml:"rules,omitempty"`      // For rule-engine builtin
 	Secret      string            `yaml:"secret,omitempty"`     // For webhook-hmac builtin (template)
+	Stream      string            `yaml:"stream,omitempty"`     // For sse-forward builtin (template)
+	Event       string            `yaml:"event,omitempty"`      // For sse-forward builtin (template)
+	ID          string            `yaml:"id,omitempty"`         // For sse-forward builtin (template)
+	OnNoConsumers string          `yaml:"on_no_consumers,omitempty"` // For sse-forward builtin
+	BufferSize  int               `yaml:"buffer_size,omitempty"`    // For sse-forward builtin
 	Query       string            `yaml:"query,omitempty"`      // For http-graphql builtin
 	Variables   string            `yaml:"variables,omitempty"`  // For http-graphql builtin
 	BaseDir     string            `yaml:"-"`                    // For relative path resolution in builtins
@@ -423,6 +444,10 @@ func (c *Config) Validate(mode RegistryMode) error {
 				HandlerB:  h.HandlerB,
 				Rules:     h.Rules,
 				Secret:    h.Secret,
+				Stream:    h.Stream,
+				Event:     h.Event,
+				OnNoConsumers: h.OnNoConsumers,
+				BufferSize:    h.BufferSize,
 				Query:     h.Query,
 				Variables: h.GraphQLVariables,
 			}
@@ -437,6 +462,13 @@ func (c *Config) Validate(mode RegistryMode) error {
 		}
 		if (h.Builtin == "forward" || h.Builtin == "shadow") && h.Target == "" {
 			return fmt.Errorf("handler %q: %q builtin requires a target", h.Name, h.Builtin)
+		}
+	}
+
+	// Validate SSE streams
+	for i, s := range c.SSEStreams {
+		if s.Name == "" {
+			return fmt.Errorf("sse_streams[%d] is missing a name", i)
 		}
 	}
 

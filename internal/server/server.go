@@ -44,6 +44,7 @@ type Server struct {
 	securityMgr *SecurityManager
 	staticMgr   *StaticManager
 	redisMgr    handler.RedisManager
+	sseManager  *SSEManager
 
 	state     serverState
 	paused    atomic.Bool
@@ -70,8 +71,14 @@ func New(opts ...Option) (*Server, error) {
 		state:       serverRunning,
 		staticMgr:   NewStaticManager(options.Logger),
 		redisMgr:    options.RedisManager,
-		sourceCancels: make(map[string]context.CancelFunc),
 	}
+
+	var logf func(string, ...interface{})
+	if options.Logger != nil {
+		logf = options.Logger.Printf
+	}
+	s.sseManager = NewSSEManager(options.SSEStreams, options.Verbose, logf)
+	s.sourceCancels = make(map[string]context.CancelFunc)
 	s.pauseCond = sync.NewCond(&s.mu)
 
 	sm, err := NewSecurityManager(options)
@@ -156,6 +163,12 @@ func (s *Server) Start(ctx context.Context) error {
 	if s.opts.MetricsEnabled {
 		mux.Handle("/api/metrics", observability.Handler())
 	}
+
+	// Register SSE routes
+	mux.HandleFunc("GET /sse/{name}", func(w http.ResponseWriter, r *http.Request) {
+		name := r.PathValue("name")
+		s.sseManager.HandleSSE(name)(w, r)
+	})
 
 	var handler http.Handler = mux
 	if s.securityMgr != nil {
@@ -660,6 +673,46 @@ func (s *Server) Send(id string, msg *ws.Message) error {
 	}
 
 	return conn.Write(msg)
+}
+
+// SendToSSE delivers an event to a named SSE stream.
+func (s *Server) SendToSSE(stream, event, data, id string) error {
+	if s.sseManager == nil {
+		return fmt.Errorf("SSE manager not initialized")
+	}
+	return s.sseManager.SendToSSE(stream, event, data, id)
+}
+
+// UpdateSSEStreamConfig updates the configuration of an SSE stream.
+func (s *Server) UpdateSSEStreamConfig(stream, onNoConsumers string, bufferSize int) error {
+	if s.sseManager == nil {
+		return fmt.Errorf("SSE manager not initialized")
+	}
+	return s.sseManager.UpdateStreamConfig(stream, onNoConsumers, bufferSize)
+}
+
+// ListSSEStreams returns metadata for all SSE streams.
+func (s *Server) ListSSEStreams() []SSEStreamInfo {
+	if s.sseManager == nil {
+		return nil
+	}
+	return s.sseManager.ListStreams()
+}
+
+// GetSSEStreamInfo returns metadata for a specific SSE stream.
+func (s *Server) GetSSEStreamInfo(name string) (SSEStreamInfo, bool) {
+	if s.sseManager == nil {
+		return SSEStreamInfo{}, false
+	}
+	return s.sseManager.GetStreamInfo(name)
+}
+
+// ClearSSEBuffer clears the buffer of an SSE stream.
+func (s *Server) ClearSSEBuffer(name string) error {
+	if s.sseManager == nil {
+		return fmt.Errorf("SSE manager not initialized")
+	}
+	return s.sseManager.ClearBuffer(name)
 }
 
 // GetStatus returns the current server status.

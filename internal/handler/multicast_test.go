@@ -36,6 +36,15 @@ func (m *mockMulticastServerStats) Send(id string, msg *ws.Message) error {
 	return nil
 }
 
+func (m *mockMulticastServerStats) SendToSSE(stream, event, data, id string) error { return nil }
+func (m *mockMulticastServerStats) UpdateSSEStreamConfig(stream, onNoConsumers string, bufferSize int) error {
+	return nil
+}
+func (m *mockMulticastServerStats) GetGlobalStats() interface{} { return nil }
+func (m *mockMulticastServerStats) GetRegistryStats() (uint64, uint64) { return 0, 0 }
+func (m *mockMulticastServerStats) GetTopics() []template.TopicInfo { return nil }
+func (m *mockMulticastServerStats) GetKVStore() map[string]interface{} { return nil }
+
 func TestMulticastBuiltin(t *testing.T) {
 	stats := &mockMulticastServerStats{
 		sentMessages: make(map[string][]*ws.Message),

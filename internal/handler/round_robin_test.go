@@ -31,6 +31,15 @@ func (m *rrMockServerStats) Send(id string, msg *ws.Message) error {
 	return nil
 }
 
+func (m *rrMockServerStats) SendToSSE(stream, event, data, id string) error { return nil }
+func (m *rrMockServerStats) UpdateSSEStreamConfig(stream, onNoConsumers string, bufferSize int) error {
+	return nil
+}
+func (m *rrMockServerStats) GetGlobalStats() interface{} { return nil }
+func (m *rrMockServerStats) GetRegistryStats() (uint64, uint64) { return 0, 0 }
+func (m *rrMockServerStats) GetTopics() []template.TopicInfo { return nil }
+func (m *rrMockServerStats) GetKVStore() map[string]interface{} { return nil }
+
 func TestRoundRobinBuiltin(t *testing.T) {
 	reg := NewRegistry(ServerMode)
 	stats := &rrMockServerStats{

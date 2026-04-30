@@ -27,6 +27,15 @@ func (m *mockServerStats) Send(id string, msg *ws.Message) error {
 	return nil
 }
 
+func (m *mockServerStats) SendToSSE(stream, event, data, id string) error { return nil }
+func (m *mockServerStats) UpdateSSEStreamConfig(stream, onNoConsumers string, bufferSize int) error {
+	return nil
+}
+func (m *mockServerStats) GetGlobalStats() interface{}        { return nil }
+func (m *mockServerStats) GetRegistryStats() (uint64, uint64) { return 0, 0 }
+func (m *mockServerStats) GetTopics() []template.TopicInfo    { return nil }
+func (m *mockServerStats) GetKVStore() map[string]interface{} { return nil }
+
 func TestThrottleBroadcastBuiltin(t *testing.T) {
 	registry := NewRegistry(ServerMode)
 	stats := &mockServerStats{

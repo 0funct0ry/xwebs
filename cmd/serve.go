@@ -146,6 +146,31 @@ func (c *serveContext) SetKV(key string, val interface{}, ttl time.Duration) {
 }
 func (c *serveContext) DeleteKV(key string) { c.srv.DeleteKV(key) }
 
+func (c *serveContext) ListSSEStreams() []repl.SSEStreamInfo {
+	infos := c.srv.ListSSEStreams()
+	result := make([]repl.SSEStreamInfo, len(infos))
+	for i, info := range infos {
+		result[i] = repl.SSEStreamInfo(info)
+	}
+	return result
+}
+func (c *serveContext) GetSSEStreamInfo(name string) (repl.SSEStreamInfo, bool) {
+	info, ok := c.srv.GetSSEStreamInfo(name)
+	if !ok {
+		return repl.SSEStreamInfo{}, false
+	}
+	return repl.SSEStreamInfo(info), true
+}
+func (c *serveContext) SendToSSE(stream, event, data, id string) error {
+	return c.srv.SendToSSE(stream, event, data, id)
+}
+func (c *serveContext) ClearSSEBuffer(name string) error {
+	return c.srv.ClearSSEBuffer(name)
+}
+func (c *serveContext) UpdateSSEStreamConfig(stream, onNoConsumers string, bufferSize int) error {
+	return c.srv.UpdateSSEStreamConfig(stream, onNoConsumers, bufferSize)
+}
+
 func (c *serveContext) GetGlobalStats() observability.GlobalStats   { return c.srv.GetGlobalStats() }
 func (c *serveContext) GetRegistryStats() (uint64, uint64)          { return c.srv.GetRegistryStats() }
 func (c *serveContext) GetSlowLog(limit int) []handler.SlowLogEntry { return c.srv.GetSlowLog(limit) }
@@ -229,6 +254,7 @@ Available Builtin Actions (Server):
 
 		var handlers []handler.Handler
 		var variables map[string]interface{}
+		var sseStreams []handler.SSEStreamConfig
 
 		if handlersFile != "" {
 			cfg, err := handler.LoadConfig(handlersFile, handler.ServerMode)
@@ -237,6 +263,7 @@ Available Builtin Actions (Server):
 			}
 			handlers = cfg.Handlers
 			variables = cfg.Variables
+			sseStreams = cfg.SSEStreams
 
 			// Load sandbox settings from handlers config if not explicitly set via flags
 			if !cmd.Flags().Changed("sandbox") && cfg.Sandbox {
@@ -354,6 +381,7 @@ Available Builtin Actions (Server):
 			server.WithStaticGenerate(doGenerate),
 			server.WithStaticGenerateStyle(staticGenerateStyle),
 			server.WithRedisManager(redisMgr),
+			server.WithSSEStreams(sseStreams),
 		}
 
 		if staticRoot != "" {

@@ -67,6 +67,13 @@ type ServerContext interface {
 	SetKV(key string, val interface{}, ttl time.Duration)
 	DeleteKV(key string)
 
+	// SSE operations
+	ListSSEStreams() []SSEStreamInfo
+	GetSSEStreamInfo(name string) (SSEStreamInfo, bool)
+	SendToSSE(stream, event, data, id string) error
+	ClearSSEBuffer(name string) error
+	UpdateSSEStreamConfig(stream, onNoConsumers string, bufferSize int) error
+
 	// Observability
 	GetGlobalStats() observability.GlobalStats
 	GetRegistryStats() (total uint64, errors uint64)
@@ -91,6 +98,17 @@ type StaticServeInfo struct {
 	Path     string
 	IsDir    bool
 	Requests uint64
+}
+
+// SSEStreamInfo mirrors server.SSEStreamInfo but is defined here to avoid circular dependencies.
+type SSEStreamInfo struct {
+	Name          string
+	ConsumerCount int
+	BufferSize    int
+	BufferDepth   int
+	OnNoConsumers string
+	TotalSent     uint64
+	TotalBuffered uint64
 }
 
 // RegisterServerCommands adds WebSocket server-specific commands to the REPL.
@@ -306,6 +324,140 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 			r.Printf("  Connected At:   %s (%s ago)\n", c.ConnectedAt.Format("2006-01-02 15:04:05"), c.UptimeStr)
 			r.Printf("  Messages IN:    %d\n", c.MsgsIn)
 			r.Printf("  Messages OUT:   %d\n", c.MsgsOut)
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
+		name: "sse",
+		help: "Manage and inspect SSE streams: :sse (streams | stream <name> | send <stream> <msg> | clear <stream>)",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			if len(args) == 0 {
+				r.Printf("Usage:\n")
+				r.Printf("  :sse streams                       List all registered SSE streams\n")
+				r.Printf("  :sse stream <name>                 Show detailed info for a stream\n")
+				r.Printf("  :sse create <name> [flags]         Create or pre-configure an SSE stream\n")
+				r.Printf("  :sse update <name> [flags]         Update an SSE stream configuration\n")
+				r.Printf("  :sse send [flags] <stream> <msg>   Manually push a message to an SSE stream\n")
+				r.Printf("  :sse clear <stream>                Clear the buffer for a stream\n")
+				return nil
+			}
+
+			sub := args[0]
+			switch sub {
+			case "streams":
+				streams := sc.ListSSEStreams()
+				if len(streams) == 0 {
+					r.Printf("No SSE streams registered.\n")
+					return nil
+				}
+				tw := table.NewWriter()
+				tw.SetOutputMirror(nil)
+				tw.AppendHeader(table.Row{"Name", "Consumers", "Buffer", "Strategy", "Sent", "Buffered"})
+				for _, s := range streams {
+					tw.AppendRow(table.Row{
+						s.Name,
+						s.ConsumerCount,
+						fmt.Sprintf("%d/%d", s.BufferDepth, s.BufferSize),
+						s.OnNoConsumers,
+						s.TotalSent,
+						s.TotalBuffered,
+					})
+				}
+				tw.SetStyle(table.StyleColoredDark)
+				r.Printf("\nSSE Streams (%d):\n%s\n", len(streams), tw.Render())
+
+			case "stream":
+				if len(args) < 2 {
+					return fmt.Errorf("usage: :sse stream <name>")
+				}
+				name := args[1]
+				s, ok := sc.GetSSEStreamInfo(name)
+				if !ok {
+					return fmt.Errorf("SSE stream %q not found", name)
+				}
+				r.Printf("\nSSE Stream: %s\n", name)
+				r.Printf("  Consumers:      %d\n", s.ConsumerCount)
+				r.Printf("  Buffer Depth:   %d\n", s.BufferDepth)
+				r.Printf("  Buffer Size:    %d\n", s.BufferSize)
+				r.Printf("  No Consumers:   %s\n", s.OnNoConsumers)
+				r.Printf("  Total Sent:     %d\n", s.TotalSent)
+				r.Printf("  Total Buffered: %d\n", s.TotalBuffered)
+				r.Printf("  Endpoint:       GET /sse/%s\n", name)
+
+			case "create", "update":
+				if len(args) < 2 {
+					return fmt.Errorf("usage: :sse %s <name> [flags]", sub)
+				}
+				name := args[1]
+				var onNoConsumers string
+				var bufferSize int
+				fs := pflag.NewFlagSet("sse "+sub, pflag.ContinueOnError)
+				fs.SetOutput(r.Stdout())
+				fs.StringVar(&onNoConsumers, "on-no-consumers", "drop", "Strategy when no consumers are connected (drop|buffer)")
+				fs.IntVar(&bufferSize, "buffer-size", 100, "Buffer size for 'buffer' strategy")
+
+				if err := fs.Parse(args[2:]); err != nil {
+					return fmt.Errorf("parsing flags: %w", err)
+				}
+
+				if err := sc.UpdateSSEStreamConfig(name, onNoConsumers, bufferSize); err != nil {
+					return err
+				}
+				r.Printf("✓ SSE stream %q %sd\n", name, sub)
+
+			case "send":
+				var event, id string
+				var asTemplate bool
+				fs := pflag.NewFlagSet("sse send", pflag.ContinueOnError)
+				fs.SetOutput(r.Stdout())
+				fs.StringVarP(&event, "event", "e", "message", "Event type")
+				fs.StringVarP(&id, "id", "i", "", "Event ID")
+				fs.BoolVarP(&asTemplate, "template", "t", false, "Render message as template")
+
+				if err := fs.Parse(args[1:]); err != nil {
+					return fmt.Errorf("parsing flags: %w", err)
+				}
+
+				remaining := fs.Args()
+				if len(remaining) < 2 {
+					return fmt.Errorf("usage: :sse send [flags] <stream> <msg>")
+				}
+				stream := remaining[0]
+				msg := strings.Join(remaining[1:], " ")
+
+				if asTemplate {
+					engine := sc.GetTemplateEngine()
+					if engine == nil {
+						return fmt.Errorf("template engine not available")
+					}
+					tmplCtx := template.NewContext()
+					r.PopulateContext(tmplCtx)
+					res, err := engine.Execute("repl-sse", msg, tmplCtx)
+					if err != nil {
+						return fmt.Errorf("rendering template: %w", err)
+					}
+					msg = res
+				}
+
+				if err := sc.SendToSSE(stream, event, msg, id); err != nil {
+					return err
+				}
+				r.Printf("✓ Sent message to SSE stream %q\n", stream)
+
+			case "clear":
+				if len(args) < 2 {
+					return fmt.Errorf("usage: :sse clear <stream>")
+				}
+				stream := args[1]
+				if err := sc.ClearSSEBuffer(stream); err != nil {
+					return err
+				}
+				r.Printf("✓ Buffer cleared for SSE stream %q\n", stream)
+
+			default:
+				return fmt.Errorf("unknown sse subcommand: %s", sub)
+			}
 			return nil
 		},
 	})
@@ -556,7 +708,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("  -p, --priority <n>        Numeric priority (higher runs first)\n")
 				r.Printf("  -r, --run <cmd>           Shell command to run on match\n")
 				r.Printf("  -R, --respond <tmpl>      Response template to send back\n")
-				r.Printf("  -B, --builtin <name>      Builtin action (subscribe, unsubscribe, publish, forward, redis-subscribe, redis-incr, webhook-hmac, http-get, http-graphql)\n")
+				r.Printf("  -B, --builtin <name>      Builtin action (subscribe, unsubscribe, publish, forward, redis-subscribe, redis-incr, webhook-hmac, http-get, http-graphql, sse-forward)\n")
 				r.Printf("      --topic <template>    Topic name template for builtin actions\n")
 				r.Printf("      --target <url>        Upstream target URL for 'forward' builtin\n")
 				r.Printf("  -M, --message <template>  Message template for broadcast or publish\n")
@@ -612,6 +764,10 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("      --query <template>    GraphQL query template for 'http-graphql' builtin\n")
 				r.Printf("      --variables <tmpl>    GraphQL variables template (JSON) for 'http-graphql' builtin\n")
 				r.Printf("      --reconnect-interval <dur> Reconnect interval for 'redis-subscribe'\n")
+				r.Printf("      --stream <template>   Stream name for 'sse-forward' builtin\n")
+				r.Printf("      --event <template>    Event type for 'sse-forward' builtin\n")
+				r.Printf("      --on-no-consumers <drop|buffer> Strategy when no consumers are connected\n")
+				r.Printf("      --buffer-size <n>     Buffer size for 'sse-forward' when strategy is 'buffer'\n")
 				return nil
 			}
 
@@ -620,10 +776,10 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 				fs.SetOutput(r.Stdout())
 
-				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue, field, handlerA, handlerB, channel, reconnectInterval, by, secret, query, gqlVariables string
+				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue, field, handlerA, handlerB, channel, reconnectInterval, by, secret, query, gqlVariables, stream, event, id, onNoConsumers string
 				var ruleWhens, ruleResponds, responses, headers []string
 				var labels map[string]string
-				var priority, burst, maxMemory, split int
+				var priority, burst, maxMemory, split, bufferSize int
 				var exclusive, sequential, loop, perClient, stickyBroadcast bool
 
 				fs.StringVarP(&name, "name", "n", "", "Name of the handler")
@@ -687,6 +843,11 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.StringVar(&query, "query", "", "GraphQL query template for http-graphql builtin")
 				fs.StringVar(&gqlVariables, "variables", "", "GraphQL variables template for http-graphql builtin")
 				fs.StringVar(&reconnectInterval, "reconnect-interval", "", "Reconnect interval for redis-subscribe")
+				fs.StringVar(&stream, "stream", "", "Stream name template for sse-forward")
+				fs.StringVar(&event, "event", "", "Event type template for sse-forward")
+				fs.StringVar(&id, "id", "", "Event ID template for sse-forward")
+				fs.StringVar(&onNoConsumers, "on-no-consumers", "", "Strategy when no consumers are connected")
+				fs.IntVar(&bufferSize, "buffer-size", 0, "Buffer size for sse-forward")
 
 				if err := fs.Parse(args[1:]); err != nil {
 					if errors.Is(err, pflag.ErrHelp) {
@@ -768,6 +929,11 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					Query:      query,
 					GraphQLVariables: gqlVariables,
 					ReconnectInterval: reconnectInterval,
+					Stream:     stream,
+					Event:      event,
+					ID:         id,
+					OnNoConsumers: onNoConsumers,
+					BufferSize: bufferSize,
 					Rules:      make([]handler.Rule, 0),
 				}
 

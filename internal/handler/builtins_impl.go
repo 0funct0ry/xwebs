@@ -39,6 +39,7 @@ func init() {
 	MustRegister(&BroadcastBuiltin{})
 	MustRegister(&BroadcastOthersBuiltin{})
 	MustRegister(&ForwardBuiltin{conns: make(map[string]*ws.Connection)})
+	MustRegister(&SSEForwardBuiltin{})
 	MustRegister(&SequenceBuiltin{})
 	MustRegister(&TemplateBuiltin{})
 	MustRegister(&FileSendBuiltin{})
@@ -3022,6 +3023,91 @@ func (b *WebhookHMACBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Acti
 
 	if d.verbose {
 		d.errorf("  [handler] webhook-hmac: received status %d (%d bytes)\n", resp.StatusCode, len(respBody))
+	}
+
+	return nil
+}
+// SSEForwardBuiltin forwards WebSocket messages to an SSE stream.
+type SSEForwardBuiltin struct{}
+
+func (b *SSEForwardBuiltin) Name() string { return "sse-forward" }
+func (b *SSEForwardBuiltin) Description() string {
+	return "Forward messages to a named Server-Sent Events (SSE) stream."
+}
+func (b *SSEForwardBuiltin) Scope() BuiltinScope { return ServerOnly }
+
+func (b *SSEForwardBuiltin) Validate(a Action) error {
+	if a.Stream == "" {
+		return fmt.Errorf("builtin sse-forward missing stream")
+	}
+	return nil
+}
+
+func (b *SSEForwardBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	if d.serverStats == nil {
+		return fmt.Errorf("builtin sse-forward: server stats provider not available")
+	}
+
+	stream, err := d.templateEngine.Execute("sse-stream", a.Stream, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in stream expression: %w", err)
+	}
+	stream = strings.TrimSpace(stream)
+	if stream == "" {
+		return fmt.Errorf("builtin sse-forward: stream evaluates to empty string")
+	}
+
+	event := "message"
+	if a.Event != "" {
+		ev, err := d.templateEngine.Execute("sse-event", a.Event, tmplCtx)
+		if err != nil {
+			return fmt.Errorf("template error in event expression: %w", err)
+		}
+		if e := strings.TrimSpace(ev); e != "" {
+			event = e
+		}
+	}
+
+	msgContent := a.Message
+	if msgContent == "" {
+		// Default to raw message
+		msgContent = "{{.Message}}"
+	}
+
+	data, err := d.templateEngine.Execute("sse-data", msgContent, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in message expression: %w", err)
+	}
+
+	id := ""
+	if a.ID != "" {
+		evID, err := d.templateEngine.Execute("sse-id", a.ID, tmplCtx)
+		if err != nil {
+			return fmt.Errorf("template error in id expression: %w", err)
+		}
+		id = strings.TrimSpace(evID)
+	}
+
+	// Update stream config if provided in the handler
+	if a.OnNoConsumers != "" || a.BufferSize > 0 {
+		onNoConsumers := a.OnNoConsumers
+		if onNoConsumers == "" {
+			onNoConsumers = "drop" // Default
+		}
+		bufferSize := a.BufferSize
+		if bufferSize <= 0 {
+			bufferSize = 100 // Default
+		}
+		_ = d.serverStats.UpdateSSEStreamConfig(stream, onNoConsumers, bufferSize)
+	}
+
+	err = d.serverStats.SendToSSE(stream, event, data, id)
+	if err != nil {
+		return fmt.Errorf("sse-forward error: %w", err)
+	}
+
+	if d.verbose {
+		d.errorf("  [handler] sse-forward: stream=%q event=%q id=%q\n", stream, event, id)
 	}
 
 	return nil

@@ -90,6 +90,16 @@ func (m *mockServerContext) GetKV(key string) (interface{}, bool)               
 func (m *mockServerContext) SetKV(key string, val interface{}, ttl time.Duration) {}
 func (m *mockServerContext) DeleteKV(key string)                                  {}
 
+func (m *mockServerContext) ListSSEStreams() []SSEStreamInfo { return nil }
+func (m *mockServerContext) GetSSEStreamInfo(name string) (SSEStreamInfo, bool) {
+	return SSEStreamInfo{}, false
+}
+func (m *mockServerContext) SendToSSE(stream, event, data, id string) error { return nil }
+func (m *mockServerContext) ClearSSEBuffer(name string) error               { return nil }
+func (m *mockServerContext) UpdateSSEStreamConfig(stream, onNoConsumers string, bufferSize int) error {
+	return nil
+}
+
 func (m *mockServerContext) GetGlobalStats() observability.GlobalStats {
 	return observability.GlobalStats{}
 }
