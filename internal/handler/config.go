@@ -103,6 +103,9 @@ type Handler struct {
 	BufferSize    int                    `yaml:"buffer_size,omitempty"`    // For sse-forward builtin
 	Query        string                 `yaml:"query,omitempty"`        // For http-graphql builtin
 	GraphQLVariables string             `yaml:"gql_variables,omitempty"` // For http-graphql builtin
+	Model        string                 `yaml:"model,omitempty"`        // For ollama-generate builtin
+	Prompt       string                 `yaml:"prompt,omitempty"`       // For ollama-generate builtin
+	OllamaURL    string                 `yaml:"ollama_url,omitempty"`   // For ollama-generate builtin
 	BaseDir      string                 `yaml:"-"`                      // Directory from which the handler was loaded
 }
 
@@ -176,6 +179,9 @@ type PipelineStep struct {
 	BufferSize  int               `yaml:"buffer_size,omitempty"`    // For sse-forward builtin
 	Query       string            `yaml:"query,omitempty"`     // For http-graphql builtin
 	Variables   string            `yaml:"variables,omitempty"` // For http-graphql builtin
+	Model       string            `yaml:"model,omitempty"`     // For ollama-generate builtin
+	Prompt      string            `yaml:"prompt,omitempty"`    // For ollama-generate builtin
+	OllamaURL   string            `yaml:"ollama_url,omitempty"` // For ollama-generate builtin
 }
 
 // Matcher specifies how to match an incoming WebSocket message.
@@ -278,6 +284,9 @@ type Action struct {
 	BufferSize  int               `yaml:"buffer_size,omitempty"`    // For sse-forward builtin
 	Query       string            `yaml:"query,omitempty"`      // For http-graphql builtin
 	Variables   string            `yaml:"variables,omitempty"`  // For http-graphql builtin
+	Model       string            `yaml:"model,omitempty"`      // For ollama-generate builtin
+	Prompt      string            `yaml:"prompt,omitempty"`     // For ollama-generate builtin
+	OllamaURL   string            `yaml:"ollama_url,omitempty"` // For ollama-generate builtin
 	BaseDir     string            `yaml:"-"`                    // For relative path resolution in builtins
 	HandlerName string            `yaml:"-"`                    // Internal use only
 }
@@ -454,6 +463,9 @@ func (c *Config) Validate(mode RegistryMode) error {
 				BufferSize:    h.BufferSize,
 				Query:     h.Query,
 				Variables: h.GraphQLVariables,
+				Model:     h.Model,
+				Prompt:    h.Prompt,
+				OllamaURL: h.OllamaURL,
 			}
 			if err := bh.Validate(tmpAction); err != nil {
 				return fmt.Errorf("handler %q: %w", h.Name, err)

@@ -766,6 +766,10 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("      --query <template>    GraphQL query template for 'http-graphql' builtin\n")
 				r.Printf("      --variables <tmpl>    GraphQL variables template (JSON) for 'http-graphql' builtin\n")
 				r.Printf("      --reconnect-interval <dur> Reconnect interval for 'redis-subscribe'\n")
+				r.Printf("      --model <name>        Ollama model name\n")
+				r.Printf("      --prompt <template>   Prompt template for 'ollama-generate'\n")
+				r.Printf("      --ollama-url <url>    Ollama API URL override\n")
+				r.Printf("      --stream-ollama       Enable streaming for 'ollama-generate'\n")
 				r.Printf("      --stream <template>   Stream name for 'sse-forward' builtin\n")
 				r.Printf("      --event <template>    Event type for 'sse-forward' builtin\n")
 				r.Printf("      --on-no-consumers <drop|buffer> Strategy when no consumers are connected\n")
@@ -778,11 +782,11 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 				fs.SetOutput(r.Stdout())
 
-				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue, field, handlerA, handlerB, channel, reconnectInterval, by, secret, query, gqlVariables, stream, event, id, onNoConsumers, status string
+				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue, field, handlerA, handlerB, channel, reconnectInterval, by, secret, query, gqlVariables, sseStream, event, id, onNoConsumers, status, model, prompt, ollamaURL string
 				var ruleWhens, ruleResponds, responses, headers []string
 				var labels map[string]string
 				var priority, burst, maxMemory, split, bufferSize int
-				var exclusive, sequential, loop, perClient, stickyBroadcast bool
+				var exclusive, sequential, loop, perClient, stickyBroadcast, streamOllama bool
 
 				fs.StringVarP(&name, "name", "n", "", "Name of the handler")
 				fs.StringVarP(&match, "match", "m", "", "Match pattern")
@@ -820,6 +824,10 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.StringVar(&body, "body", "", "Body for http or http-mock-respond builtin")
 				fs.StringVar(&status, "status", "", "Status code for http-mock-respond builtin")
 				fs.StringVar(&timeout, "timeout", "", "Timeout for http builtin")
+				fs.StringVar(&model, "model", "", "Ollama model name")
+				fs.StringVar(&prompt, "prompt", "", "Prompt template for ollama-generate")
+				fs.StringVar(&ollamaURL, "ollama-url", "", "Ollama API URL")
+				fs.BoolVar(&streamOllama, "stream-ollama", false, "Enable streaming for ollama-generate")
 				fs.StringVar(&script, "script", "", "Inline Lua script")
 				fs.IntVar(&maxMemory, "max-memory", 0, "Max memory for Lua VM in bytes")
 				fs.StringVarP(&window, "window", "w", "", "Throttle window (e.g. '5s')")
@@ -846,7 +854,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.StringVar(&query, "query", "", "GraphQL query template for http-graphql builtin")
 				fs.StringVar(&gqlVariables, "variables", "", "GraphQL variables template for http-graphql builtin")
 				fs.StringVar(&reconnectInterval, "reconnect-interval", "", "Reconnect interval for redis-subscribe")
-				fs.StringVar(&stream, "stream", "", "Stream name template for sse-forward")
+				fs.StringVar(&sseStream, "stream", "", "Stream name template for sse-forward")
 				fs.StringVar(&event, "event", "", "Event type template for sse-forward")
 				fs.StringVar(&id, "id", "", "Event ID template for sse-forward")
 				fs.StringVar(&onNoConsumers, "on-no-consumers", "", "Strategy when no consumers are connected")
@@ -933,12 +941,18 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					Query:      query,
 					GraphQLVariables: gqlVariables,
 					ReconnectInterval: reconnectInterval,
-					Stream:     stream,
+					Model:             model,
+					Prompt:            prompt,
+					OllamaURL:         ollamaURL,
+					Stream:     sseStream,
 					Event:      event,
 					ID:         id,
 					OnNoConsumers: onNoConsumers,
 					BufferSize: bufferSize,
 					Rules:      make([]handler.Rule, 0),
+				}
+				if streamOllama {
+					h.Stream = "true"
 				}
 
 				if fs.Changed("split") {

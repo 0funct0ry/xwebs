@@ -194,6 +194,9 @@ type TemplateContext struct {
 	// Redis Subscribe
 	Channel string `json:"channel,omitempty"`
 	Source  string `json:"source,omitempty"`
+
+	// Ollama Generate
+	OllamaReply string `json:"ollama_reply,omitempty"`
 }
 
 // NewContext creates a new TemplateContext with initialized maps.

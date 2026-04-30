@@ -1348,6 +1348,10 @@ func (r *REPL) RegisterCommonCommands() {
 				r.Printf("  --by <n>              Increment value for 'redis-incr' builtin\n")
 				r.Printf("  --reconnect-interval <dur> Reconnect interval for 'redis-subscribe'\n")
 				r.Printf("  --on-error <tmpl>     Error template for 'redis-subscribe'\n")
+				r.Printf("  --model <name>        Ollama model name\n")
+				r.Printf("  --prompt <template>   Prompt template for 'ollama-generate'\n")
+				r.Printf("  --ollama-url <url>    Ollama API URL override\n")
+				r.Printf("  --stream-ollama       Enable streaming for 'ollama-generate'\n")
 				return nil
 			}
 
@@ -1512,10 +1516,10 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.SetOutput(nil) // Suppress automatic usage printing on error
 
 			var name, match, matchType, run, respond, builtin, topic, rateLimit, debounce, code, reason, message, target, script, targets, window, scope, channel, reconnectInterval, onError string
-			var key, value, ttl, by string
+			var key, value, ttl, by, model, prompt, ollamaURL string
 			var labels map[string]string
 			var priority, maxMemory int
-			var exclusive, sequential bool
+			var exclusive, sequential, streamOllama bool
 
 			fs.StringVarP(&name, "name", "n", "", "Name of the handler")
 			fs.StringVarP(&match, "match", "m", "", "Match pattern")
@@ -1574,6 +1578,10 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.StringVar(&channel, "channel", "", "Redis channel name for redis-publish or redis-subscribe")
 			fs.StringVar(&reconnectInterval, "reconnect-interval", "", "Reconnect interval for redis-subscribe")
 			fs.StringVar(&onError, "on-error", "", "Error response template")
+			fs.StringVar(&model, "model", "", "Ollama model name")
+			fs.StringVar(&prompt, "prompt", "", "Prompt template for ollama-generate")
+			fs.StringVar(&ollamaURL, "ollama-url", "", "Ollama API URL")
+			fs.BoolVar(&streamOllama, "stream-ollama", false, "Enable streaming")
 
 			if err := fs.Parse(args[1:]); err != nil {
 				if errors.Is(err, pflag.ErrHelp) {
@@ -1643,7 +1651,13 @@ func (r *REPL) RegisterCommonCommands() {
 				TTL:       ttl,
 				Channel:   channel,
 				ReconnectInterval: reconnectInterval,
-				OnErrorMsg: onError,
+				OnErrorMsg:        onError,
+				Model:             model,
+				Prompt:            prompt,
+				OllamaURL:         ollamaURL,
+			}
+			if streamOllama {
+				h.Stream = "true"
 			}
 
 			if fs.Changed("split") {

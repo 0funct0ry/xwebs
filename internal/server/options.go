@@ -51,6 +51,7 @@ type Options struct {
 	SSEStreams          []handler.SSEStreamConfig
 
 	RedisManager handler.RedisManager
+	OllamaURL    string
 }
 
 // Logger defines the interface for server logging.
@@ -262,5 +263,12 @@ func WithRedisManager(m handler.RedisManager) Option {
 func WithSSEStreams(streams []handler.SSEStreamConfig) Option {
 	return func(o *Options) {
 		o.SSEStreams = streams
+	}
+}
+
+// WithOllamaURL sets the default Ollama API URL.
+func WithOllamaURL(url string) Option {
+	return func(o *Options) {
+		o.OllamaURL = url
 	}
 }

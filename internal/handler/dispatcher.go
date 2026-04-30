@@ -97,6 +97,7 @@ type Dispatcher struct {
 	verbose        bool
 	Log            func(string, ...interface{})
 	Error          func(string, ...interface{})
+	ollamaURL      string
 
 	variables        map[string]interface{}
 	sessionVariables map[string]interface{}
@@ -116,7 +117,7 @@ type Dispatcher struct {
 }
 
 // NewDispatcher creates a new dispatcher.
-func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine, verbose bool, vars map[string]interface{}, session map[string]interface{}, sandbox bool, allowlist []string, serverStats ServerStatProvider, topicManager TopicManager, kvManager KVManager, redisManager RedisManager) *Dispatcher {
+func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine, verbose bool, vars map[string]interface{}, session map[string]interface{}, sandbox bool, allowlist []string, serverStats ServerStatProvider, topicManager TopicManager, kvManager KVManager, redisManager RedisManager, ollamaURL string) *Dispatcher {
 
 	// Initialize system environment
 	env := make(map[string]string)
@@ -140,6 +141,7 @@ func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine,
 		topicManager:     topicManager,
 		kvManager:        kvManager,
 		redisManager:     redisManager,
+		ollamaURL:        ollamaURL,
 		systemEnv:        env,
 		Log: func(f string, a ...interface{}) {
 			fmt.Printf(f, a...)
@@ -530,6 +532,9 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 				Rules:       h.Rules,
 				Query:       h.Query,
 				Variables:   h.GraphQLVariables,
+				Model:       h.Model,
+				Prompt:      h.Prompt,
+				OllamaURL:   h.OllamaURL,
 				Stream:      h.Stream,
 				Event:       h.Event,
 				ID:          h.ID,
@@ -647,6 +652,9 @@ func (d *Dispatcher) executePipeline(ctx context.Context, handlerName string, pi
 			action.Rules = step.Rules
 			action.Query = step.Query
 			action.Variables = step.Variables
+			action.Model = step.Model
+			action.Prompt = step.Prompt
+			action.OllamaURL = step.OllamaURL
 			action.Stream = step.Stream
 			action.Event = step.Event
 			action.ID = step.ID

@@ -20,7 +20,7 @@ func newDelayDispatcher(t *testing.T) (*Dispatcher, *delayMockConn) {
 	conn := &delayMockConn{}
 	registry := NewRegistry(ServerMode)
 	engine := template.New(false)
-	d := NewDispatcher(registry, conn, engine, true, nil, nil, false, nil, nil, nil, nil, nil)
+	d := NewDispatcher(registry, conn, engine, true, nil, nil, false, nil, nil, nil, nil, nil, "")
 	return d, conn
 }
 

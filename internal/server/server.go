@@ -416,6 +416,7 @@ func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
 			s.topics, // Server.topics implements TopicManager
 			s,        // Server implements KVManager
 			s.redisMgr,
+			s.opts.OllamaURL,
 		)
 
 		// Setup logging/error handlers for dispatcher

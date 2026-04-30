@@ -51,6 +51,7 @@ func init() {
 	MustRegister(&LogBuiltin{})
 	MustRegister(&HttpBuiltin{})
 	MustRegister(&HttpGetBuiltin{})
+	MustRegister(&OllamaGenerateBuiltin{})
 	MustRegister(&HttpGraphQLBuiltin{})
 	MustRegister(&HttpMockRespondBuiltin{})
 	MustRegister(&MetricBuiltin{})
@@ -1592,6 +1593,174 @@ func (b *HttpBuiltin) execute(ctx context.Context, d *Dispatcher, a *Action, tmp
 
 	if d.verbose {
 		d.errorf("  [handler] http: received status %d (%d bytes)\n", resp.StatusCode, len(respBody))
+	}
+
+	return nil
+}
+
+type ollamaRequest struct {
+	Model  string `json:"model"`
+	Prompt string `json:"prompt"`
+	Stream bool   `json:"stream"`
+}
+
+type ollamaResponse struct {
+	Response string `json:"response"`
+	Done     bool   `json:"done"`
+}
+
+// OllamaGenerateBuiltin sends a prompt to a local Ollama model.
+type OllamaGenerateBuiltin struct{}
+
+func (b *OllamaGenerateBuiltin) Name() string { return "ollama-generate" }
+func (b *OllamaGenerateBuiltin) Description() string {
+	return "Send a prompt to a local Ollama model and return the generated text."
+}
+func (b *OllamaGenerateBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *OllamaGenerateBuiltin) Validate(a Action) error {
+	if a.Model == "" {
+		return fmt.Errorf("builtin ollama-generate missing model")
+	}
+	if a.Prompt == "" {
+		return fmt.Errorf("builtin ollama-generate missing prompt")
+	}
+	return nil
+}
+
+func (b *OllamaGenerateBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	// 1. Resolve URL
+	urlStr := a.OllamaURL
+	if urlStr == "" {
+		urlStr = d.ollamaURL // Use dispatcher's default if action doesn't specify
+	}
+	if urlStr == "" {
+		urlStr = "http://localhost:11434/api/generate"
+	}
+
+	// Resolve URL template if needed
+	if strings.Contains(urlStr, "{{") {
+		evalURL, err := d.templateEngine.Execute("ollama-url", urlStr, tmplCtx)
+		if err == nil && evalURL != "" {
+			urlStr = evalURL
+		}
+	}
+
+	// 2. Resolve Model
+	model, err := d.templateEngine.Execute("ollama-model", a.Model, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("rendering ollama model template: %w", err)
+	}
+
+	// 3. Resolve Prompt
+	prompt, err := d.templateEngine.Execute("ollama-prompt", a.Prompt, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("rendering ollama prompt template: %w", err)
+	}
+
+	// 4. Resolve Stream
+	stream := false
+	if a.Stream != "" {
+		evalStream, err := d.templateEngine.Execute("ollama-stream", a.Stream, tmplCtx)
+		if err == nil {
+			stream = (evalStream == "true")
+		}
+	}
+
+	// 5. Prepare Request
+	ollamaReq := ollamaRequest{
+		Model:  model,
+		Prompt: prompt,
+		Stream: stream,
+	}
+	reqBody, err := json.Marshal(ollamaReq)
+	if err != nil {
+		return fmt.Errorf("marshaling ollama request: %w", err)
+	}
+
+	// 6. Execute Request
+	timeout := 60 * time.Second
+	if a.Timeout != "" {
+		if t, err := time.ParseDuration(a.Timeout); err == nil {
+			timeout = t
+		}
+	}
+
+	httpClient := &http.Client{
+		Timeout: timeout,
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", urlStr, bytes.NewReader(reqBody))
+	if err != nil {
+		return fmt.Errorf("creating ollama request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	if d.verbose {
+		d.errorf("  [handler] ollama-generate: model=%q, stream=%v, url=%s\n", model, stream, urlStr)
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("ollama request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("ollama error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	if stream {
+		decoder := json.NewDecoder(resp.Body)
+		var fullReply strings.Builder
+		for {
+			var chunk ollamaResponse
+			if err := decoder.Decode(&chunk); err != nil {
+				if err == io.EOF {
+					break
+				}
+				return fmt.Errorf("decoding ollama stream: %w", err)
+			}
+
+			fullReply.WriteString(chunk.Response)
+			tmplCtx.OllamaReply = chunk.Response
+
+			// If respond: is present, send the chunk
+			if a.Respond != "" {
+				msg, err := d.templateEngine.Execute("ollama-respond", a.Respond, tmplCtx)
+				if err != nil {
+					return fmt.Errorf("rendering ollama stream response: %w", err)
+				}
+				if err := d.conn.Write(&ws.Message{
+					Type: ws.TextMessage,
+					Data: []byte(msg),
+					Metadata: ws.MessageMetadata{
+						Direction: "sent",
+						Timestamp: time.Now(),
+					},
+				}); err != nil {
+					return fmt.Errorf("sending ollama stream chunk: %w", err)
+				}
+			}
+
+			if chunk.Done {
+				break
+			}
+		}
+		// Store full reply at the end in case anyone else needs it
+		tmplCtx.OllamaReply = fullReply.String()
+		// Clear Respond so dispatcher doesn't send it again
+		a.Respond = ""
+	} else {
+		var ollamaResp ollamaResponse
+		if err := json.NewDecoder(resp.Body).Decode(&ollamaResp); err != nil {
+			return fmt.Errorf("decoding ollama response: %w", err)
+		}
+		tmplCtx.OllamaReply = ollamaResp.Response
+		if d.verbose {
+			d.errorf("  [handler] ollama-generate: received %d chars\n", len(ollamaResp.Response))
+		}
 	}
 
 	return nil
