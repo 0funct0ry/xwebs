@@ -772,6 +772,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("      --stream-ollama       Enable streaming for 'ollama-generate'\n")
 				r.Printf("      --system <template>   System prompt for 'ollama-chat'\n")
 				r.Printf("      --max-history <n>     Max message history to retain for 'ollama-chat'\n")
+				r.Printf("      --input <template>    Input template for 'ollama-embed'\n")
 				r.Printf("      --stream <template>   Stream name for 'sse-forward' builtin\n")
 				r.Printf("      --event <template>    Event type for 'sse-forward' builtin\n")
 				r.Printf("      --on-no-consumers <drop|buffer> Strategy when no consumers are connected\n")
@@ -784,7 +785,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 				fs.SetOutput(r.Stdout())
 
-				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue, field, handlerA, handlerB, channel, reconnectInterval, by, secret, query, gqlVariables, sseStream, event, id, onNoConsumers, status, model, prompt, ollamaURL, system string
+				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue, field, handlerA, handlerB, channel, reconnectInterval, by, secret, query, gqlVariables, sseStream, event, id, onNoConsumers, status, model, prompt, ollamaURL, system, input string
 				var ruleWhens, ruleResponds, responses, headers []string
 				var labels map[string]string
 				var priority, burst, maxMemory, split, bufferSize, maxHistory int
@@ -829,9 +830,10 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.StringVar(&model, "model", "", "Ollama model name")
 				fs.StringVar(&prompt, "prompt", "", "Prompt template for ollama-generate")
 				fs.StringVar(&ollamaURL, "ollama-url", "", "Ollama API URL")
-				fs.BoolVar(&streamOllama, "stream-ollama", false, "Enable streaming for ollama-generate")
+				fs.BoolVar(&streamOllama, "stream-ollama", false, "Enable streaming")
 				fs.StringVar(&system, "system", "", "System prompt template")
 				fs.IntVar(&maxHistory, "max-history", 0, "Max history turns to retain")
+				fs.StringVarP(&input, "input", "i", "", "Input template for ollama-embed")
 				fs.StringVar(&script, "script", "", "Inline Lua script")
 				fs.IntVar(&maxMemory, "max-memory", 0, "Max memory for Lua VM in bytes")
 				fs.StringVarP(&window, "window", "w", "", "Throttle window (e.g. '5s')")
@@ -900,62 +902,63 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 						}
 						return m
 					}(),
-					RateLimit:  rateLimit,
-					Debounce:   debounce,
-					OnErrorMsg: onError,
-					Responses:  responses,
-					Loop:       loop,
-					PerClient:  perClient,
-					File:       file,
-					Path:       path,
-					Content:    content,
-					Mode:       mode,
-					Rate:       rate,
-					Burst:      burst,
-					Scope:      scope,
-					OnLimit:    onLimit,
-					Duration:   duration,
-					Max:        max,
-					Code:       code,
-					Reason:     reason,
-					Status:     status,
-					URL:        url,
-					Method:     method,
-					Body:       body,
-					Timeout:    timeout,
-					Labels:     labels,
-					Script:     script,
-					MaxMemory:  maxMemory,
-					Window:     window,
-					Targets:    targets,
-					Pool:       pool,
-					OnEmpty:    onEmpty,
-					Expect:     expect,
-					OnClosed:   onClosed,
-					Key:        key,
-					Value:      value,
-					TTL:        ttl,
-					Default:    defaultValue,
-					Field:      field,
-					HandlerA:   handlerA,
-					HandlerB:   handlerB,
-					Channel:    channel,
-					By:         by,
-					Secret:     secret,
-					Query:      query,
-					GraphQLVariables: gqlVariables,
+					RateLimit:         rateLimit,
+					Debounce:          debounce,
+					OnErrorMsg:        onError,
+					Responses:         responses,
+					Loop:              loop,
+					PerClient:         perClient,
+					File:              file,
+					Path:              path,
+					Content:           content,
+					Mode:              mode,
+					Rate:              rate,
+					Burst:             burst,
+					Scope:             scope,
+					OnLimit:           onLimit,
+					Duration:          duration,
+					Max:               max,
+					Code:              code,
+					Reason:            reason,
+					Status:            status,
+					URL:               url,
+					Method:            method,
+					Body:              body,
+					Timeout:           timeout,
+					Labels:            labels,
+					Script:            script,
+					MaxMemory:         maxMemory,
+					Window:            window,
+					Targets:           targets,
+					Pool:              pool,
+					OnEmpty:           onEmpty,
+					Expect:            expect,
+					OnClosed:          onClosed,
+					Key:               key,
+					Value:             value,
+					TTL:               ttl,
+					Default:           defaultValue,
+					Field:             field,
+					HandlerA:          handlerA,
+					HandlerB:          handlerB,
+					Channel:           channel,
+					By:                by,
+					Secret:            secret,
+					Query:             query,
+					GraphQLVariables:  gqlVariables,
 					ReconnectInterval: reconnectInterval,
 					Model:             model,
 					Prompt:            prompt,
 					OllamaURL:         ollamaURL,
 					System:            system,
+					Input:             input,
 					MaxHistory:        maxHistory,
-					Stream:     sseStream,
-					Event:      event,
-					ID:         id,
-					OnNoConsumers: onNoConsumers,
-					BufferSize: bufferSize,
-					Rules:      make([]handler.Rule, 0),
+					Stream:            sseStream,
+					Event:             event,
+					ID:                id,
+					OnNoConsumers:     onNoConsumers,
+					BufferSize:        bufferSize,
+					Rules:             make([]handler.Rule, 0),
 				}
 				if streamOllama {
 					h.Stream = "true"

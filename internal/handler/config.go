@@ -108,6 +108,7 @@ type Handler struct {
 	OllamaURL    string                 `yaml:"ollama_url,omitempty"`   // For ollama-generate builtin
 	MaxHistory   int                    `yaml:"max_history,omitempty"`  // For ollama-chat builtin
 	System       string                 `yaml:"system,omitempty"`       // For ollama-chat builtin
+	Input        string                 `yaml:"input,omitempty"`        // For ollama-embed builtin
 	BaseDir      string                 `yaml:"-"`                      // Directory from which the handler was loaded
 }
 
@@ -186,6 +187,7 @@ type PipelineStep struct {
 	OllamaURL   string            `yaml:"ollama_url,omitempty"` // For ollama-generate builtin
 	MaxHistory  int               `yaml:"max_history,omitempty"` // For ollama-chat builtin
 	System      string            `yaml:"system,omitempty"`      // For ollama-chat builtin
+	Input       string            `yaml:"input,omitempty"`       // For ollama-embed builtin
 }
 
 // Matcher specifies how to match an incoming WebSocket message.
@@ -293,6 +295,7 @@ type Action struct {
 	OllamaURL   string            `yaml:"ollama_url,omitempty"` // For ollama-generate builtin
 	MaxHistory  int               `yaml:"max_history,omitempty"` // For ollama-chat builtin
 	System      string            `yaml:"system,omitempty"`      // For ollama-chat builtin
+	Input       string            `yaml:"input,omitempty"`       // For ollama-embed builtin
 	BaseDir     string            `yaml:"-"`                    // For relative path resolution in builtins
 	HandlerName string            `yaml:"-"`                    // Internal use only
 }
@@ -474,6 +477,7 @@ func (c *Config) Validate(mode RegistryMode) error {
 				OllamaURL: h.OllamaURL,
 				MaxHistory: h.MaxHistory,
 				System:    h.System,
+				Input:     h.Input,
 			}
 			if err := bh.Validate(tmpAction); err != nil {
 				return fmt.Errorf("handler %q: %w", h.Name, err)

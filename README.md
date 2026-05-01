@@ -620,6 +620,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `shadow`      | Server | Forwards messages to another handler asynchronously and silently. |
 | `ollama-generate` | Shared | Sends a prompt to a local Ollama model and returns the response in `{{.OllamaReply}}`. |
 | `ollama-chat` | Shared | Maintains a per-connection chat history with an Ollama model; latest reply in `{{.OllamaReply}}`. |
+| `ollama-embed` | Shared | Generates an embedding vector for a message using Ollama; available in `{{.Embedding}}`. |
 
 **Validation Features:**
 - **Unknown Builtins**: Using an unknown builtin name in handler configuration causes an immediate startup error.
@@ -802,6 +803,14 @@ handlers:
     secret: "{{env \"WEBHOOK_SECRET\"}}"
     body: '{"payload": "{{.Message | trimPrefix \"secure:\"}}"}'
     respond: "Secure webhook sent, signature: {{.HttpStatus}}"
+
+  # Ollama Embedding Example
+  - name: semantic-search
+    match: "search:*"
+    builtin: ollama-embed
+    model: "all-minilm"
+    input: "{{.Message | trimPrefix \"search:\"}}"
+    respond: "Generated embedding vector of length {{len .Embedding}}"
  
   # HTTP Mock Example
   - name: register-mock

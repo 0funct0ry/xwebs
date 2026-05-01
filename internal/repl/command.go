@@ -1354,6 +1354,7 @@ func (r *REPL) RegisterCommonCommands() {
 				r.Printf("  --stream-ollama       Enable streaming for 'ollama-generate'\n")
 				r.Printf("  --system <template>   System prompt for 'ollama-chat'\n")
 				r.Printf("  --max-history <n>     Max message history to retain for 'ollama-chat'\n")
+				r.Printf("  -i, --input <template> Input template for 'ollama-embed'\n")
 				return nil
 			}
 
@@ -1518,7 +1519,7 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.SetOutput(nil) // Suppress automatic usage printing on error
 
 			var name, match, matchType, run, respond, builtin, topic, rateLimit, debounce, code, reason, message, target, script, targets, window, scope, channel, reconnectInterval, onError string
-			var key, value, ttl, by, model, prompt, ollamaURL, system string
+			var key, value, ttl, by, model, prompt, ollamaURL, system, input string
 			var labels map[string]string
 			var priority, maxMemory, maxHistory int
 			var exclusive, sequential, streamOllama bool
@@ -1586,6 +1587,7 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.BoolVar(&streamOllama, "stream-ollama", false, "Enable streaming")
 			fs.StringVar(&system, "system", "", "System prompt template")
 			fs.IntVar(&maxHistory, "max-history", 0, "Max history turns to retain")
+			fs.StringVarP(&input, "input", "i", "", "Input template for ollama-embed")
 
 			if err := fs.Parse(args[1:]); err != nil {
 				if errors.Is(err, pflag.ErrHelp) {
@@ -1661,6 +1663,7 @@ func (r *REPL) RegisterCommonCommands() {
 				OllamaURL:         ollamaURL,
 				System:            system,
 				MaxHistory:        maxHistory,
+				Input:             input,
 			}
 			if streamOllama {
 				h.Stream = "true"

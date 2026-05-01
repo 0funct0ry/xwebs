@@ -181,3 +181,58 @@ func TestOllamaChatBuiltin(t *testing.T) {
 		assert.Equal(t, "One more", history[0].Content)
 	})
 }
+
+func TestOllamaEmbedBuiltin(t *testing.T) {
+	// Mock Ollama server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/api/embeddings", r.URL.Path)
+		assert.Equal(t, "POST", r.Method)
+
+		var req ollamaEmbedRequest
+		err := json.NewDecoder(r.Body).Decode(&req)
+		require.NoError(t, err)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		
+		resp := ollamaEmbedResponse{
+			Embedding: []float64{0.1, 0.2, 0.3},
+		}
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	engine := template.New(false)
+	reg := NewRegistry(ClientMode)
+	mockConn := &mockConn{}
+
+	d := NewDispatcher(reg, mockConn, engine, true, nil, nil, false, nil, nil, nil, nil, nil, server.URL+"/api/embeddings")
+
+	builtin := &OllamaEmbedBuiltin{}
+
+	t.Run("default input", func(t *testing.T) {
+		tmplCtx := template.NewContext()
+		tmplCtx.Message = "Hello"
+		action := &Action{
+			Command: "ollama-embed",
+			Model:   "all-minilm",
+		}
+
+		err := builtin.Execute(context.Background(), d, action, tmplCtx)
+		require.NoError(t, err)
+		assert.Equal(t, []float64{0.1, 0.2, 0.3}, tmplCtx.Embedding)
+	})
+
+	t.Run("custom input", func(t *testing.T) {
+		tmplCtx := template.NewContext()
+		action := &Action{
+			Command: "ollama-embed",
+			Model:   "all-minilm",
+			Input:   "Custom text",
+		}
+
+		err := builtin.Execute(context.Background(), d, action, tmplCtx)
+		require.NoError(t, err)
+		assert.Equal(t, []float64{0.1, 0.2, 0.3}, tmplCtx.Embedding)
+	})
+}

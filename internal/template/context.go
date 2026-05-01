@@ -197,6 +197,9 @@ type TemplateContext struct {
 
 	// Ollama Generate
 	OllamaReply string `json:"ollama_reply,omitempty"`
+
+	// Ollama Embed
+	Embedding []float64 `json:"embedding,omitempty"`
 }
 
 // NewContext creates a new TemplateContext with initialized maps.

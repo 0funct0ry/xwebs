@@ -54,6 +54,7 @@ func init() {
 	MustRegister(&HttpGetBuiltin{})
 	MustRegister(&OllamaGenerateBuiltin{})
 	MustRegister(&OllamaChatBuiltin{})
+	MustRegister(&OllamaEmbedBuiltin{})
 	MustRegister(&HttpGraphQLBuiltin{})
 	MustRegister(&HttpMockRespondBuiltin{})
 	MustRegister(&MetricBuiltin{})
@@ -1629,6 +1630,17 @@ type ollamaChatResponse struct {
 	Done      bool              `json:"done"`
 }
 
+type ollamaEmbedRequest struct {
+	Model  string `json:"model"`
+	Input  string `json:"input,omitempty"`
+	Prompt string `json:"prompt,omitempty"`
+}
+
+type ollamaEmbedResponse struct {
+	Embedding  []float64   `json:"embedding"`
+	Embeddings [][]float64 `json:"embeddings"`
+}
+
 // OllamaGenerateBuiltin sends a prompt to a local Ollama model.
 type OllamaGenerateBuiltin struct{}
 
@@ -1985,6 +1997,130 @@ func (b *OllamaChatBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Actio
 	}
 
 	b.histories.Store(connID, history)
+
+	return nil
+}
+
+// OllamaEmbedBuiltin generates an embedding vector for a message using Ollama.
+type OllamaEmbedBuiltin struct{}
+
+func (b *OllamaEmbedBuiltin) Name() string { return "ollama-embed" }
+func (b *OllamaEmbedBuiltin) Description() string {
+	return "Generate an embedding vector for a message using Ollama."
+}
+func (b *OllamaEmbedBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *OllamaEmbedBuiltin) Validate(a Action) error {
+	if a.Model == "" {
+		return fmt.Errorf("builtin ollama-embed missing model")
+	}
+	return nil
+}
+
+func (b *OllamaEmbedBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	// 1. Resolve URL
+	urlStr := a.OllamaURL
+	if urlStr == "" {
+		urlStr = d.ollamaURL
+	}
+	if urlStr == "" {
+		urlStr = "http://localhost:11434/api/embeddings"
+	} else if strings.HasSuffix(urlStr, "/api/generate") {
+		urlStr = strings.TrimSuffix(urlStr, "/api/generate") + "/api/embeddings"
+	} else if strings.HasSuffix(urlStr, "/api/chat") {
+		urlStr = strings.TrimSuffix(urlStr, "/api/chat") + "/api/embeddings"
+	}
+
+	// Resolve URL template if needed
+	if strings.Contains(urlStr, "{{") {
+		evalURL, err := d.templateEngine.Execute("ollama-url", urlStr, tmplCtx)
+		if err == nil && evalURL != "" {
+			urlStr = evalURL
+		}
+	}
+
+	// 2. Resolve Model
+	model, err := d.templateEngine.Execute("ollama-model", a.Model, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("rendering ollama model template: %w", err)
+	}
+
+	// 3. Resolve Input (default to current message)
+	input := a.Input
+	if input == "" {
+		input = "{{.Message}}"
+	}
+	resolvedInput, err := d.templateEngine.Execute("ollama-input", input, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("rendering ollama input template: %w", err)
+	}
+
+	// 4. Prepare Request
+	ollamaReq := ollamaEmbedRequest{
+		Model:  model,
+		Input:  resolvedInput,
+		Prompt: resolvedInput,
+	}
+	reqBody, err := json.Marshal(ollamaReq)
+	if err != nil {
+		return fmt.Errorf("marshaling ollama embed request: %w", err)
+	}
+
+	// 5. Execute Request
+	timeout := 60 * time.Second
+	if a.Timeout != "" {
+		if t, err := time.ParseDuration(a.Timeout); err == nil {
+			timeout = t
+		}
+	}
+
+	httpClient := &http.Client{
+		Timeout: timeout,
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", urlStr, bytes.NewReader(reqBody))
+	if err != nil {
+		return fmt.Errorf("creating ollama embed request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	if d.verbose {
+		d.errorf("  [handler] ollama-embed: model=%q, input_len=%d, url=%s\n", model, len(resolvedInput), urlStr)
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("ollama embed request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("ollama embed error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("reading ollama embed response: %w", err)
+	}
+
+	if d.verbose {
+		d.errorf("  [handler] ollama-embed: raw response: %s\n", string(body))
+	}
+
+	var ollamaResp ollamaEmbedResponse
+	if err := json.Unmarshal(body, &ollamaResp); err != nil {
+		return fmt.Errorf("decoding ollama embed response: %w", err)
+	}
+
+	tmplCtx.Embedding = ollamaResp.Embedding
+	if len(ollamaResp.Embeddings) > 0 && len(tmplCtx.Embedding) == 0 {
+		tmplCtx.Embedding = ollamaResp.Embeddings[0]
+	}
+
+	if d.verbose {
+		d.errorf("  [handler] ollama-embed: received vector of length %d\n", len(tmplCtx.Embedding))
+	}
 
 	return nil
 }

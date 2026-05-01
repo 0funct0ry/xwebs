@@ -539,6 +539,8 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 				Event:       h.Event,
 				ID:          h.ID,
 				OnNoConsumers: h.OnNoConsumers,
+				System:      h.System,
+				Input:       h.Input,
 				BufferSize:  h.BufferSize,
 				BaseDir:     h.BaseDir,
 				HandlerName: h.Name,
@@ -659,6 +661,8 @@ func (d *Dispatcher) executePipeline(ctx context.Context, handlerName string, pi
 			action.Event = step.Event
 			action.ID = step.ID
 			action.OnNoConsumers = step.OnNoConsumers
+			action.System = step.System
+			action.Input = step.Input
 			action.BufferSize = step.BufferSize
 			action.BaseDir = d.registry.GetHandlerBaseDir(handlerName)
 			action.HandlerName = handlerName
