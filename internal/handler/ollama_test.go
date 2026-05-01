@@ -82,3 +82,102 @@ func TestOllamaGenerateBuiltin(t *testing.T) {
 		assert.Equal(t, "AI:  world", string(mockConn.messages[1].Data))
 	})
 }
+
+func TestOllamaChatBuiltin(t *testing.T) {
+	// Mock Ollama server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/api/chat", r.URL.Path)
+		assert.Equal(t, "POST", r.Method)
+
+		var req ollamaChatRequest
+		err := json.NewDecoder(r.Body).Decode(&req)
+		require.NoError(t, err)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		
+		// Simple echo-back response to verify context
+		content := "I received: " + req.Messages[len(req.Messages)-1].Content
+		if len(req.Messages) > 1 && req.Messages[0].Role == "system" {
+			content += " (system: " + req.Messages[0].Content + ")"
+		}
+		
+		resp := ollamaChatResponse{
+			Message: OllamaChatMessage{Role: "assistant", Content: content},
+			Done:    true,
+		}
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	engine := template.New(false)
+	reg := NewRegistry(ClientMode)
+	mockConn := &mockConn{}
+
+	d := NewDispatcher(reg, mockConn, engine, true, nil, nil, false, nil, nil, nil, nil, nil, server.URL+"/api/chat")
+
+	builtin := &OllamaChatBuiltin{}
+
+	t.Run("first turn", func(t *testing.T) {
+		tmplCtx := template.NewContext()
+		action := &Action{
+			Command: "ollama-chat",
+			Model:   "llama2",
+			Prompt:  "Hello",
+			System:  "You are a helpful assistant",
+		}
+
+		err := builtin.Execute(context.Background(), d, action, tmplCtx)
+		require.NoError(t, err)
+		assert.Equal(t, "I received: Hello (system: You are a helpful assistant)", tmplCtx.OllamaReply)
+		
+		// Verify history
+		val, ok := builtin.histories.Load("mock-conn-id")
+		require.True(t, ok)
+		history := val.([]OllamaChatMessage)
+		assert.Equal(t, 2, len(history))
+		assert.Equal(t, "user", history[0].Role)
+		assert.Equal(t, "Hello", history[0].Content)
+		assert.Equal(t, "assistant", history[1].Role)
+	})
+
+	t.Run("second turn with history", func(t *testing.T) {
+		tmplCtx := template.NewContext()
+		action := &Action{
+			Command: "ollama-chat",
+			Model:   "llama2",
+			Prompt:  "How are you?",
+		}
+
+		err := builtin.Execute(context.Background(), d, action, tmplCtx)
+		require.NoError(t, err)
+		assert.Equal(t, "I received: How are you?", tmplCtx.OllamaReply)
+		
+		// Verify history grew
+		val, ok := builtin.histories.Load("mock-conn-id")
+		require.True(t, ok)
+		history := val.([]OllamaChatMessage)
+		assert.Equal(t, 4, len(history))
+	})
+
+	t.Run("max history limit", func(t *testing.T) {
+		tmplCtx := template.NewContext()
+		action := &Action{
+			Command:    "ollama-chat",
+			Model:      "llama2",
+			Prompt:     "One more",
+			MaxHistory: 2, // Only keep last turn (user + assistant)
+		}
+
+		err := builtin.Execute(context.Background(), d, action, tmplCtx)
+		require.NoError(t, err)
+		
+		// Verify history truncated
+		val, ok := builtin.histories.Load("mock-conn-id")
+		require.True(t, ok)
+		history := val.([]OllamaChatMessage)
+		assert.Equal(t, 2, len(history))
+		assert.Equal(t, "user", history[0].Role)
+		assert.Equal(t, "One more", history[0].Content)
+	})
+}

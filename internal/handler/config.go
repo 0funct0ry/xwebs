@@ -106,6 +106,8 @@ type Handler struct {
 	Model        string                 `yaml:"model,omitempty"`        // For ollama-generate builtin
 	Prompt       string                 `yaml:"prompt,omitempty"`       // For ollama-generate builtin
 	OllamaURL    string                 `yaml:"ollama_url,omitempty"`   // For ollama-generate builtin
+	MaxHistory   int                    `yaml:"max_history,omitempty"`  // For ollama-chat builtin
+	System       string                 `yaml:"system,omitempty"`       // For ollama-chat builtin
 	BaseDir      string                 `yaml:"-"`                      // Directory from which the handler was loaded
 }
 
@@ -182,6 +184,8 @@ type PipelineStep struct {
 	Model       string            `yaml:"model,omitempty"`     // For ollama-generate builtin
 	Prompt      string            `yaml:"prompt,omitempty"`    // For ollama-generate builtin
 	OllamaURL   string            `yaml:"ollama_url,omitempty"` // For ollama-generate builtin
+	MaxHistory  int               `yaml:"max_history,omitempty"` // For ollama-chat builtin
+	System      string            `yaml:"system,omitempty"`      // For ollama-chat builtin
 }
 
 // Matcher specifies how to match an incoming WebSocket message.
@@ -287,6 +291,8 @@ type Action struct {
 	Model       string            `yaml:"model,omitempty"`      // For ollama-generate builtin
 	Prompt      string            `yaml:"prompt,omitempty"`     // For ollama-generate builtin
 	OllamaURL   string            `yaml:"ollama_url,omitempty"` // For ollama-generate builtin
+	MaxHistory  int               `yaml:"max_history,omitempty"` // For ollama-chat builtin
+	System      string            `yaml:"system,omitempty"`      // For ollama-chat builtin
 	BaseDir     string            `yaml:"-"`                    // For relative path resolution in builtins
 	HandlerName string            `yaml:"-"`                    // Internal use only
 }
@@ -466,6 +472,8 @@ func (c *Config) Validate(mode RegistryMode) error {
 				Model:     h.Model,
 				Prompt:    h.Prompt,
 				OllamaURL: h.OllamaURL,
+				MaxHistory: h.MaxHistory,
+				System:    h.System,
 			}
 			if err := bh.Validate(tmpAction); err != nil {
 				return fmt.Errorf("handler %q: %w", h.Name, err)

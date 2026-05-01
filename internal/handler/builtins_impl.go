@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/itchyny/gojq"
@@ -52,6 +53,7 @@ func init() {
 	MustRegister(&HttpBuiltin{})
 	MustRegister(&HttpGetBuiltin{})
 	MustRegister(&OllamaGenerateBuiltin{})
+	MustRegister(&OllamaChatBuiltin{})
 	MustRegister(&HttpGraphQLBuiltin{})
 	MustRegister(&HttpMockRespondBuiltin{})
 	MustRegister(&MetricBuiltin{})
@@ -1609,6 +1611,24 @@ type ollamaResponse struct {
 	Done     bool   `json:"done"`
 }
 
+type OllamaChatMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type ollamaChatRequest struct {
+	Model    string              `json:"model"`
+	Messages []OllamaChatMessage `json:"messages"`
+	Stream   bool                `json:"stream"`
+}
+
+type ollamaChatResponse struct {
+	Model     string            `json:"model"`
+	CreatedAt string            `json:"created_at"`
+	Message   OllamaChatMessage `json:"message"`
+	Done      bool              `json:"done"`
+}
+
 // OllamaGenerateBuiltin sends a prompt to a local Ollama model.
 type OllamaGenerateBuiltin struct{}
 
@@ -1762,6 +1782,209 @@ func (b *OllamaGenerateBuiltin) Execute(ctx context.Context, d *Dispatcher, a *A
 			d.errorf("  [handler] ollama-generate: received %d chars\n", len(ollamaResp.Response))
 		}
 	}
+
+	return nil
+}
+
+// OllamaChatBuiltin maintains a per-connection chat history and sends the next message to Ollama.
+type OllamaChatBuiltin struct {
+	histories sync.Map // connID -> []OllamaChatMessage
+}
+
+func (b *OllamaChatBuiltin) Name() string { return "ollama-chat" }
+func (b *OllamaChatBuiltin) Description() string {
+	return "Maintain a per-connection chat history and send the next message to Ollama."
+}
+func (b *OllamaChatBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *OllamaChatBuiltin) Validate(a Action) error {
+	if a.Model == "" {
+		return fmt.Errorf("builtin ollama-chat missing model")
+	}
+	return nil
+}
+
+func (b *OllamaChatBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	// 1. Resolve URL
+	urlStr := a.OllamaURL
+	if urlStr == "" {
+		urlStr = d.ollamaURL
+	}
+	if urlStr == "" {
+		urlStr = "http://localhost:11434/api/chat"
+	} else if strings.HasSuffix(urlStr, "/api/generate") {
+		urlStr = strings.TrimSuffix(urlStr, "/api/generate") + "/api/chat"
+	}
+
+	// Resolve URL template if needed
+	if strings.Contains(urlStr, "{{") {
+		evalURL, err := d.templateEngine.Execute("ollama-url", urlStr, tmplCtx)
+		if err == nil && evalURL != "" {
+			urlStr = evalURL
+		}
+	}
+
+	// 2. Resolve Model
+	model, err := d.templateEngine.Execute("ollama-model", a.Model, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("rendering ollama model template: %w", err)
+	}
+
+	// 3. Resolve Prompt (default to current message)
+	prompt := a.Prompt
+	if prompt == "" {
+		prompt = "{{.Message}}"
+	}
+	userMsg, err := d.templateEngine.Execute("ollama-prompt", prompt, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("rendering ollama prompt template: %w", err)
+	}
+
+	// 4. Resolve System Prompt
+	systemPrompt := ""
+	if a.System != "" {
+		systemPrompt, err = d.templateEngine.Execute("ollama-system", a.System, tmplCtx)
+		if err != nil {
+			return fmt.Errorf("rendering ollama system template: %w", err)
+		}
+	}
+
+	// 5. Get History
+	connID := d.conn.GetID()
+	var history []OllamaChatMessage
+	if val, ok := b.histories.Load(connID); ok {
+		history = val.([]OllamaChatMessage)
+	}
+
+	// 6. Append User Turn
+	history = append(history, OllamaChatMessage{Role: "user", Content: userMsg})
+
+	// 7. Limit History
+	if a.MaxHistory > 0 && len(history) > a.MaxHistory {
+		history = history[len(history)-a.MaxHistory:]
+	}
+
+	// 8. Prepare Messages (System + History)
+	messages := make([]OllamaChatMessage, 0, len(history)+1)
+	if systemPrompt != "" {
+		messages = append(messages, OllamaChatMessage{Role: "system", Content: systemPrompt})
+	}
+	messages = append(messages, history...)
+
+	// 9. Prepare Request
+	stream := false
+	if a.Stream != "" {
+		evalStream, err := d.templateEngine.Execute("ollama-stream", a.Stream, tmplCtx)
+		if err == nil {
+			stream = (evalStream == "true")
+		}
+	}
+
+	ollamaReq := ollamaChatRequest{
+		Model:    model,
+		Messages: messages,
+		Stream:   stream,
+	}
+	reqBody, err := json.Marshal(ollamaReq)
+	if err != nil {
+		return fmt.Errorf("marshaling ollama chat request: %w", err)
+	}
+
+	// 10. Execute Request
+	timeout := 60 * time.Second
+	if a.Timeout != "" {
+		if t, err := time.ParseDuration(a.Timeout); err == nil {
+			timeout = t
+		}
+	}
+
+	httpClient := &http.Client{
+		Timeout: timeout,
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", urlStr, bytes.NewReader(reqBody))
+	if err != nil {
+		return fmt.Errorf("creating ollama chat request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	if d.verbose {
+		d.errorf("  [handler] ollama-chat: model=%q, history_len=%d, stream=%v, url=%s\n", model, len(history), stream, urlStr)
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("ollama chat request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("ollama chat error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	var assistantReply string
+	if stream {
+		decoder := json.NewDecoder(resp.Body)
+		var fullReply strings.Builder
+		for {
+			var chunk ollamaChatResponse
+			if err := decoder.Decode(&chunk); err != nil {
+				if err == io.EOF {
+					break
+				}
+				return fmt.Errorf("decoding ollama chat stream: %w", err)
+			}
+
+			fullReply.WriteString(chunk.Message.Content)
+			tmplCtx.OllamaReply = chunk.Message.Content
+
+			// If respond: is present, send the chunk
+			if a.Respond != "" {
+				msg, err := d.templateEngine.Execute("ollama-respond", a.Respond, tmplCtx)
+				if err != nil {
+					return fmt.Errorf("rendering ollama chat stream response: %w", err)
+				}
+				if err := d.conn.Write(&ws.Message{
+					Type: ws.TextMessage,
+					Data: []byte(msg),
+					Metadata: ws.MessageMetadata{
+						Direction: "sent",
+						Timestamp: time.Now(),
+					},
+				}); err != nil {
+					return fmt.Errorf("sending ollama chat stream chunk: %w", err)
+				}
+			}
+
+			if chunk.Done {
+				break
+			}
+		}
+		assistantReply = fullReply.String()
+		tmplCtx.OllamaReply = assistantReply
+		a.Respond = "" // Clear Respond so dispatcher doesn't send it again
+	} else {
+		var ollamaResp ollamaChatResponse
+		if err := json.NewDecoder(resp.Body).Decode(&ollamaResp); err != nil {
+			return fmt.Errorf("decoding ollama chat response: %w", err)
+		}
+		assistantReply = ollamaResp.Message.Content
+		tmplCtx.OllamaReply = assistantReply
+		if d.verbose {
+			d.errorf("  [handler] ollama-chat: received %d chars\n", len(assistantReply))
+		}
+	}
+
+	// 11. Append Assistant Turn and Update History
+	history = append(history, OllamaChatMessage{Role: "assistant", Content: assistantReply})
+
+	// Apply MaxHistory again to ensure assistant turn doesn't push us over if we want to be strict
+	if a.MaxHistory > 0 && len(history) > a.MaxHistory {
+		history = history[len(history)-a.MaxHistory:]
+	}
+
+	b.histories.Store(connID, history)
 
 	return nil
 }

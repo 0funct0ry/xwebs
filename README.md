@@ -537,6 +537,11 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `--ttl <duration>`  |       | TTL template for KV or Redis builtins                                      |
 | `--default <tmpl>`  | `-D`  | Default response for rule-engine or KV builtins                            |
 | `--secret <tmpl>`   |       | Secret template for `webhook-hmac` builtin                                |
+| `--model <tmpl>`      |       | Ollama model name (for `ollama-*` builtins)                               |
+| `--prompt <tmpl>`     |       | Prompt template (for `ollama-*` builtins)                                 |
+| `--system <tmpl>`     |       | System prompt template (for `ollama-chat` builtin)                        |
+| `--max-history <n>`   |       | Max messages to retain in history (for `ollama-chat` builtin)             |
+| `--ollama-url <url>`  |       | Ollama server URL (for `ollama-*` builtins)                               |
 | `--stream <template>`  |       | Stream name template for `sse-forward` builtin                            |
 | `--event <template>`   |       | Event type template for `sse-forward` builtin                             |
 | `--on-no-consumers`    |       | Strategy when no consumers are connected (`drop` or `buffer`)              |
@@ -613,6 +618,8 @@ Topics are created automatically when the first client subscribes and removed wh
 | `ab-test`     | Server | Routes messages to one of two handlers based on a deterministic hash of a message field. |
 | `sse-forward` | Server | Forwards WebSocket messages to a named SSE stream served at `/sse/<name>`. |
 | `shadow`      | Server | Forwards messages to another handler asynchronously and silently. |
+| `ollama-generate` | Shared | Sends a prompt to a local Ollama model and returns the response in `{{.OllamaReply}}`. |
+| `ollama-chat` | Shared | Maintains a per-connection chat history with an Ollama model; latest reply in `{{.OllamaReply}}`. |
 
 **Validation Features:**
 - **Unknown Builtins**: Using an unknown builtin name in handler configuration causes an immediate startup error.
@@ -988,6 +995,23 @@ handlers:
     builtin: file-write
     path: "shadow_validation.log"
     content: "New Logic Output: {{.Message}}\n"
+
+  # Ollama Chat Example
+  - name: ai-assistant
+    match: "*"
+    builtin: ollama-chat
+    model: "llama3"
+    system: "You are a helpful coding assistant."
+    max_history: 10
+    respond: "AI: {{.OllamaReply}}"
+
+  # Ollama Generate Example
+  - name: summarize
+    match: "summarize:*"
+    builtin: ollama-generate
+    model: "mistral"
+    prompt: "Summarize this: {{.Message | trimPrefix \"summarize:\"}}"
+    respond: "Summary: {{.OllamaReply}}"
 
 ```
 

@@ -770,6 +770,8 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("      --prompt <template>   Prompt template for 'ollama-generate'\n")
 				r.Printf("      --ollama-url <url>    Ollama API URL override\n")
 				r.Printf("      --stream-ollama       Enable streaming for 'ollama-generate'\n")
+				r.Printf("      --system <template>   System prompt for 'ollama-chat'\n")
+				r.Printf("      --max-history <n>     Max message history to retain for 'ollama-chat'\n")
 				r.Printf("      --stream <template>   Stream name for 'sse-forward' builtin\n")
 				r.Printf("      --event <template>    Event type for 'sse-forward' builtin\n")
 				r.Printf("      --on-no-consumers <drop|buffer> Strategy when no consumers are connected\n")
@@ -782,10 +784,10 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 				fs.SetOutput(r.Stdout())
 
-				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue, field, handlerA, handlerB, channel, reconnectInterval, by, secret, query, gqlVariables, sseStream, event, id, onNoConsumers, status, model, prompt, ollamaURL string
+				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue, field, handlerA, handlerB, channel, reconnectInterval, by, secret, query, gqlVariables, sseStream, event, id, onNoConsumers, status, model, prompt, ollamaURL, system string
 				var ruleWhens, ruleResponds, responses, headers []string
 				var labels map[string]string
-				var priority, burst, maxMemory, split, bufferSize int
+				var priority, burst, maxMemory, split, bufferSize, maxHistory int
 				var exclusive, sequential, loop, perClient, stickyBroadcast, streamOllama bool
 
 				fs.StringVarP(&name, "name", "n", "", "Name of the handler")
@@ -828,6 +830,8 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.StringVar(&prompt, "prompt", "", "Prompt template for ollama-generate")
 				fs.StringVar(&ollamaURL, "ollama-url", "", "Ollama API URL")
 				fs.BoolVar(&streamOllama, "stream-ollama", false, "Enable streaming for ollama-generate")
+				fs.StringVar(&system, "system", "", "System prompt template")
+				fs.IntVar(&maxHistory, "max-history", 0, "Max history turns to retain")
 				fs.StringVar(&script, "script", "", "Inline Lua script")
 				fs.IntVar(&maxMemory, "max-memory", 0, "Max memory for Lua VM in bytes")
 				fs.StringVarP(&window, "window", "w", "", "Throttle window (e.g. '5s')")
@@ -944,6 +948,8 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					Model:             model,
 					Prompt:            prompt,
 					OllamaURL:         ollamaURL,
+					System:            system,
+					MaxHistory:        maxHistory,
 					Stream:     sseStream,
 					Event:      event,
 					ID:         id,
