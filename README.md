@@ -622,6 +622,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `ollama-chat` | Shared | Maintains a per-connection chat history with an Ollama model; latest reply in `{{.OllamaReply}}`. |
 | `ollama-classify` | Shared | Categorizes a message into a set of labels using Ollama; result in `{{.Label}}` and `{{.Confidence}}`. |
 | `ollama-embed` | Shared | Generates an embedding vector for a message using Ollama; available in `{{.Embedding}}`. |
+| `openai-chat` | Shared | Maintains a per-connection chat history with an OpenAI-compatible API; result in `{{.OpenAIReply}}`. |
 
 **Validation Features:**
 - **Unknown Builtins**: Using an unknown builtin name in handler configuration causes an immediate startup error.
@@ -827,6 +828,17 @@ handlers:
     model: "all-minilm"
     input: "{{.Message | trimPrefix \"search:\"}}"
     respond: "Generated embedding vector of length {{len .Embedding}}"
+
+  # OpenAI Chat Example
+  - name: gpt-assistant
+    match: "gpt:*"
+    builtin: openai-chat
+    model: "gpt-3.5-turbo"
+    api_key: '{{env "OPENAI_API_KEY"}}'
+    prompt: '{{.Message | trimPrefix "gpt:"}}'
+    system: "You are a helpful assistant."
+    max_history: 10
+    respond: "AI: {{.OpenAIReply}}"
  
   # HTTP Mock Example
   - name: register-mock

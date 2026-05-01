@@ -155,6 +155,10 @@ type Handler struct {
 	MaxHistory   int                    `yaml:"max_history,omitempty"`  // For ollama-chat builtin
 	System       string                 `yaml:"system,omitempty"`       // For ollama-chat builtin
 	Input        string                 `yaml:"input,omitempty"`        // For ollama-embed builtin
+	APIKey       string                 `yaml:"api_key,omitempty"`      // For openai-chat builtin (template)
+	APIURL       string                 `yaml:"api_url,omitempty"`      // For openai-chat builtin (template)
+	Temperature  *float64               `yaml:"temperature,omitempty"`  // For openai-chat builtin
+	TopP         *float64               `yaml:"top_p,omitempty"`        // For openai-chat builtin
 	BaseDir      string                 `yaml:"-"`                      // Directory from which the handler was loaded
 }
 
@@ -234,6 +238,10 @@ type PipelineStep struct {
 	MaxHistory  int               `yaml:"max_history,omitempty"` // For ollama-chat builtin
 	System      string            `yaml:"system,omitempty"`      // For ollama-chat builtin
 	Input       string            `yaml:"input,omitempty"`       // For ollama-embed builtin
+	APIKey      string            `yaml:"api_key,omitempty"`      // For openai-chat builtin (template)
+	APIURL      string            `yaml:"api_url,omitempty"`      // For openai-chat builtin (template)
+	Temperature *float64          `yaml:"temperature,omitempty"`  // For openai-chat builtin
+	TopP        *float64          `yaml:"top_p,omitempty"`        // For openai-chat builtin
 }
 
 // Matcher specifies how to match an incoming WebSocket message.
@@ -342,6 +350,10 @@ type Action struct {
 	MaxHistory  int               `yaml:"max_history,omitempty"` // For ollama-chat builtin
 	System      string            `yaml:"system,omitempty"`      // For ollama-chat builtin
 	Input       string            `yaml:"input,omitempty"`       // For ollama-embed builtin
+	APIKey      string            `yaml:"api_key,omitempty"`     // For openai-chat builtin (template)
+	APIURL      string            `yaml:"api_url,omitempty"`     // For openai-chat builtin (template)
+	Temperature *float64          `yaml:"temperature,omitempty"` // For openai-chat builtin
+	TopP        *float64          `yaml:"top_p,omitempty"`       // For openai-chat builtin
 	BaseDir     string            `yaml:"-"`                    // For relative path resolution in builtins
 	HandlerName string            `yaml:"-"`                    // Internal use only
 }
@@ -524,6 +536,10 @@ func (c *Config) Validate(mode RegistryMode) error {
 				MaxHistory: h.MaxHistory,
 				System:    h.System,
 				Input:     h.Input,
+				APIKey:    h.APIKey,
+				APIURL:    h.APIURL,
+				Temperature: h.Temperature,
+				TopP:        h.TopP,
 			}
 			if err := bh.Validate(tmpAction); err != nil {
 				return fmt.Errorf("handler %q: %w", h.Name, err)

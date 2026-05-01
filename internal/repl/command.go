@@ -1312,7 +1312,7 @@ func (r *REPL) RegisterCommonCommands() {
 				r.Printf("  --priority <n>        Numeric priority (higher runs first)\n")
 				r.Printf("  --run <cmd>           Shell command to run on match\n")
 				r.Printf("  --respond <tmpl>      Response template to send after run\n")
-				r.Printf("  -B, --builtin <name>  Builtin action (noop, redis-subscribe, ollama-classify, ollama-generate, ollama-chat, ollama-embed)\n")
+				r.Printf("  -B, --builtin <name>  Builtin action (noop, redis-subscribe, ollama-classify, ollama-generate, ollama-chat, ollama-embed, openai-chat)\n")
 				r.Printf("  --topic <template>    Topic name template for builtin actions\n")
 				r.Printf("  --exclusive           Stop further matching if this handler matches\n")
 				r.Printf("  --sequential          Run handler actions sequentially (disable concurrency)\n")
@@ -1352,9 +1352,13 @@ func (r *REPL) RegisterCommonCommands() {
 				r.Printf("  --labels <list>       Comma-separated labels for 'ollama-classify' (template)\n")
 				r.Printf("  --ollama-url <url>    Ollama API URL override (template)\n")
 				r.Printf("  --stream-ollama       Enable streaming for 'ollama-generate'\n")
-				r.Printf("  --system <template>   System prompt for 'ollama-chat'\n")
-				r.Printf("  --max-history <n>     Max message history to retain for 'ollama-chat'\n")
+				r.Printf("  --system <template>   System prompt for 'ollama-chat' or 'openai-chat'\n")
+				r.Printf("  --max-history <n>     Max message history to retain for 'ollama-chat' or 'openai-chat'\n")
 				r.Printf("  -i, --input <template> Input template for 'ollama-embed'\n")
+				r.Printf("  --api-url <url>       API URL for 'openai-chat' (template)\n")
+				r.Printf("  --api-key <key>       API Key for 'openai-chat' (template)\n")
+				r.Printf("  --temperature <n>     Temperature for 'openai-chat'\n")
+				r.Printf("  --top-p <n>           Top-P for 'openai-chat'\n")
 				return nil
 			}
 
@@ -1519,10 +1523,11 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.SetOutput(nil) // Suppress automatic usage printing on error
 
 			var name, match, matchType, run, respond, builtin, topic, rateLimit, debounce, code, reason, message, target, script, targets, window, scope, channel, reconnectInterval, onError string
-			var key, value, ttl, by, model, prompt, ollamaURL, system, input string
+			var key, value, ttl, by, model, prompt, ollamaURL, system, input, apiKey, apiURL string
 			var labels []string
 			var priority, maxMemory, maxHistory int
 			var exclusive, sequential, streamOllama bool
+			var temperature, topP float64
 
 			fs.StringVarP(&name, "name", "n", "", "Name of the handler")
 			fs.StringVarP(&match, "match", "m", "", "Match pattern")
@@ -1588,6 +1593,10 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.StringVar(&system, "system", "", "System prompt template")
 			fs.IntVar(&maxHistory, "max-history", 0, "Max history turns to retain")
 			fs.StringVarP(&input, "input", "i", "", "Input template for ollama-embed")
+			fs.StringVar(&apiKey, "api-key", "", "API Key for openai-chat")
+			fs.StringVar(&apiURL, "api-url", "", "API URL for openai-chat")
+			fs.Float64Var(&temperature, "temperature", 0, "Temperature for openai-chat")
+			fs.Float64Var(&topP, "top-p", 0, "Top-P for openai-chat")
 
 			if err := fs.Parse(args[1:]); err != nil {
 				if errors.Is(err, pflag.ErrHelp) {
@@ -1643,6 +1652,20 @@ func (r *REPL) RegisterCommonCommands() {
 				Responses: responses,
 				Loop:      loop,
 				PerClient: perClient,
+				APIKey:    apiKey,
+				APIURL:    apiURL,
+				Temperature: func() *float64 {
+					if fs.Changed("temperature") {
+						return &temperature
+					}
+					return nil
+				}(),
+				TopP: func() *float64 {
+					if fs.Changed("top-p") {
+						return &topP
+					}
+					return nil
+				}(),
 				Labels: func() handler.FlexLabels {
 					var fl handler.FlexLabels
 					if len(labels) > 0 {

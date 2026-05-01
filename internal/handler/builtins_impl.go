@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/hmac"
@@ -56,6 +57,7 @@ func init() {
 	MustRegister(&OllamaChatBuiltin{})
 	MustRegister(&OllamaEmbedBuiltin{})
 	MustRegister(&OllamaClassifyBuiltin{})
+	MustRegister(&OpenAIChatBuiltin{})
 	MustRegister(&HttpGraphQLBuiltin{})
 	MustRegister(&HttpMockRespondBuiltin{})
 	MustRegister(&MetricBuiltin{})
@@ -1644,6 +1646,28 @@ type ollamaEmbedResponse struct {
 	Embeddings [][]float64 `json:"embeddings"`
 }
 
+type OpenAIChatMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type openAIChatRequest struct {
+	Model       string              `json:"model"`
+	Messages    []OpenAIChatMessage `json:"messages"`
+	Stream      bool                `json:"stream"`
+	Temperature *float64            `json:"temperature,omitempty"`
+	TopP        *float64            `json:"top_p,omitempty"`
+}
+
+type openAIChatResponse struct {
+	ID      string `json:"id"`
+	Choices []struct {
+		Message      OpenAIChatMessage `json:"message"`
+		Delta        OpenAIChatMessage `json:"delta"`
+		FinishReason string            `json:"finish_reason"`
+	} `json:"choices"`
+}
+
 // OllamaGenerateBuiltin sends a prompt to a local Ollama model.
 type OllamaGenerateBuiltin struct{}
 
@@ -1993,6 +2017,241 @@ func (b *OllamaChatBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Actio
 
 	// 11. Append Assistant Turn and Update History
 	history = append(history, OllamaChatMessage{Role: "assistant", Content: assistantReply})
+
+	// Apply MaxHistory again to ensure assistant turn doesn't push us over if we want to be strict
+	if a.MaxHistory > 0 && len(history) > a.MaxHistory {
+		history = history[len(history)-a.MaxHistory:]
+	}
+
+	b.histories.Store(connID, history)
+
+	return nil
+}
+
+// OpenAIChatBuiltin maintains a per-connection chat history and sends the next message to an OpenAI-compatible API.
+type OpenAIChatBuiltin struct {
+	histories sync.Map // connID -> []OpenAIChatMessage
+}
+
+func (b *OpenAIChatBuiltin) Name() string { return "openai-chat" }
+func (b *OpenAIChatBuiltin) Description() string {
+	return "Maintain a per-connection chat history and send the next message to an OpenAI-compatible API."
+}
+func (b *OpenAIChatBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *OpenAIChatBuiltin) Validate(a Action) error {
+	if a.Model == "" {
+		return fmt.Errorf("builtin openai-chat missing model")
+	}
+	return nil
+}
+
+func (b *OpenAIChatBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	// 1. Resolve URL
+	urlStr := a.APIURL
+	if urlStr == "" {
+		urlStr = "https://api.openai.com/v1/chat/completions"
+	}
+
+	// Resolve URL template if needed
+	if strings.Contains(urlStr, "{{") {
+		evalURL, err := d.templateEngine.Execute("openai-url", urlStr, tmplCtx)
+		if err == nil && evalURL != "" {
+			urlStr = evalURL
+		}
+	}
+
+	// 2. Resolve API Key
+	apiKey := ""
+	if a.APIKey != "" {
+		var err error
+		apiKey, err = d.templateEngine.Execute("openai-key", a.APIKey, tmplCtx)
+		if err != nil {
+			return fmt.Errorf("rendering openai api key template: %w", err)
+		}
+	}
+	apiKey = strings.TrimSpace(apiKey)
+
+	// 3. Resolve Model
+	model, err := d.templateEngine.Execute("openai-model", a.Model, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("rendering openai model template: %w", err)
+	}
+
+	// 4. Resolve Prompt (default to current message)
+	prompt := a.Prompt
+	if prompt == "" {
+		prompt = "{{.Message}}"
+	}
+	userMsg, err := d.templateEngine.Execute("openai-prompt", prompt, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("rendering openai prompt template: %w", err)
+	}
+
+	// 5. Resolve System Prompt
+	systemPrompt := ""
+	if a.System != "" {
+		systemPrompt, err = d.templateEngine.Execute("openai-system", a.System, tmplCtx)
+		if err != nil {
+			return fmt.Errorf("rendering openai system template: %w", err)
+		}
+	}
+
+	// 6. Get History
+	connID := d.conn.GetID()
+	var history []OpenAIChatMessage
+	if val, ok := b.histories.Load(connID); ok {
+		history = val.([]OpenAIChatMessage)
+	}
+
+	// 7. Append User Turn
+	history = append(history, OpenAIChatMessage{Role: "user", Content: userMsg})
+
+	// 8. Limit History
+	if a.MaxHistory > 0 && len(history) > a.MaxHistory {
+		history = history[len(history)-a.MaxHistory:]
+	}
+
+	// 9. Prepare Messages (System + History)
+	messages := make([]OpenAIChatMessage, 0, len(history)+1)
+	if systemPrompt != "" {
+		messages = append(messages, OpenAIChatMessage{Role: "system", Content: systemPrompt})
+	}
+	messages = append(messages, history...)
+
+	// 10. Prepare Request
+	stream := false
+	if a.Stream != "" {
+		evalStream, err := d.templateEngine.Execute("openai-stream", a.Stream, tmplCtx)
+		if err == nil {
+			stream = (evalStream == "true")
+		}
+	}
+
+	openaiReq := openAIChatRequest{
+		Model:       model,
+		Messages:    messages,
+		Stream:      stream,
+		Temperature: a.Temperature,
+		TopP:        a.TopP,
+	}
+	reqBody, err := json.Marshal(openaiReq)
+	if err != nil {
+		return fmt.Errorf("marshaling openai chat request: %w", err)
+	}
+
+	// 11. Execute Request
+	timeout := 60 * time.Second
+	if a.Timeout != "" {
+		if t, err := time.ParseDuration(a.Timeout); err == nil {
+			timeout = t
+		}
+	}
+
+	httpClient := &http.Client{
+		Timeout: timeout,
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", urlStr, bytes.NewReader(reqBody))
+	if err != nil {
+		return fmt.Errorf("creating openai chat request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+
+	if d.verbose {
+		d.errorf("  [handler] openai-chat: model=%q, history_len=%d, stream=%v, url=%s\n", model, len(history), stream, urlStr)
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("openai chat request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("openai chat error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	var assistantReply string
+	if stream {
+		reader := bufio.NewReader(resp.Body)
+		var fullReply strings.Builder
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				return fmt.Errorf("reading openai chat stream: %w", err)
+			}
+
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			if line == "data: [DONE]" {
+				break
+			}
+			if !strings.HasPrefix(line, "data: ") {
+				continue
+			}
+
+			data := strings.TrimPrefix(line, "data: ")
+			var chunk openAIChatResponse
+			if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+				return fmt.Errorf("unmarshaling openai chat stream chunk: %w", err)
+			}
+
+			if len(chunk.Choices) > 0 {
+				content := chunk.Choices[0].Delta.Content
+				fullReply.WriteString(content)
+				tmplCtx.OpenAIReply = content
+				tmplCtx.OllamaReply = content // Compatibility
+
+				// If respond: is present, send the chunk
+				if a.Respond != "" {
+					msg, err := d.templateEngine.Execute("openai-respond", a.Respond, tmplCtx)
+					if err != nil {
+						return fmt.Errorf("rendering openai chat stream response: %w", err)
+					}
+					if err := d.conn.Write(&ws.Message{
+						Type: ws.TextMessage,
+						Data: []byte(msg),
+						Metadata: ws.MessageMetadata{
+							Direction: "sent",
+							Timestamp: time.Now(),
+						},
+					}); err != nil {
+						return fmt.Errorf("sending openai chat stream chunk: %w", err)
+					}
+				}
+			}
+		}
+		assistantReply = fullReply.String()
+		tmplCtx.OpenAIReply = assistantReply
+		tmplCtx.OllamaReply = assistantReply // Compatibility
+		a.Respond = ""                        // Clear Respond so dispatcher doesn't send it again
+	} else {
+		var openaiResp openAIChatResponse
+		if err := json.NewDecoder(resp.Body).Decode(&openaiResp); err != nil {
+			return fmt.Errorf("decoding openai chat response: %w", err)
+		}
+		if len(openaiResp.Choices) > 0 {
+			assistantReply = openaiResp.Choices[0].Message.Content
+		}
+		tmplCtx.OpenAIReply = assistantReply
+		tmplCtx.OllamaReply = assistantReply // Compatibility
+		if d.verbose {
+			d.errorf("  [handler] openai-chat: received %d chars\n", len(assistantReply))
+		}
+	}
+
+	// 12. Append Assistant Turn and Update History
+	history = append(history, OpenAIChatMessage{Role: "assistant", Content: assistantReply})
 
 	// Apply MaxHistory again to ensure assistant turn doesn't push us over if we want to be strict
 	if a.MaxHistory > 0 && len(history) > a.MaxHistory {

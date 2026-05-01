@@ -198,6 +198,9 @@ type TemplateContext struct {
 	// Ollama Generate
 	OllamaReply string `json:"ollama_reply,omitempty"`
 
+	// OpenAI Chat
+	OpenAIReply string `json:"openai_reply,omitempty"`
+
 	// Ollama Embed
 	Embedding []float64 `json:"embedding,omitempty"`
 
