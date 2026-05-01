@@ -1312,7 +1312,7 @@ func (r *REPL) RegisterCommonCommands() {
 				r.Printf("  --priority <n>        Numeric priority (higher runs first)\n")
 				r.Printf("  --run <cmd>           Shell command to run on match\n")
 				r.Printf("  --respond <tmpl>      Response template to send after run\n")
-				r.Printf("  -B, --builtin <name>  Builtin action (noop, redis-subscribe)\n")
+				r.Printf("  -B, --builtin <name>  Builtin action (noop, redis-subscribe, ollama-classify, ollama-generate, ollama-chat, ollama-embed)\n")
 				r.Printf("  --topic <template>    Topic name template for builtin actions\n")
 				r.Printf("  --exclusive           Stop further matching if this handler matches\n")
 				r.Printf("  --sequential          Run handler actions sequentially (disable concurrency)\n")
@@ -1333,8 +1333,7 @@ func (r *REPL) RegisterCommonCommands() {
 				r.Printf("  --timeout <duration>  Timeout for 'http' builtin (e.g. '5s')\n")
 				r.Printf("  --message <template>  Message template for 'log' builtin\n")
 				r.Printf("  --target <type>       Target for 'forward' (URL), 'log' (stdout|file|both), or 'shadow' (handler name)\n")
-				r.Printf("  --path <path>         File path for 'log' builtin\n")
-				r.Printf("  --labels <key=val,...> Labels for 'metric' builtin (key=val,key2=val2)\n")
+				r.Printf("  --labels <key=val,...> Labels for 'metric' (k=v) or 'ollama-classify' (list)\n")
 				r.Printf("  --script <script>     Inline Lua script\n")
 				r.Printf("  --max-memory <n>      Memory limit for Lua VM in bytes\n")
 				r.Printf("  --targets <ids>       Comma-separated list of client IDs or JSON array for 'multicast' builtin\n")
@@ -1348,9 +1347,10 @@ func (r *REPL) RegisterCommonCommands() {
 				r.Printf("  --by <n>              Increment value for 'redis-incr' builtin\n")
 				r.Printf("  --reconnect-interval <dur> Reconnect interval for 'redis-subscribe'\n")
 				r.Printf("  --on-error <tmpl>     Error template for 'redis-subscribe'\n")
-				r.Printf("  --model <name>        Ollama model name\n")
+				r.Printf("  --model <name>        Ollama model name (template)\n")
 				r.Printf("  --prompt <template>   Prompt template for 'ollama-generate'\n")
-				r.Printf("  --ollama-url <url>    Ollama API URL override\n")
+				r.Printf("  --labels <list>       Comma-separated labels for 'ollama-classify' (template)\n")
+				r.Printf("  --ollama-url <url>    Ollama API URL override (template)\n")
 				r.Printf("  --stream-ollama       Enable streaming for 'ollama-generate'\n")
 				r.Printf("  --system <template>   System prompt for 'ollama-chat'\n")
 				r.Printf("  --max-history <n>     Max message history to retain for 'ollama-chat'\n")
@@ -1520,7 +1520,7 @@ func (r *REPL) RegisterCommonCommands() {
 
 			var name, match, matchType, run, respond, builtin, topic, rateLimit, debounce, code, reason, message, target, script, targets, window, scope, channel, reconnectInterval, onError string
 			var key, value, ttl, by, model, prompt, ollamaURL, system, input string
-			var labels map[string]string
+			var labels []string
 			var priority, maxMemory, maxHistory int
 			var exclusive, sequential, streamOllama bool
 
@@ -1566,7 +1566,7 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.StringVar(&script, "script", "", "Inline Lua script")
 			fs.IntVar(&maxMemory, "max-memory", 0, "Max memory for Lua VM")
 			fs.StringVar(&targets, "targets", "", "Targets (comma-separated list or JSON array) for multicast builtin")
-			fs.StringToStringVar(&labels, "labels", nil, "Labels for metric builtin (key=val,key2=val2)")
+			fs.StringSliceVar(&labels, "labels", nil, "Labels for metric builtin (k=v) or ollama-classify (list)")
 			var ruleWhens, ruleResponds []string
 			var defaultResp string
 			fs.StringArrayVarP(&ruleWhens, "rule-when", "W", nil, "Condition for rule-engine rule")
@@ -1643,7 +1643,33 @@ func (r *REPL) RegisterCommonCommands() {
 				Responses: responses,
 				Loop:      loop,
 				PerClient: perClient,
-				Labels:    labels,
+				Labels: func() handler.FlexLabels {
+					var fl handler.FlexLabels
+					if len(labels) > 0 {
+						// Try to detect if it's a map (metric) or a list (classify)
+						isMap := true
+						for _, l := range labels {
+							if !strings.Contains(l, "=") {
+								isMap = false
+								break
+							}
+						}
+
+						if isMap {
+							m := make(map[string]string)
+							for _, l := range labels {
+								parts := strings.SplitN(l, "=", 2)
+								if len(parts) == 2 {
+									m[parts[0]] = parts[1]
+								}
+							}
+							fl.Map = m
+						} else {
+							fl.List = labels
+						}
+					}
+					return fl
+				}(),
 				Script:    script,
 				MaxMemory: maxMemory,
 				Targets:   targets,

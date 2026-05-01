@@ -34,10 +34,10 @@ func TestMetricBuiltin(t *testing.T) {
 			Type:    "builtin",
 			Command: "metric",
 			Name:    "user_events_total",
-			Labels: map[string]string{
+			Labels: FlexLabels{Map: map[string]string{
 				"event_type": "login",
 				"static":     "val",
-			},
+			}},
 		}
 
 		err := b.Execute(context.Background(), d, action, tmplCtx)

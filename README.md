@@ -620,6 +620,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `shadow`      | Server | Forwards messages to another handler asynchronously and silently. |
 | `ollama-generate` | Shared | Sends a prompt to a local Ollama model and returns the response in `{{.OllamaReply}}`. |
 | `ollama-chat` | Shared | Maintains a per-connection chat history with an Ollama model; latest reply in `{{.OllamaReply}}`. |
+| `ollama-classify` | Shared | Categorizes a message into a set of labels using Ollama; result in `{{.Label}}` and `{{.Confidence}}`. |
 | `ollama-embed` | Shared | Generates an embedding vector for a message using Ollama; available in `{{.Embedding}}`. |
 
 **Validation Features:**
@@ -795,6 +796,21 @@ handlers:
     body: '{"text": "Notification: {{.Message | trimPrefix \"notify:\"}}"}'
     respond: "Slack notified: {{.HttpStatus}}"
   
+  # Ollama Classification Example
+  - name: route-intent
+    match: "*"
+    pipeline:
+      - builtin: ollama-classify
+        labels:
+          - support
+          - billing
+          - technical
+          - sales
+        model: llama3
+      - builtin: log
+        message: "Message classified as {{.Label}} (conf: {{.Confidence}})"
+    respond: "Your request has been routed to the {{.Label}} team."
+
   # Webhook-HMAC Example
   - name: secure-webhook
     match: "secure:*"

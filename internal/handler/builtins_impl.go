@@ -55,6 +55,7 @@ func init() {
 	MustRegister(&OllamaGenerateBuiltin{})
 	MustRegister(&OllamaChatBuiltin{})
 	MustRegister(&OllamaEmbedBuiltin{})
+	MustRegister(&OllamaClassifyBuiltin{})
 	MustRegister(&HttpGraphQLBuiltin{})
 	MustRegister(&HttpMockRespondBuiltin{})
 	MustRegister(&MetricBuiltin{})
@@ -1605,6 +1606,8 @@ type ollamaRequest struct {
 	Model  string `json:"model"`
 	Prompt string `json:"prompt"`
 	Stream bool   `json:"stream"`
+	System string `json:"system,omitempty"`
+	Format string `json:"format,omitempty"`
 }
 
 type ollamaResponse struct {
@@ -2125,6 +2128,154 @@ func (b *OllamaEmbedBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Acti
 	return nil
 }
 
+// OllamaClassifyBuiltin categorizes a message into a set of labels using Ollama.
+type OllamaClassifyBuiltin struct{}
+
+func (b *OllamaClassifyBuiltin) Name() string { return "ollama-classify" }
+func (b *OllamaClassifyBuiltin) Description() string {
+	return "Classify a message into one of the provided labels using an Ollama model."
+}
+func (b *OllamaClassifyBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *OllamaClassifyBuiltin) Validate(a Action) error {
+	if len(a.Labels.List) == 0 {
+		return fmt.Errorf("builtin ollama-classify missing labels list")
+	}
+	return nil
+}
+
+func (b *OllamaClassifyBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	// 1. Resolve URL
+	urlStr := a.OllamaURL
+	if urlStr == "" {
+		urlStr = d.ollamaURL
+	}
+	if urlStr == "" {
+		urlStr = "http://localhost:11434/api/generate"
+	} else if !strings.HasSuffix(urlStr, "/api/generate") && !strings.HasSuffix(urlStr, "/api/chat") {
+		urlStr = strings.TrimSuffix(urlStr, "/") + "/api/generate"
+	}
+
+	if strings.Contains(urlStr, "{{") {
+		evalURL, err := d.templateEngine.Execute("ollama-url", urlStr, tmplCtx)
+		if err == nil && evalURL != "" {
+			urlStr = evalURL
+		}
+	}
+
+	// 2. Resolve Model
+	model := a.Model
+	if model == "" {
+		model = "llama3" // Sensible default
+	}
+	resolvedModel, err := d.templateEngine.Execute("ollama-model", model, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("rendering ollama model template: %w", err)
+	}
+
+	// 3. Resolve Labels
+	labels := a.Labels.List
+	resolvedLabels := make([]string, 0, len(labels))
+	for i, lTmpl := range labels {
+		val, err := d.templateEngine.Execute(fmt.Sprintf("ollama-label-%d", i), lTmpl, tmplCtx)
+		if err != nil {
+			return fmt.Errorf("rendering ollama label %d template: %w", i, err)
+		}
+		resolvedLabels = append(resolvedLabels, val)
+	}
+
+	// 4. Construct Classification Prompt
+	labelListStr := strings.Join(resolvedLabels, ", ")
+	prompt := fmt.Sprintf(`Classify the following message into exactly one of these labels: [%s].
+Message: %s
+
+Respond ONLY with a JSON object containing "label" and "confidence" fields.
+Example: {"label": "%s", "confidence": 0.95}`,
+		labelListStr, tmplCtx.Message, resolvedLabels[0])
+
+	// 5. Prepare Request
+	ollamaReq := ollamaRequest{
+		Model:  resolvedModel,
+		Prompt: prompt,
+		Stream: false,
+		Format: "json",
+	}
+	if a.System != "" {
+		sys, err := d.templateEngine.Execute("ollama-system", a.System, tmplCtx)
+		if err == nil {
+			ollamaReq.System = sys
+		}
+	}
+
+	reqBody, err := json.Marshal(ollamaReq)
+	if err != nil {
+		return fmt.Errorf("marshaling ollama classify request: %w", err)
+	}
+
+	// 6. Execute Request
+	timeout := 60 * time.Second
+	if a.Timeout != "" {
+		if t, err := time.ParseDuration(a.Timeout); err == nil {
+			timeout = t
+		}
+	}
+
+	httpClient := &http.Client{Timeout: timeout}
+	req, err := http.NewRequestWithContext(ctx, "POST", urlStr, bytes.NewReader(reqBody))
+	if err != nil {
+		return fmt.Errorf("creating ollama classify request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	if d.verbose {
+		d.errorf("  [handler] ollama-classify: model=%q, labels=[%s], url=%s\n", resolvedModel, labelListStr, urlStr)
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("ollama classify request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("ollama classify error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	var ollamaResp ollamaResponse
+	if err := json.NewDecoder(resp.Body).Decode(&ollamaResp); err != nil {
+		return fmt.Errorf("decoding ollama classify response: %w", err)
+	}
+
+	// 7. Parse Result JSON
+	var result struct {
+		Label      string  `json:"label"`
+		Confidence float64 `json:"confidence"`
+	}
+	if err := json.Unmarshal([]byte(ollamaResp.Response), &result); err != nil {
+		// Fallback: try to find label name in response if JSON parsing fails
+		for _, l := range resolvedLabels {
+			if strings.Contains(strings.ToLower(ollamaResp.Response), strings.ToLower(l)) {
+				result.Label = l
+				result.Confidence = 0.5 // Low confidence fallback
+				break
+			}
+		}
+		if result.Label == "" {
+			return fmt.Errorf("failed to parse ollama classification result: %s", ollamaResp.Response)
+		}
+	}
+
+	tmplCtx.Label = result.Label
+	tmplCtx.Confidence = result.Confidence
+
+	if d.verbose {
+		d.errorf("  [handler] ollama-classify: result=%q (conf: %.2f)\n", result.Label, result.Confidence)
+	}
+
+	return nil
+}
+
 // HttpGetBuiltin makes an outbound HTTP GET request.
 type HttpGetBuiltin struct {
 	HttpBuiltin
@@ -2498,7 +2649,7 @@ func (b *MetricBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, t
 
 	// 2. Resolve labels
 	labels := make(map[string]string)
-	for k, vTmpl := range a.Labels {
+	for k, vTmpl := range a.Labels.ToMap() {
 		val, err := d.templateEngine.Execute("metric-label-"+k, vTmpl, tmplCtx)
 		if err != nil {
 			return fmt.Errorf("template error in label %q expression: %w", k, err)

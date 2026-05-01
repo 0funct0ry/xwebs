@@ -709,7 +709,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("  -p, --priority <n>        Numeric priority (higher runs first)\n")
 				r.Printf("  -r, --run <cmd>           Shell command to run on match\n")
 				r.Printf("  -R, --respond <tmpl>      Response template to send back\n")
-				r.Printf("  -B, --builtin <name>      Builtin action (subscribe, unsubscribe, publish, forward, redis-subscribe, redis-incr, webhook-hmac, http-get, http-graphql, sse-forward, http-mock-respond)\n")
+				r.Printf("  -B, --builtin <name>      Builtin action (subscribe, unsubscribe, publish, forward, redis-subscribe, redis-incr, webhook-hmac, http-get, http-graphql, sse-forward, http-mock-respond, ollama-classify, ollama-generate, ollama-chat, ollama-embed)\n")
 				r.Printf("      --topic <template>    Topic name template for builtin actions\n")
 				r.Printf("      --target <url>        Upstream target URL for 'forward' builtin\n")
 				r.Printf("  -M, --message <template>  Message template for broadcast or publish\n")
@@ -740,7 +740,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("      --message <template>  Message template for 'log', 'publish', or 'round-robin' builtins\n")
 				r.Printf("      --target <type>       Target for 'log' builtin (stdout|file|both)\n")
 				r.Printf("      --path <path>         File path for 'log' builtin\n")
-				r.Printf("      --labels <key:val,...> Labels for 'metric' builtin (key=val,key2=val2)\n")
+				r.Printf("      --labels <key:val,...> Labels for 'metric' (k=v) or 'ollama-classify' (list)\n")
 				r.Printf("      --script <script>     Inline Lua script\n")
 				r.Printf("      --max-memory <n>      Memory limit for Lua VM in bytes\n")
 				r.Printf("  -w, --window <duration>   Throttle window for 'debounce' or 'throttle-broadcast' builtin (e.g. '5s')\n")
@@ -766,9 +766,10 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("      --query <template>    GraphQL query template for 'http-graphql' builtin\n")
 				r.Printf("      --variables <tmpl>    GraphQL variables template (JSON) for 'http-graphql' builtin\n")
 				r.Printf("      --reconnect-interval <dur> Reconnect interval for 'redis-subscribe'\n")
-				r.Printf("      --model <name>        Ollama model name\n")
+				r.Printf("      --model <name>        Ollama model name (template)\n")
 				r.Printf("      --prompt <template>   Prompt template for 'ollama-generate'\n")
-				r.Printf("      --ollama-url <url>    Ollama API URL override\n")
+				r.Printf("      --labels <list>       Comma-separated labels for 'ollama-classify' (template)\n")
+				r.Printf("      --ollama-url <url>    Ollama API URL override (template)\n")
 				r.Printf("      --stream-ollama       Enable streaming for 'ollama-generate'\n")
 				r.Printf("      --system <template>   System prompt for 'ollama-chat'\n")
 				r.Printf("      --max-history <n>     Max message history to retain for 'ollama-chat'\n")
@@ -786,8 +787,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.SetOutput(r.Stdout())
 
 				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue, field, handlerA, handlerB, channel, reconnectInterval, by, secret, query, gqlVariables, sseStream, event, id, onNoConsumers, status, model, prompt, ollamaURL, system, input string
-				var ruleWhens, ruleResponds, responses, headers []string
-				var labels map[string]string
+				var ruleWhens, ruleResponds, responses, headers, labels []string
 				var priority, burst, maxMemory, split, bufferSize, maxHistory int
 				var exclusive, sequential, loop, perClient, stickyBroadcast, streamOllama bool
 
@@ -849,7 +849,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.StringVarP(&defaultValue, "default", "D", "", "Default value for KV builtins or rule-engine")
 				fs.StringArrayVarP(&ruleWhens, "rule-when", "W", nil, "Condition for rule-engine rule")
 				fs.StringArrayVarP(&ruleResponds, "rule-respond", "S", nil, "Response for rule-engine rule")
-				fs.StringToStringVar(&labels, "labels", nil, "Labels for metric builtin (key=val,key2=val2)")
+				fs.StringSliceVar(&labels, "labels", nil, "Labels for metric builtin (k=v) or ollama-classify (list)")
 				fs.StringVar(&field, "field", "", "Field to hash for ab-test")
 				fs.IntVar(&split, "split", 0, "Percentage for handler_a in ab-test")
 				fs.StringVar(&handlerA, "handler-a", "", "Handler A for ab-test")
@@ -925,7 +925,33 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					Method:            method,
 					Body:              body,
 					Timeout:           timeout,
-					Labels:            labels,
+					Labels: func() handler.FlexLabels {
+						var fl handler.FlexLabels
+						if len(labels) > 0 {
+							// Try to detect if it's a map (metric) or a list (classify)
+							isMap := true
+							for _, l := range labels {
+								if !strings.Contains(l, "=") {
+									isMap = false
+									break
+								}
+							}
+
+							if isMap {
+								m := make(map[string]string)
+								for _, l := range labels {
+									parts := strings.SplitN(l, "=", 2)
+									if len(parts) == 2 {
+										m[parts[0]] = parts[1]
+									}
+								}
+								fl.Map = m
+							} else {
+								fl.List = labels
+							}
+						}
+						return fl
+					}(),
 					Script:            script,
 					MaxMemory:         maxMemory,
 					Window:            window,

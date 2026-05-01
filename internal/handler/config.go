@@ -8,6 +8,52 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// FlexLabels can be either a map[string]string (for metrics) or a []string (for classification).
+type FlexLabels struct {
+	Map  map[string]string
+	List []string
+}
+
+// UnmarshalYAML implements custom unmarshaling to support both maps and sequences.
+func (f *FlexLabels) UnmarshalYAML(value *yaml.Node) error {
+	// Try unmarshaling as map first
+	var m map[string]string
+	if err := value.Decode(&m); err == nil {
+		f.Map = m
+		return nil
+	}
+
+	// Try unmarshaling as sequence
+	var l []string
+	if err := value.Decode(&l); err == nil {
+		f.List = l
+		return nil
+	}
+
+	return fmt.Errorf("labels must be a map of strings or a list of strings")
+}
+
+// MarshalYAML implements custom marshaling to output either a map or a list.
+func (f FlexLabels) MarshalYAML() (interface{}, error) {
+	if len(f.Map) > 0 {
+		return f.Map, nil
+	}
+	if len(f.List) > 0 {
+		return f.List, nil
+	}
+	return nil, nil
+}
+
+// ToMap returns the map representation or nil.
+func (f *FlexLabels) ToMap() map[string]string {
+	return f.Map
+}
+
+// ToList returns the list representation or nil.
+func (f *FlexLabels) ToList() []string {
+	return f.List
+}
+
 // Config represents the root structure of a handlers.yaml file.
 type Config struct {
 	Variables map[string]interface{} `yaml:"variables"`
@@ -86,7 +132,7 @@ type Handler struct {
 	OnLimit      string                 `yaml:"on_limit,omitempty"`     // For rate-limit builtin
 	Expect       string                 `yaml:"expect,omitempty"`       // For gate builtin
 	OnClosed     string                 `yaml:"on_closed,omitempty"`    // For gate builtin
-	Labels       map[string]string      `yaml:"labels,omitempty"`       // For metric builtin
+	Labels       FlexLabels             `yaml:"labels,omitempty"`       // For metric (map) or ollama-classify (list)
 	Targets      string                 `yaml:"targets,omitempty"`      // For multicast builtin
 	Pool         string                 `yaml:"pool,omitempty"`         // For round-robin builtin (template)
 	OnEmpty      string                 `yaml:"on_empty,omitempty"`     // For round-robin builtin (template)
@@ -104,7 +150,7 @@ type Handler struct {
 	Query        string                 `yaml:"query,omitempty"`        // For http-graphql builtin
 	GraphQLVariables string             `yaml:"gql_variables,omitempty"` // For http-graphql builtin
 	Model        string                 `yaml:"model,omitempty"`        // For ollama-generate builtin
-	Prompt       string                 `yaml:"prompt,omitempty"`       // For ollama-generate builtin
+	Prompt       string                 `yaml:"prompt,omitempty"`        // For ollama-generate builtin
 	OllamaURL    string                 `yaml:"ollama_url,omitempty"`   // For ollama-generate builtin
 	MaxHistory   int                    `yaml:"max_history,omitempty"`  // For ollama-chat builtin
 	System       string                 `yaml:"system,omitempty"`       // For ollama-chat builtin
@@ -165,7 +211,7 @@ type PipelineStep struct {
 	Reason      string            `yaml:"reason,omitempty"`    // For close builtin
 	Status      string            `yaml:"status,omitempty"`    // For http-mock-respond builtin
 	Name        string            `yaml:"name,omitempty"`      // For metric builtin
-	Labels      map[string]string `yaml:"labels,omitempty"`    // For metric builtin
+	Labels      FlexLabels        `yaml:"labels,omitempty"`    // For metric (map) or ollama-classify (list)
 	Targets     string            `yaml:"targets,omitempty"`   // For multicast builtin
 	Pool        string            `yaml:"pool,omitempty"`      // For round-robin builtin
 	OnEmpty     string            `yaml:"on_empty,omitempty"`  // For round-robin builtin
@@ -273,7 +319,7 @@ type Action struct {
 	Reason      string            `yaml:"reason,omitempty"`     // For close builtin
 	Status      string            `yaml:"status,omitempty"`     // For http-mock-respond builtin
 	Name        string            `yaml:"name,omitempty"`       // For metric builtin (metric name)
-	Labels      map[string]string `yaml:"labels,omitempty"`     // For metric builtin
+	Labels      FlexLabels        `yaml:"labels,omitempty"`     // For metric (map) or ollama-classify (list)
 	Targets     string            `yaml:"targets,omitempty"`    // For multicast builtin
 	Pool        string            `yaml:"pool,omitempty"`       // For round-robin builtin
 	OnEmpty     string            `yaml:"on_empty,omitempty"`   // For round-robin builtin

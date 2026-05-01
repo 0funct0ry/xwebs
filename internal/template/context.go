@@ -200,6 +200,10 @@ type TemplateContext struct {
 
 	// Ollama Embed
 	Embedding []float64 `json:"embedding,omitempty"`
+
+	// Ollama Classify
+	Label      string  `json:"label,omitempty"`
+	Confidence float64 `json:"confidence,omitempty"`
 }
 
 // NewContext creates a new TemplateContext with initialized maps.
