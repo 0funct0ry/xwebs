@@ -14,7 +14,7 @@ func TestDispatcher_Sandbox(t *testing.T) {
 	conn := &mockConn{}
 
 	t.Run("Sandbox Enabled - Allowed", func(t *testing.T) {
-		d := NewDispatcher(reg, conn, engine, false, nil, nil, true, []string{"echo"}, nil, nil, nil, nil, nil, "")
+		d := NewDispatcher(reg, conn, engine, false, nil, nil, true, []string{"echo"}, nil, nil, nil, nil, nil, nil, "")
 		h := &Handler{
 			Name: "test-allowed",
 			Run:  "echo 'hello'",
@@ -29,7 +29,7 @@ func TestDispatcher_Sandbox(t *testing.T) {
 	})
 
 	t.Run("Sandbox Enabled - Disallowed", func(t *testing.T) {
-		d := NewDispatcher(reg, conn, engine, false, nil, nil, true, []string{"echo"}, nil, nil, nil, nil, nil, "")
+		d := NewDispatcher(reg, conn, engine, false, nil, nil, true, []string{"echo"}, nil, nil, nil, nil, nil, nil, "")
 		h := &Handler{
 			Name: "test-disallowed",
 			Run:  "ls",
@@ -41,7 +41,7 @@ func TestDispatcher_Sandbox(t *testing.T) {
 	})
 
 	t.Run("Sandbox Enabled - Empty Allowlist", func(t *testing.T) {
-		d := NewDispatcher(reg, conn, engine, false, nil, nil, true, []string{}, nil, nil, nil, nil, nil, "")
+		d := NewDispatcher(reg, conn, engine, false, nil, nil, true, []string{}, nil, nil, nil, nil, nil, nil, "")
 		h := &Handler{
 			Name: "test-deny-all",
 			Run:  "echo 'forbidden'",
@@ -53,7 +53,7 @@ func TestDispatcher_Sandbox(t *testing.T) {
 	})
 
 	t.Run("Sandbox Disabled - Allowed All", func(t *testing.T) {
-		d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil, nil, nil, "")
+		d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, "")
 		h := &Handler{
 			Name: "test-no-sandbox",
 			Run:  "ls",

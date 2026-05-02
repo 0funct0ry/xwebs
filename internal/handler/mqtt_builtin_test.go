@@ -33,7 +33,7 @@ func TestMQTTPublishBuiltin(t *testing.T) {
 	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	
-	d := NewDispatcher(reg, nil, engine, true, nil, nil, false, nil, nil, nil, nil, nil, mqttMock, "")
+	d := NewDispatcher(reg, nil, engine, true, nil, nil, false, nil, nil, nil, nil, nil, mqttMock, nil, "")
 	
 	builtin := &MQTTPublishBuiltin{}
 	

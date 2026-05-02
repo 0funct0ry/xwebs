@@ -177,6 +177,7 @@ Available Builtin Actions (Client):
 				fmt.Fprintf(os.Stderr, "✓ Connected to Redis at %s\n", redisURL)
 			}
 		}
+		natsMgr := handler.NewNATSManager()
 
 		// Set colors based on global settings
 		colorsEnabled := true
@@ -726,7 +727,7 @@ Available Builtin Actions (Client):
 						if cc.repl != nil {
 							sessionVars = cc.repl.GetVars()
 						}
-						tempDispatcher := handler.NewDispatcher(reg, nil, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist, nil, nil, nil, redisMgr, nil, ollamaURL)
+						tempDispatcher := handler.NewDispatcher(reg, nil, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist, nil, nil, nil, redisMgr, nil, natsMgr, ollamaURL)
 						if isInteractive && r != nil {
 
 							tempDispatcher.Log = func(f string, a ...interface{}) { r.Printf(f, a...) }
@@ -799,7 +800,7 @@ Available Builtin Actions (Client):
 					if cc.repl != nil {
 						sessionVars = cc.repl.GetVars()
 					}
-					dispatcher = handler.NewDispatcher(handlerReg, conn, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist, nil, nil, nil, redisMgr, nil, ollamaURL)
+					dispatcher = handler.NewDispatcher(handlerReg, conn, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist, nil, nil, nil, redisMgr, nil, natsMgr, ollamaURL)
 					cc.dispatcher = dispatcher
 					if isInteractive && r != nil {
 

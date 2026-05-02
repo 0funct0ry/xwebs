@@ -83,6 +83,7 @@ func init() {
 	MustRegister(&WebhookHMACBuiltin{})
 	MustRegister(&MQTTPublishBuiltin{})
 	MustRegister(&MQTTSubscribeBuiltin{})
+	MustRegister(&NATSPublishBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -4240,4 +4241,75 @@ func (b *MQTTSubscribeBuiltin) Validate(a Action) error {
 
 func (b *MQTTSubscribeBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
 	return fmt.Errorf("builtin %q is a source action and cannot be executed in a reactive flow", b.Name())
+}
+
+// NATSPublishBuiltin publishes a message to a NATS subject.
+type NATSPublishBuiltin struct{}
+
+func (b *NATSPublishBuiltin) Name() string { return "nats-publish" }
+func (b *NATSPublishBuiltin) Description() string {
+	return "Publish a message to a NATS subject."
+}
+func (b *NATSPublishBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *NATSPublishBuiltin) Validate(a Action) error {
+	if a.NatsURL == "" {
+		return fmt.Errorf("builtin nats-publish missing nats_url")
+	}
+	if a.Subject == "" {
+		return fmt.Errorf("builtin nats-publish missing subject")
+	}
+	if a.Message == "" && a.Send == "" && a.Respond == "" {
+		return fmt.Errorf("builtin nats-publish missing message (provide message:, send:, or respond:)")
+	}
+	return nil
+}
+
+func (b *NATSPublishBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	if d.natsManager == nil {
+		return fmt.Errorf("builtin nats-publish: nats manager not initialized")
+	}
+
+	natsURL, err := d.templateEngine.Execute("nats-url", a.NatsURL, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in nats_url: %w", err)
+	}
+	natsURL = strings.TrimSpace(natsURL)
+	if natsURL == "" {
+		return fmt.Errorf("builtin nats-publish: nats_url evaluates to empty string")
+	}
+
+	subject, err := d.templateEngine.Execute("nats-subject", a.Subject, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in nats subject: %w", err)
+	}
+	subject = strings.TrimSpace(subject)
+	if subject == "" {
+		return fmt.Errorf("builtin nats-publish: subject evaluates to empty string")
+	}
+
+	msgContent := a.Message
+	if msgContent == "" {
+		msgContent = a.Send
+	}
+	if msgContent == "" {
+		msgContent = a.Respond
+	}
+
+	msgStr, err := d.templateEngine.Execute("nats-message", msgContent, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in nats message: %w", err)
+	}
+
+	if err := d.natsManager.Publish(ctx, natsURL, subject, msgStr); err != nil {
+		return fmt.Errorf("nats publish error: %w", err)
+	}
+
+	tmplCtx.NatsSubject = subject
+	tmplCtx.NatsMessage = msgStr
+
+	if d.verbose {
+		d.errorf("  [handler] nats-publish: %s -> %s (subject: %q)\n", natsURL, msgStr, subject)
+	}
+	return nil
 }

@@ -91,7 +91,7 @@ func TestDispatcher_Sample(t *testing.T) {
 	r := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
-	d := NewDispatcher(r, conn, engine, false, nil, nil, false, nil, nil, nil, nil, nil, nil, "")
+	d := NewDispatcher(r, conn, engine, false, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, "")
 
 	h := &Handler{
 		Name:  "sampler",

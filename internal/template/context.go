@@ -211,6 +211,10 @@ type TemplateContext struct {
 	// MQTT Publish
 	MqttTopic   string `json:"mqtt_topic,omitempty"`
 	MqttMessage string `json:"mqtt_message,omitempty"`
+	
+	// NATS Publish
+	NatsSubject string `json:"nats_subject,omitempty"`
+	NatsMessage string `json:"nats_message,omitempty"`
 }
 
 // NewContext creates a new TemplateContext with initialized maps.

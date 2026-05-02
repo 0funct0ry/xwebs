@@ -624,6 +624,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `ollama-embed` | Shared | Generates an embedding vector for a message using Ollama; available in `{{.Embedding}}`. |
 | `openai-chat` | Shared | Maintains a per-connection chat history with an OpenAI-compatible API; result in `{{.OpenAIReply}}`. |
 | `mqtt-publish` | Shared | Publishes a message to an MQTT broker topic (supports templates, QoS, and retain). |
+| `nats-publish` | Shared | Publishes a message to a NATS subject (supports templates and connection pooling). |
 
 **Validation Features:**
 - **Unknown Builtins**: Using an unknown builtin name in handler configuration causes an immediate startup error.
@@ -832,6 +833,15 @@ handlers:
      qos: 1
      retain: true
      respond: "MQTT message published to {{.MqttTopic}}"
+
+   # NATS Integration Example
+   - name: nats-forwarder
+     match: "nats:*"
+     builtin: nats-publish
+     nats_url: "nats://localhost:4222"
+     subject: "events.{{index (split \":\" .Message) 1}}"
+     message: "Payload: {{.Message}}"
+     respond: "Published to NATS: {{.Message}}"
 
   # Ollama Embedding Example
   - name: semantic-search

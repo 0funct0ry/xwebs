@@ -26,8 +26,8 @@ func TestRateLimitBuiltin(t *testing.T) {
 
 	t.Run("Client Scope (Default)", func(t *testing.T) {
 		registry := NewRegistry(ServerMode)
-		d1 := NewDispatcher(registry, conn1, engine, true, nil, nil, false, nil, nil, nil, nil, nil, nil, "")
-		d2 := NewDispatcher(registry, conn2, engine, true, nil, nil, false, nil, nil, nil, nil, nil, nil, "")
+		d1 := NewDispatcher(registry, conn1, engine, true, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, "")
+		d2 := NewDispatcher(registry, conn2, engine, true, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, "")
 
 		action := &Action{
 			HandlerName: "test-handler",
@@ -55,8 +55,8 @@ func TestRateLimitBuiltin(t *testing.T) {
 
 	t.Run("Global Scope", func(t *testing.T) {
 		registry := NewRegistry(ServerMode)
-		d1 := NewDispatcher(registry, conn1, engine, true, nil, nil, false, nil, nil, nil, nil, nil, nil, "")
-		d2 := NewDispatcher(registry, conn2, engine, true, nil, nil, false, nil, nil, nil, nil, nil, nil, "")
+		d1 := NewDispatcher(registry, conn1, engine, true, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, "")
+		d2 := NewDispatcher(registry, conn2, engine, true, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, "")
 
 		action := &Action{
 			HandlerName: "test-handler",
@@ -80,7 +80,7 @@ func TestRateLimitBuiltin(t *testing.T) {
 
 	t.Run("Handler Scope", func(t *testing.T) {
 		registry := NewRegistry(ServerMode)
-		d1 := NewDispatcher(registry, conn1, engine, true, nil, nil, false, nil, nil, nil, nil, nil, nil, "")
+		d1 := NewDispatcher(registry, conn1, engine, true, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, "")
 
 		actionA := &Action{
 			HandlerName: "handler-A",
@@ -113,7 +113,7 @@ func TestRateLimitBuiltin(t *testing.T) {
 		kv := &mockKV{data: make(map[string]interface{})}
 		kv.data["my_rate"] = "10/s"
 
-		d := NewDispatcher(registry, conn1, engine, true, nil, nil, false, nil, nil, nil, kv, nil, nil, "")
+		d := NewDispatcher(registry, conn1, engine, true, nil, nil, false, nil, nil, nil, kv, nil, nil, nil, "")
 		action := &Action{
 			HandlerName: "dyn-handler",
 			Rate:        `{{kv "my_rate"}}`,

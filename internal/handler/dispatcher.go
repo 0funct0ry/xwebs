@@ -95,6 +95,11 @@ type MQTTManager interface {
 	Close() error
 }
 
+type NATSManager interface {
+	Publish(ctx context.Context, natsURL, subject, message string) error
+	Close() error
+}
+
 // Dispatcher coordinates the execution of handlers for a connection.
 type Dispatcher struct {
 	registry       *Registry
@@ -118,13 +123,14 @@ type Dispatcher struct {
 	kvManager       KVManager
 	redisManager    RedisManager
 	mqttManager     MQTTManager
+	natsManager     NATSManager
  
 	bufferMu sync.Mutex
 	buffer   []*ws.Message
 }
 
 // NewDispatcher creates a new dispatcher.
-func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine, verbose bool, vars map[string]interface{}, session map[string]interface{}, sandbox bool, allowlist []string, serverStats ServerStatProvider, topicManager TopicManager, kvManager KVManager, redisManager RedisManager, mqttManager MQTTManager, ollamaURL string) *Dispatcher {
+func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine, verbose bool, vars map[string]interface{}, session map[string]interface{}, sandbox bool, allowlist []string, serverStats ServerStatProvider, topicManager TopicManager, kvManager KVManager, redisManager RedisManager, mqttManager MQTTManager, natsManager NATSManager, ollamaURL string) *Dispatcher {
 
 	// Initialize system environment
 	env := make(map[string]string)
@@ -149,6 +155,7 @@ func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine,
 		kvManager:        kvManager,
 		redisManager:     redisManager,
 		mqttManager:      mqttManager,
+		natsManager:      natsManager,
 		ollamaURL:        ollamaURL,
 		systemEnv:        env,
 		Log: func(f string, a ...interface{}) {
@@ -556,6 +563,8 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 				BrokerURL:   h.BrokerURL,
 				QoS:         h.QoS,
 				Retain:      h.Retain,
+				NatsURL:     h.NatsURL,
+				Subject:     h.Subject,
 				BufferSize:  h.BufferSize,
 				BaseDir:     h.BaseDir,
 				HandlerName: h.Name,
@@ -685,6 +694,8 @@ func (d *Dispatcher) executePipeline(ctx context.Context, handlerName string, pi
 			action.BrokerURL = step.BrokerURL
 			action.QoS = step.QoS
 			action.Retain = step.Retain
+			action.NatsURL = step.NatsURL
+			action.Subject = step.Subject
 			action.BufferSize = step.BufferSize
 			action.BaseDir = d.registry.GetHandlerBaseDir(handlerName)
 			action.HandlerName = handlerName

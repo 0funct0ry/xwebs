@@ -1523,7 +1523,7 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.SetOutput(nil) // Suppress automatic usage printing on error
 
 			var name, match, matchType, run, respond, builtin, topic, rateLimit, debounce, code, reason, message, target, script, targets, window, scope, channel, reconnectInterval, onError string
-			var key, value, ttl, by, model, prompt, ollamaURL, system, input, apiKey, apiURL, brokerURL, mqttTopic, qos string
+			var key, value, ttl, by, model, prompt, ollamaURL, system, input, apiKey, apiURL, brokerURL, mqttTopic, qos, natsURL, natsSubject string
 			var retain bool
 			var labels []string
 			var priority, maxMemory, maxHistory int
@@ -1604,6 +1604,10 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.StringVar(&mqttTopic, "mqtt-topic", "", "Topic for mqtt-publish")
 			fs.StringVar(&qos, "qos", "", "QoS for mqtt-publish")
 			fs.BoolVar(&retain, "retain", false, "Retain flag for mqtt-publish")
+ 
+			// NATS flags
+			fs.StringVar(&natsURL, "nats-url", "", "NATS server URL for nats-publish")
+			fs.StringVar(&natsSubject, "subject", "", "Subject for nats-publish")
 
 			if err := fs.Parse(args[1:]); err != nil {
 				if errors.Is(err, pflag.ErrHelp) {
@@ -1723,6 +1727,8 @@ func (r *REPL) RegisterCommonCommands() {
 				System:            system,
 				MaxHistory:        maxHistory,
 				Input:             input,
+				NatsURL:           natsURL,
+				Subject:           natsSubject,
 			}
 			if streamOllama {
 				h.Stream = "true"

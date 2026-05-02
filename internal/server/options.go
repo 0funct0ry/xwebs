@@ -52,6 +52,7 @@ type Options struct {
 
 	RedisManager handler.RedisManager
 	MQTTManager  handler.MQTTManager
+	NATSManager  handler.NATSManager
 	OllamaURL    string
 }
 
@@ -271,6 +272,13 @@ func WithMQTTManager(m handler.MQTTManager) Option {
 func WithSSEStreams(streams []handler.SSEStreamConfig) Option {
 	return func(o *Options) {
 		o.SSEStreams = streams
+	}
+}
+
+// WithNATSManager sets the NATS manager.
+func WithNATSManager(m handler.NATSManager) Option {
+	return func(o *Options) {
+		o.NATSManager = m
 	}
 }
 

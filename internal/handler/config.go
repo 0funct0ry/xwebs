@@ -162,6 +162,8 @@ type Handler struct {
 	BrokerURL    string                 `yaml:"broker_url,omitempty"`   // For mqtt-publish builtin (template)
 	QoS          string                 `yaml:"qos,omitempty"`          // For mqtt-publish builtin (template)
 	Retain       bool                   `yaml:"retain,omitempty"`       // For mqtt-publish builtin
+	NatsURL      string                 `yaml:"nats_url,omitempty"`     // For nats-publish builtin (template)
+	Subject      string                 `yaml:"subject,omitempty"`      // For nats-publish builtin (template)
 	BaseDir      string                 `yaml:"-"`                      // Directory from which the handler was loaded
 }
 
@@ -248,6 +250,8 @@ type PipelineStep struct {
 	BrokerURL   string            `yaml:"broker_url,omitempty"`   // For mqtt-publish builtin (template)
 	QoS         string            `yaml:"qos,omitempty"`          // For mqtt-publish builtin (template)
 	Retain      bool              `yaml:"retain,omitempty"`       // For mqtt-publish builtin
+	NatsURL     string            `yaml:"nats_url,omitempty"`     // For nats-publish builtin (template)
+	Subject     string            `yaml:"subject,omitempty"`      // For nats-publish builtin (template)
 }
 
 // Matcher specifies how to match an incoming WebSocket message.
@@ -363,6 +367,8 @@ type Action struct {
 	BrokerURL   string            `yaml:"broker_url,omitempty"`  // For mqtt-publish builtin (template)
 	QoS         string            `yaml:"qos,omitempty"`         // For mqtt-publish builtin (template)
 	Retain      bool              `yaml:"retain,omitempty"`      // For mqtt-publish builtin
+	NatsURL     string            `yaml:"nats_url,omitempty"`    // For nats-publish builtin (template)
+	Subject     string            `yaml:"subject,omitempty"`     // For nats-publish builtin (template)
 	BaseDir     string            `yaml:"-"`                    // For relative path resolution in builtins
 	HandlerName string            `yaml:"-"`                    // Internal use only
 }
@@ -552,6 +558,8 @@ func (c *Config) Validate(mode RegistryMode) error {
 				BrokerURL:   h.BrokerURL,
 				QoS:         h.QoS,
 				Retain:      h.Retain,
+				NatsURL:     h.NatsURL,
+				Subject:     h.Subject,
 			}
 			if err := bh.Validate(tmpAction); err != nil {
 				return fmt.Errorf("handler %q: %w", h.Name, err)

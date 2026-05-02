@@ -26,7 +26,7 @@ func TestMetricBuiltin(t *testing.T) {
 	t.Run("Execute", func(t *testing.T) {
 		reg := NewRegistry(ServerMode)
 		engine := template.New(false)
-		d := NewDispatcher(reg, nil, engine, false, nil, nil, false, nil, nil, nil, nil, nil, nil, "")
+		d := NewDispatcher(reg, nil, engine, false, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, "")
 		tmplCtx := template.NewContext()
 		tmplCtx.Message = "{\"type\": \"login\"}"
 
@@ -47,7 +47,7 @@ func TestMetricBuiltin(t *testing.T) {
 	t.Run("Template Error", func(t *testing.T) {
 		reg := NewRegistry(ServerMode)
 		engine := template.New(false)
-		d := NewDispatcher(reg, nil, engine, false, nil, nil, false, nil, nil, nil, nil, nil, nil, "")
+		d := NewDispatcher(reg, nil, engine, false, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, "")
 		tmplCtx := template.NewContext()
 
 		action := &Action{

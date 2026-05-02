@@ -49,7 +49,7 @@ func TestSSEForwardBuiltin(t *testing.T) {
 	te := template.New(false)
 	provider := &mockSSEProvider{}
 	
-	dispatcher := NewDispatcher(registry, nil, te, true, nil, nil, false, nil, provider, nil, nil, nil, nil, "")
+	dispatcher := NewDispatcher(registry, nil, te, true, nil, nil, false, nil, provider, nil, nil, nil, nil, nil, "")
 	
 	h := &Handler{
 		Name:    "test-sse",
@@ -85,7 +85,7 @@ func TestSSEForwardBuiltin_ConfigUpdate(t *testing.T) {
 	te := template.New(false)
 	provider := &mockSSEProvider{}
 	
-	dispatcher := NewDispatcher(registry, nil, te, true, nil, nil, false, nil, provider, nil, nil, nil, nil, "")
+	dispatcher := NewDispatcher(registry, nil, te, true, nil, nil, false, nil, provider, nil, nil, nil, nil, nil, "")
 	
 	h := &Handler{
 		Name:          "test-sse-config",
