@@ -51,7 +51,7 @@ func TestDebounceBuiltin(t *testing.T) {
 
 	t.Run("Basic debounce with respond", func(t *testing.T) {
 		conn := &debounceMockConn{id: "c1", sent: make(chan *ws.Message, 10), done: make(chan struct{})}
-		d := NewDispatcher(reg, conn, engine, true, nil, nil, false, nil, nil, nil, nil, nil, "")
+		d := NewDispatcher(reg, conn, engine, true, nil, nil, false, nil, nil, nil, nil, nil, nil, "")
 
 		a := &Action{
 			Type:        "builtin",
@@ -93,8 +93,8 @@ func TestDebounceBuiltin(t *testing.T) {
 		conn1 := &debounceMockConn{id: "client1", sent: make(chan *ws.Message, 10), done: make(chan struct{})}
 		conn2 := &debounceMockConn{id: "client2", sent: make(chan *ws.Message, 10), done: make(chan struct{})}
 
-		d1 := NewDispatcher(reg, conn1, engine, true, nil, nil, false, nil, nil, nil, nil, nil, "")
-		d2 := NewDispatcher(reg, conn2, engine, true, nil, nil, false, nil, nil, nil, nil, nil, "")
+		d1 := NewDispatcher(reg, conn1, engine, true, nil, nil, false, nil, nil, nil, nil, nil, nil, "")
+		d2 := NewDispatcher(reg, conn2, engine, true, nil, nil, false, nil, nil, nil, nil, nil, nil, "")
 
 		aClient := &Action{
 			Type:        "builtin",

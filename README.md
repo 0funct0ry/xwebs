@@ -623,6 +623,7 @@ Topics are created automatically when the first client subscribes and removed wh
 | `ollama-classify` | Shared | Categorizes a message into a set of labels using Ollama; result in `{{.Label}}` and `{{.Confidence}}`. |
 | `ollama-embed` | Shared | Generates an embedding vector for a message using Ollama; available in `{{.Embedding}}`. |
 | `openai-chat` | Shared | Maintains a per-connection chat history with an OpenAI-compatible API; result in `{{.OpenAIReply}}`. |
+| `mqtt-publish` | Shared | Publishes a message to an MQTT broker topic (supports templates, QoS, and retain). |
 
 **Validation Features:**
 - **Unknown Builtins**: Using an unknown builtin name in handler configuration causes an immediate startup error.
@@ -820,6 +821,17 @@ handlers:
     secret: "{{env \"WEBHOOK_SECRET\"}}"
     body: '{"payload": "{{.Message | trimPrefix \"secure:\"}}"}'
     respond: "Secure webhook sent, signature: {{.HttpStatus}}"
+ 
+   # MQTT Integration Example
+   - name: iot-control
+     match: "iot:*"
+     builtin: mqtt-publish
+     broker_url: "tcp://broker.hivemq.com:1883"
+     topic: "xwebs/devices/{{.Message | trimPrefix \"iot:\" | jq \".id\"}}"
+     message: "Action: {{.Message | jq \".action\"}}, Status: online"
+     qos: 1
+     retain: true
+     respond: "MQTT message published to {{.MqttTopic}}"
 
   # Ollama Embedding Example
   - name: semantic-search

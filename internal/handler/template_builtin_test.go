@@ -16,7 +16,7 @@ func TestTemplateBuiltin(t *testing.T) {
 	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
-	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil, nil, "")
+	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil, nil, nil, "")
 
 	// Setup temporary directory for templates
 	tmpDir, err := os.MkdirTemp("", "xwebs-templates-*")

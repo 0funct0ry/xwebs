@@ -709,7 +709,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("  -p, --priority <n>        Numeric priority (higher runs first)\n")
 				r.Printf("  -r, --run <cmd>           Shell command to run on match\n")
 				r.Printf("  -R, --respond <tmpl>      Response template to send back\n")
-				r.Printf("  -B, --builtin <name>      Builtin action (subscribe, unsubscribe, publish, forward, redis-subscribe, redis-incr, webhook-hmac, http-get, http-graphql, sse-forward, http-mock-respond, ollama-classify, ollama-generate, ollama-chat, ollama-embed)\n")
+				r.Printf("  -B, --builtin <name>      Builtin action (subscribe, unsubscribe, publish, forward, redis-subscribe, redis-incr, webhook-hmac, http-get, http-graphql, sse-forward, http-mock-respond, ollama-classify, ollama-generate, ollama-chat, ollama-embed, openai-chat, mqtt-publish)\n")
 				r.Printf("      --topic <template>    Topic name template for builtin actions\n")
 				r.Printf("      --target <url>        Upstream target URL for 'forward' builtin\n")
 				r.Printf("  -M, --message <template>  Message template for broadcast or publish\n")
@@ -771,9 +771,17 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("      --labels <list>       Comma-separated labels for 'ollama-classify' (template)\n")
 				r.Printf("      --ollama-url <url>    Ollama API URL override (template)\n")
 				r.Printf("      --stream-ollama       Enable streaming for 'ollama-generate'\n")
-				r.Printf("      --system <template>   System prompt for 'ollama-chat'\n")
-				r.Printf("      --max-history <n>     Max message history to retain for 'ollama-chat'\n")
+				r.Printf("      --system <template>   System prompt for 'ollama-chat' or 'openai-chat'\n")
+				r.Printf("      --max-history <n>     Max message history to retain for 'ollama-chat' or 'openai-chat'\n")
 				r.Printf("      --input <template>    Input template for 'ollama-embed'\n")
+				r.Printf("      --api-url <url>       API URL for 'openai-chat' (template)\n")
+				r.Printf("      --api-key <key>       API Key for 'openai-chat' (template)\n")
+				r.Printf("      --temperature <n>     Temperature for 'openai-chat'\n")
+				r.Printf("      --top-p <n>           Top-P for 'openai-chat'\n")
+				r.Printf("      --broker-url <url>    MQTT broker URL for 'mqtt-publish'\n")
+				r.Printf("      --mqtt-topic <tmpl>   MQTT topic template for 'mqtt-publish'\n")
+				r.Printf("      --qos <n>             MQTT QoS level (0, 1, or 2)\n")
+				r.Printf("      --retain              Set MQTT retain flag\n")
 				r.Printf("      --stream <template>   Stream name for 'sse-forward' builtin\n")
 				r.Printf("      --event <template>    Event type for 'sse-forward' builtin\n")
 				r.Printf("      --on-no-consumers <drop|buffer> Strategy when no consumers are connected\n")
@@ -786,10 +794,11 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 				fs.SetOutput(r.Stdout())
 
-				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue, field, handlerA, handlerB, channel, reconnectInterval, by, secret, query, gqlVariables, sseStream, event, id, onNoConsumers, status, model, prompt, ollamaURL, system, input string
+				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue, field, handlerA, handlerB, channel, reconnectInterval, by, secret, query, gqlVariables, sseStream, event, id, onNoConsumers, status, model, prompt, ollamaURL, system, input, apiKey, apiURL, brokerURL, mqttTopic, qos string
 				var ruleWhens, ruleResponds, responses, headers, labels []string
 				var priority, burst, maxMemory, split, bufferSize, maxHistory int
-				var exclusive, sequential, loop, perClient, stickyBroadcast, streamOllama bool
+				var exclusive, sequential, loop, perClient, stickyBroadcast, streamOllama, retain bool
+				var temperature, topP float64
 
 				fs.StringVarP(&name, "name", "n", "", "Name of the handler")
 				fs.StringVarP(&match, "match", "m", "", "Match pattern")
@@ -865,6 +874,18 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.StringVar(&id, "id", "", "Event ID template for sse-forward")
 				fs.StringVar(&onNoConsumers, "on-no-consumers", "", "Strategy when no consumers are connected")
 				fs.IntVar(&bufferSize, "buffer-size", 0, "Buffer size for sse-forward")
+
+				// OpenAI flags
+				fs.StringVar(&apiKey, "api-key", "", "API Key for openai-chat")
+				fs.StringVar(&apiURL, "api-url", "", "API URL for openai-chat")
+				fs.Float64Var(&temperature, "temperature", 0, "Temperature for openai-chat")
+				fs.Float64Var(&topP, "top-p", 0, "Top-P for openai-chat")
+
+				// MQTT flags
+				fs.StringVar(&brokerURL, "broker-url", "", "Broker URL for mqtt-publish")
+				fs.StringVar(&mqttTopic, "mqtt-topic", "", "Topic for mqtt-publish")
+				fs.StringVar(&qos, "qos", "", "QoS for mqtt-publish")
+				fs.BoolVar(&retain, "retain", false, "Retain flag for mqtt-publish")
 
 				if err := fs.Parse(args[1:]); err != nil {
 					if errors.Is(err, pflag.ErrHelp) {
@@ -979,6 +1000,23 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					System:            system,
 					Input:             input,
 					MaxHistory:        maxHistory,
+					APIKey:            apiKey,
+					APIURL:            apiURL,
+					BrokerURL:         brokerURL,
+					QoS:               qos,
+					Retain:            retain,
+					Temperature: func() *float64 {
+						if fs.Changed("temperature") {
+							return &temperature
+						}
+						return nil
+					}(),
+					TopP: func() *float64 {
+						if fs.Changed("top-p") {
+							return &topP
+						}
+						return nil
+					}(),
 					Stream:            sseStream,
 					Event:             event,
 					ID:                id,
@@ -992,6 +1030,10 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 
 				if fs.Changed("split") {
 					h.Split = &split
+				}
+
+				if mqttTopic != "" {
+					h.Topic = mqttTopic
 				}
 
 				if len(ruleWhens) > 0 && len(ruleWhens) == len(ruleResponds) {

@@ -81,6 +81,7 @@ func init() {
 	MustRegister(&RedisIncrBuiltin{})
 	MustRegister(&WebhookBuiltin{})
 	MustRegister(&WebhookHMACBuiltin{})
+	MustRegister(&MQTTPublishBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -4124,5 +4125,89 @@ func (b *SSEForwardBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Actio
 		d.errorf("  [handler] sse-forward: stream=%q event=%q id=%q\n", stream, event, id)
 	}
 
+	return nil
+}
+
+// MQTTPublishBuiltin publishes a message to an MQTT broker.
+type MQTTPublishBuiltin struct{}
+
+func (b *MQTTPublishBuiltin) Name() string { return "mqtt-publish" }
+func (b *MQTTPublishBuiltin) Description() string {
+	return "Publish a message to an MQTT broker topic."
+}
+func (b *MQTTPublishBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *MQTTPublishBuiltin) Validate(a Action) error {
+	if a.BrokerURL == "" {
+		return fmt.Errorf("builtin mqtt-publish missing broker_url")
+	}
+	if a.Topic == "" {
+		return fmt.Errorf("builtin mqtt-publish missing topic")
+	}
+	if a.Message == "" && a.Send == "" && a.Respond == "" {
+		return fmt.Errorf("builtin mqtt-publish missing message (provide message:, send:, or respond:)")
+	}
+	return nil
+}
+
+func (b *MQTTPublishBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	if d.mqttManager == nil {
+		return fmt.Errorf("builtin mqtt-publish: mqtt manager not initialized")
+	}
+
+	brokerURL, err := d.templateEngine.Execute("mqtt-broker", a.BrokerURL, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in mqtt broker_url: %w", err)
+	}
+	brokerURL = strings.TrimSpace(brokerURL)
+	if brokerURL == "" {
+		return fmt.Errorf("builtin mqtt-publish: broker_url evaluates to empty string")
+	}
+
+	topic, err := d.templateEngine.Execute("mqtt-topic", a.Topic, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in mqtt topic: %w", err)
+	}
+	topic = strings.TrimSpace(topic)
+	if topic == "" {
+		return fmt.Errorf("builtin mqtt-publish: topic evaluates to empty string")
+	}
+
+	msgContent := a.Message
+	if msgContent == "" {
+		msgContent = a.Send
+	}
+	if msgContent == "" {
+		msgContent = a.Respond
+	}
+
+	msgStr, err := d.templateEngine.Execute("mqtt-message", msgContent, tmplCtx)
+	if err != nil {
+		return fmt.Errorf("template error in mqtt message: %w", err)
+	}
+
+	qos := byte(0)
+	if a.QoS != "" {
+		qosStr, err := d.templateEngine.Execute("mqtt-qos", a.QoS, tmplCtx)
+		if err == nil {
+			if q, err := strconv.Atoi(strings.TrimSpace(qosStr)); err == nil {
+				if q < 0 || q > 2 {
+					return fmt.Errorf("invalid mqtt qos: %d (must be 0, 1, or 2)", q)
+				}
+				qos = byte(q)
+			}
+		}
+	}
+
+	if err := d.mqttManager.Publish(ctx, brokerURL, topic, msgStr, qos, a.Retain); err != nil {
+		return fmt.Errorf("mqtt publish error: %w", err)
+	}
+
+	tmplCtx.MqttTopic = topic
+	tmplCtx.MqttMessage = msgStr
+
+	if d.verbose {
+		d.errorf("  [handler] mqtt-publish: %s -> %s (topic: %q, qos: %d, retain: %v)\n", brokerURL, msgStr, topic, qos, a.Retain)
+	}
 	return nil
 }

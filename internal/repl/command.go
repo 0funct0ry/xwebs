@@ -1523,7 +1523,8 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.SetOutput(nil) // Suppress automatic usage printing on error
 
 			var name, match, matchType, run, respond, builtin, topic, rateLimit, debounce, code, reason, message, target, script, targets, window, scope, channel, reconnectInterval, onError string
-			var key, value, ttl, by, model, prompt, ollamaURL, system, input, apiKey, apiURL string
+			var key, value, ttl, by, model, prompt, ollamaURL, system, input, apiKey, apiURL, brokerURL, mqttTopic, qos string
+			var retain bool
 			var labels []string
 			var priority, maxMemory, maxHistory int
 			var exclusive, sequential, streamOllama bool
@@ -1598,6 +1599,12 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.Float64Var(&temperature, "temperature", 0, "Temperature for openai-chat")
 			fs.Float64Var(&topP, "top-p", 0, "Top-P for openai-chat")
 
+			// MQTT flags
+			fs.StringVar(&brokerURL, "broker-url", "", "Broker URL for mqtt-publish")
+			fs.StringVar(&mqttTopic, "mqtt-topic", "", "Topic for mqtt-publish")
+			fs.StringVar(&qos, "qos", "", "QoS for mqtt-publish")
+			fs.BoolVar(&retain, "retain", false, "Retain flag for mqtt-publish")
+
 			if err := fs.Parse(args[1:]); err != nil {
 				if errors.Is(err, pflag.ErrHelp) {
 					// Use our centralized help printer for uniformity
@@ -1654,6 +1661,9 @@ func (r *REPL) RegisterCommonCommands() {
 				PerClient: perClient,
 				APIKey:    apiKey,
 				APIURL:    apiURL,
+				BrokerURL: brokerURL,
+				QoS:       qos,
+				Retain:    retain,
 				Temperature: func() *float64 {
 					if fs.Changed("temperature") {
 						return &temperature
@@ -1716,6 +1726,10 @@ func (r *REPL) RegisterCommonCommands() {
 			}
 			if streamOllama {
 				h.Stream = "true"
+			}
+
+			if mqttTopic != "" {
+				h.Topic = mqttTopic
 			}
 
 			if fs.Changed("split") {

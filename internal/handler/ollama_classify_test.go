@@ -47,7 +47,7 @@ func TestOllamaClassifyBuiltin(t *testing.T) {
 
 		reg := NewRegistry(ServerMode)
 		engine := template.New(false)
-		d := NewDispatcher(reg, nil, engine, false, nil, nil, false, nil, nil, nil, nil, nil, "")
+		d := NewDispatcher(reg, nil, engine, false, nil, nil, false, nil, nil, nil, nil, nil, nil, "")
 		tmplCtx := template.NewContext()
 		tmplCtx.Message = "hello"
 
@@ -78,7 +78,7 @@ func TestOllamaClassifyBuiltin(t *testing.T) {
 
 		reg := NewRegistry(ServerMode)
 		engine := template.New(false)
-		d := NewDispatcher(reg, nil, engine, false, nil, nil, false, nil, nil, nil, nil, nil, "")
+		d := NewDispatcher(reg, nil, engine, false, nil, nil, false, nil, nil, nil, nil, nil, nil, "")
 		tmplCtx := template.NewContext()
 		tmplCtx.Message = "hello"
 

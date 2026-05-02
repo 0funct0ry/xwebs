@@ -53,7 +53,7 @@ func TestRoundRobinBuiltin(t *testing.T) {
 
 	conn := &mockConn{}
 	engine := template.New(false)
-	d := NewDispatcher(reg, conn, engine, true, nil, nil, false, nil, stats, nil, nil, nil, "")
+	d := NewDispatcher(reg, conn, engine, true, nil, nil, false, nil, stats, nil, nil, nil, nil, "")
 
 	handlerName := "rr-test"
 	pool := `["c1", "c2", "c3"]`
@@ -110,7 +110,7 @@ func TestRoundRobinSkipDisconnected(t *testing.T) {
 
 	conn := &mockConn{}
 	engine := template.New(false)
-	d := NewDispatcher(reg, conn, engine, true, nil, nil, false, nil, stats, nil, nil, nil, "")
+	d := NewDispatcher(reg, conn, engine, true, nil, nil, false, nil, stats, nil, nil, nil, nil, "")
 
 	handlerName := "rr-skip-test"
 	pool := `["c1", "c2", "c3"]`
@@ -152,7 +152,7 @@ func TestRoundRobinOnEmpty(t *testing.T) {
 
 	conn := &mockConn{}
 	engine := template.New(false)
-	d := NewDispatcher(reg, conn, engine, true, nil, nil, false, nil, stats, nil, nil, nil, "")
+	d := NewDispatcher(reg, conn, engine, true, nil, nil, false, nil, stats, nil, nil, nil, nil, "")
 
 	handlerName := "rr-empty-test"
 	pool := `["c1", "c2"]`
@@ -194,7 +194,7 @@ func TestRoundRobinTemplatePool(t *testing.T) {
 		"backends": []string{"c1", "c2"},
 	}
 
-	d := NewDispatcher(reg, conn, engine, true, vars, nil, false, nil, stats, nil, nil, nil, "")
+	d := NewDispatcher(reg, conn, engine, true, vars, nil, false, nil, stats, nil, nil, nil, nil, "")
 
 	action := &Action{
 		Type:        "builtin",
@@ -223,7 +223,7 @@ func TestRoundRobinCustomMessage(t *testing.T) {
 
 	conn := &mockConn{}
 	engine := template.New(false)
-	d := NewDispatcher(reg, conn, engine, true, nil, nil, false, nil, stats, nil, nil, nil, "")
+	d := NewDispatcher(reg, conn, engine, true, nil, nil, false, nil, stats, nil, nil, nil, nil, "")
 
 	action := &Action{
 		Type:        "builtin",

@@ -44,6 +44,7 @@ type Server struct {
 	securityMgr *SecurityManager
 	staticMgr   *StaticManager
 	redisMgr    handler.RedisManager
+	mqttMgr     handler.MQTTManager
 	sseManager  *SSEManager
 	httpMocks   map[string]template.HTTPMockResponse
 	httpMocksMu sync.RWMutex
@@ -73,7 +74,12 @@ func New(opts ...Option) (*Server, error) {
 		state:       serverRunning,
 		staticMgr:   NewStaticManager(options.Logger),
 		redisMgr:    options.RedisManager,
+		mqttMgr:     options.MQTTManager,
 		httpMocks:   make(map[string]template.HTTPMockResponse),
+	}
+
+	if s.mqttMgr == nil {
+		s.mqttMgr = handler.NewMQTTManager()
 	}
 
 	var logf func(string, ...interface{})
@@ -416,6 +422,7 @@ func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
 			s.topics, // Server.topics implements TopicManager
 			s,        // Server implements KVManager
 			s.redisMgr,
+			s.mqttMgr,
 			s.opts.OllamaURL,
 		)
 

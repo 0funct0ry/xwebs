@@ -89,6 +89,11 @@ type RedisManager interface {
 	Close() error
 }
 
+type MQTTManager interface {
+	Publish(ctx context.Context, brokerURL, topic, message string, qos byte, retain bool) error
+	Close() error
+}
+
 // Dispatcher coordinates the execution of handlers for a connection.
 type Dispatcher struct {
 	registry       *Registry
@@ -111,13 +116,14 @@ type Dispatcher struct {
 	topicManager    TopicManager
 	kvManager       KVManager
 	redisManager    RedisManager
+	mqttManager     MQTTManager
  
 	bufferMu sync.Mutex
 	buffer   []*ws.Message
 }
 
 // NewDispatcher creates a new dispatcher.
-func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine, verbose bool, vars map[string]interface{}, session map[string]interface{}, sandbox bool, allowlist []string, serverStats ServerStatProvider, topicManager TopicManager, kvManager KVManager, redisManager RedisManager, ollamaURL string) *Dispatcher {
+func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine, verbose bool, vars map[string]interface{}, session map[string]interface{}, sandbox bool, allowlist []string, serverStats ServerStatProvider, topicManager TopicManager, kvManager KVManager, redisManager RedisManager, mqttManager MQTTManager, ollamaURL string) *Dispatcher {
 
 	// Initialize system environment
 	env := make(map[string]string)
@@ -141,6 +147,7 @@ func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine,
 		topicManager:     topicManager,
 		kvManager:        kvManager,
 		redisManager:     redisManager,
+		mqttManager:      mqttManager,
 		ollamaURL:        ollamaURL,
 		systemEnv:        env,
 		Log: func(f string, a ...interface{}) {
@@ -541,6 +548,13 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 				OnNoConsumers: h.OnNoConsumers,
 				System:      h.System,
 				Input:       h.Input,
+				APIKey:      h.APIKey,
+				APIURL:      h.APIURL,
+				Temperature: h.Temperature,
+				TopP:        h.TopP,
+				BrokerURL:   h.BrokerURL,
+				QoS:         h.QoS,
+				Retain:      h.Retain,
 				BufferSize:  h.BufferSize,
 				BaseDir:     h.BaseDir,
 				HandlerName: h.Name,
@@ -663,6 +677,13 @@ func (d *Dispatcher) executePipeline(ctx context.Context, handlerName string, pi
 			action.OnNoConsumers = step.OnNoConsumers
 			action.System = step.System
 			action.Input = step.Input
+			action.APIKey = step.APIKey
+			action.APIURL = step.APIURL
+			action.Temperature = step.Temperature
+			action.TopP = step.TopP
+			action.BrokerURL = step.BrokerURL
+			action.QoS = step.QoS
+			action.Retain = step.Retain
 			action.BufferSize = step.BufferSize
 			action.BaseDir = d.registry.GetHandlerBaseDir(handlerName)
 			action.HandlerName = handlerName

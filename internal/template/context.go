@@ -207,6 +207,10 @@ type TemplateContext struct {
 	// Ollama Classify
 	Label      string  `json:"label,omitempty"`
 	Confidence float64 `json:"confidence,omitempty"`
+	
+	// MQTT Publish
+	MqttTopic   string `json:"mqtt_topic,omitempty"`
+	MqttMessage string `json:"mqtt_message,omitempty"`
 }
 
 // NewContext creates a new TemplateContext with initialized maps.

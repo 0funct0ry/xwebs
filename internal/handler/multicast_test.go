@@ -58,7 +58,7 @@ func TestMulticastBuiltin(t *testing.T) {
 	registry := NewRegistry(ServerMode)
 	conn := &mockMulticastConnection{id: "sender"}
 	engine := template.New(false)
-	d := NewDispatcher(registry, conn, engine, true, nil, nil, false, nil, stats, nil, nil, nil, "")
+	d := NewDispatcher(registry, conn, engine, true, nil, nil, false, nil, stats, nil, nil, nil, nil, "")
 
 	tests := []struct {
 		name          string

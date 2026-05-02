@@ -159,6 +159,9 @@ type Handler struct {
 	APIURL       string                 `yaml:"api_url,omitempty"`      // For openai-chat builtin (template)
 	Temperature  *float64               `yaml:"temperature,omitempty"`  // For openai-chat builtin
 	TopP         *float64               `yaml:"top_p,omitempty"`        // For openai-chat builtin
+	BrokerURL    string                 `yaml:"broker_url,omitempty"`   // For mqtt-publish builtin (template)
+	QoS          string                 `yaml:"qos,omitempty"`          // For mqtt-publish builtin (template)
+	Retain       bool                   `yaml:"retain,omitempty"`       // For mqtt-publish builtin
 	BaseDir      string                 `yaml:"-"`                      // Directory from which the handler was loaded
 }
 
@@ -242,6 +245,9 @@ type PipelineStep struct {
 	APIURL      string            `yaml:"api_url,omitempty"`      // For openai-chat builtin (template)
 	Temperature *float64          `yaml:"temperature,omitempty"`  // For openai-chat builtin
 	TopP        *float64          `yaml:"top_p,omitempty"`        // For openai-chat builtin
+	BrokerURL   string            `yaml:"broker_url,omitempty"`   // For mqtt-publish builtin (template)
+	QoS         string            `yaml:"qos,omitempty"`          // For mqtt-publish builtin (template)
+	Retain      bool              `yaml:"retain,omitempty"`       // For mqtt-publish builtin
 }
 
 // Matcher specifies how to match an incoming WebSocket message.
@@ -354,6 +360,9 @@ type Action struct {
 	APIURL      string            `yaml:"api_url,omitempty"`     // For openai-chat builtin (template)
 	Temperature *float64          `yaml:"temperature,omitempty"` // For openai-chat builtin
 	TopP        *float64          `yaml:"top_p,omitempty"`       // For openai-chat builtin
+	BrokerURL   string            `yaml:"broker_url,omitempty"`  // For mqtt-publish builtin (template)
+	QoS         string            `yaml:"qos,omitempty"`         // For mqtt-publish builtin (template)
+	Retain      bool              `yaml:"retain,omitempty"`      // For mqtt-publish builtin
 	BaseDir     string            `yaml:"-"`                    // For relative path resolution in builtins
 	HandlerName string            `yaml:"-"`                    // Internal use only
 }
@@ -540,6 +549,9 @@ func (c *Config) Validate(mode RegistryMode) error {
 				APIURL:    h.APIURL,
 				Temperature: h.Temperature,
 				TopP:        h.TopP,
+				BrokerURL:   h.BrokerURL,
+				QoS:         h.QoS,
+				Retain:      h.Retain,
 			}
 			if err := bh.Validate(tmpAction); err != nil {
 				return fmt.Errorf("handler %q: %w", h.Name, err)

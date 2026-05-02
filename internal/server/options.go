@@ -51,6 +51,7 @@ type Options struct {
 	SSEStreams          []handler.SSEStreamConfig
 
 	RedisManager handler.RedisManager
+	MQTTManager  handler.MQTTManager
 	OllamaURL    string
 }
 
@@ -256,6 +257,13 @@ func WithStaticGenerateStyle(style string) Option {
 func WithRedisManager(m handler.RedisManager) Option {
 	return func(o *Options) {
 		o.RedisManager = m
+	}
+}
+
+// WithMQTTManager sets the MQTT manager.
+func WithMQTTManager(m handler.MQTTManager) Option {
+	return func(o *Options) {
+		o.MQTTManager = m
 	}
 }
 
