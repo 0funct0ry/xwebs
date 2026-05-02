@@ -1312,7 +1312,7 @@ func (r *REPL) RegisterCommonCommands() {
 				r.Printf("  --priority <n>        Numeric priority (higher runs first)\n")
 				r.Printf("  --run <cmd>           Shell command to run on match\n")
 				r.Printf("  --respond <tmpl>      Response template to send after run\n")
-				r.Printf("  -B, --builtin <name>  Builtin action (noop, redis-subscribe, ollama-classify, ollama-generate, ollama-chat, ollama-embed, openai-chat)\n")
+				r.Printf("  -B, --builtin <name>  Builtin action (noop, redis-subscribe, mqtt-subscribe, mqtt-publish, nats-subscribe, nats-publish, ollama-classify, ollama-generate, ollama-chat, ollama-embed, openai-chat)\n")
 				r.Printf("  --topic <template>    Topic name template for builtin actions\n")
 				r.Printf("  --exclusive           Stop further matching if this handler matches\n")
 				r.Printf("  --sequential          Run handler actions sequentially (disable concurrency)\n")
@@ -1359,6 +1359,12 @@ func (r *REPL) RegisterCommonCommands() {
 				r.Printf("  --api-key <key>       API Key for 'openai-chat' (template)\n")
 				r.Printf("  --temperature <n>     Temperature for 'openai-chat'\n")
 				r.Printf("  --top-p <n>           Top-P for 'openai-chat'\n")
+				r.Printf("  --broker-url <url>    MQTT broker URL for 'mqtt-publish' or 'mqtt-subscribe'\n")
+				r.Printf("  --mqtt-topic <name>   MQTT topic for 'mqtt-publish' or 'mqtt-subscribe'\n")
+				r.Printf("  --qos <n>             MQTT QoS level (0, 1, 2)\n")
+				r.Printf("  --retain              Set MQTT retain flag\n")
+				r.Printf("  --nats-url <url>      NATS server URL (default: nats://localhost:4222)\n")
+				r.Printf("  --nats-subject <name> NATS subject for 'nats-publish' or 'nats-subscribe'\n")
 				return nil
 			}
 
@@ -1600,14 +1606,14 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.Float64Var(&topP, "top-p", 0, "Top-P for openai-chat")
 
 			// MQTT flags
-			fs.StringVar(&brokerURL, "broker-url", "", "Broker URL for mqtt-publish")
-			fs.StringVar(&mqttTopic, "mqtt-topic", "", "Topic for mqtt-publish")
-			fs.StringVar(&qos, "qos", "", "QoS for mqtt-publish")
-			fs.BoolVar(&retain, "retain", false, "Retain flag for mqtt-publish")
+			fs.StringVar(&brokerURL, "broker-url", "tcp://localhost:1883", "MQTT broker URL")
+			fs.StringVar(&mqttTopic, "mqtt-topic", "", "MQTT topic")
+			fs.StringVar(&qos, "qos", "0", "MQTT QoS level")
+			fs.BoolVar(&retain, "retain", false, "MQTT retain flag")
  
 			// NATS flags
-			fs.StringVar(&natsURL, "nats-url", "", "NATS server URL for nats-publish")
-			fs.StringVar(&natsSubject, "subject", "", "Subject for nats-publish")
+			fs.StringVar(&natsURL, "nats-url", "nats://localhost:4222", "NATS server URL")
+			fs.StringVar(&natsSubject, "nats-subject", "", "NATS subject")
 
 			if err := fs.Parse(args[1:]); err != nil {
 				if errors.Is(err, pflag.ErrHelp) {
@@ -1619,7 +1625,7 @@ func (r *REPL) RegisterCommonCommands() {
 			}
 
 			// Validation
-			if match == "" && builtin != "redis-subscribe" && builtin != "mqtt-subscribe" {
+			if match == "" && builtin != "redis-subscribe" && builtin != "mqtt-subscribe" && builtin != "nats-subscribe" {
 				return fmt.Errorf("--match is required")
 			}
 

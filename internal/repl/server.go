@@ -709,7 +709,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("  -p, --priority <n>        Numeric priority (higher runs first)\n")
 				r.Printf("  -r, --run <cmd>           Shell command to run on match\n")
 				r.Printf("  -R, --respond <tmpl>      Response template to send back\n")
-				r.Printf("  -B, --builtin <name>      Builtin action (subscribe, unsubscribe, publish, forward, redis-subscribe, redis-incr, webhook-hmac, http-get, http-graphql, sse-forward, http-mock-respond, ollama-classify, ollama-generate, ollama-chat, ollama-embed, openai-chat, mqtt-publish)\n")
+				r.Printf("  -B, --builtin <name>      Builtin action (subscribe, unsubscribe, publish, forward, redis-subscribe, mqtt-subscribe, mqtt-publish, nats-subscribe, nats-publish, ollama-classify, ollama-generate, ollama-chat, ollama-embed, openai-chat)\n")
 				r.Printf("      --topic <template>    Topic name template for builtin actions\n")
 				r.Printf("      --target <url>        Upstream target URL for 'forward' builtin\n")
 				r.Printf("  -M, --message <template>  Message template for broadcast or publish\n")
@@ -786,6 +786,12 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("      --event <template>    Event type for 'sse-forward' builtin\n")
 				r.Printf("      --on-no-consumers <drop|buffer> Strategy when no consumers are connected\n")
 				r.Printf("      --buffer-size <n>     Buffer size for 'sse-forward' when strategy is 'buffer'\n")
+				r.Printf("      --broker-url <url>    MQTT broker URL for 'mqtt-publish' or 'mqtt-subscribe'\n")
+				r.Printf("      --mqtt-topic <tmpl>   MQTT topic template for 'mqtt-publish' or 'mqtt-subscribe'\n")
+				r.Printf("      --qos <n>             MQTT QoS level (0, 1, or 2)\n")
+				r.Printf("      --retain              Set MQTT retain flag\n")
+				r.Printf("      --nats-url <url>      NATS server URL (default: nats://localhost:4222)\n")
+				r.Printf("      --nats-subject <name> NATS subject for 'nats-publish' or 'nats-subscribe'\n")
 				return nil
 			}
 
@@ -794,7 +800,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 				fs.SetOutput(r.Stdout())
 
-				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue, field, handlerA, handlerB, channel, reconnectInterval, by, secret, query, gqlVariables, sseStream, event, id, onNoConsumers, status, model, prompt, ollamaURL, system, input, apiKey, apiURL, brokerURL, mqttTopic, qos string
+				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue, field, handlerA, handlerB, channel, reconnectInterval, by, secret, query, gqlVariables, sseStream, event, id, onNoConsumers, status, model, prompt, ollamaURL, system, input, apiKey, apiURL, brokerURL, mqttTopic, qos, natsURL, natsSubject string
 				var ruleWhens, ruleResponds, responses, headers, labels []string
 				var priority, burst, maxMemory, split, bufferSize, maxHistory int
 				var exclusive, sequential, loop, perClient, stickyBroadcast, streamOllama, retain bool
@@ -882,10 +888,14 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.Float64Var(&topP, "top-p", 0, "Top-P for openai-chat")
 
 				// MQTT flags
-				fs.StringVar(&brokerURL, "broker-url", "", "Broker URL for mqtt-publish")
+				fs.StringVar(&brokerURL, "broker-url", "tcp://localhost:1883", "Broker URL for mqtt-publish")
 				fs.StringVar(&mqttTopic, "mqtt-topic", "", "Topic for mqtt-publish")
-				fs.StringVar(&qos, "qos", "", "QoS for mqtt-publish")
+				fs.StringVar(&qos, "qos", "0", "QoS for mqtt-publish")
 				fs.BoolVar(&retain, "retain", false, "Retain flag for mqtt-publish")
+
+				// NATS flags
+				fs.StringVar(&natsURL, "nats-url", "nats://localhost:4222", "NATS server URL")
+				fs.StringVar(&natsSubject, "nats-subject", "", "NATS subject")
 
 				if err := fs.Parse(args[1:]); err != nil {
 					if errors.Is(err, pflag.ErrHelp) {
@@ -894,7 +904,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					return fmt.Errorf("parsing flags: %w", err)
 				}
 
-				if match == "" && builtin != "redis-subscribe" && builtin != "mqtt-subscribe" {
+				if match == "" && builtin != "redis-subscribe" && builtin != "mqtt-subscribe" && builtin != "nats-subscribe" {
 					return fmt.Errorf("-m/--match is required")
 				}
 
@@ -1005,6 +1015,8 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					BrokerURL:         brokerURL,
 					QoS:               qos,
 					Retain:            retain,
+					NatsURL:           natsURL,
+					Subject:           natsSubject,
 					Temperature: func() *float64 {
 						if fs.Changed("temperature") {
 							return &temperature

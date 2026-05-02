@@ -416,7 +416,7 @@ func (c *Config) Validate(mode RegistryMode) error {
 			h.Builtin != "" || len(h.Pipeline) > 0 || h.Script != "" || h.File != ""
 
 		// source builtins don't require a match condition
-		isSourceBuiltin := h.Builtin == "redis-subscribe" || h.Builtin == "mqtt-subscribe"
+		isSourceBuiltin := h.Builtin == "redis-subscribe" || h.Builtin == "mqtt-subscribe" || h.Builtin == "nats-subscribe"
 
 		if !hasMatch && hasExecution && !isSourceBuiltin {
 			return fmt.Errorf("handler %q is missing a match condition (pattern, regex, jq, json_path, json_schema, template, binary, all, or any)", h.Name)

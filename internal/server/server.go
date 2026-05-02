@@ -1034,7 +1034,7 @@ func (s *Server) startSourceHandlers(ctx context.Context) {
 }
 
 func (s *Server) startSourceHandler(h handler.Handler, ctx context.Context) {
-	if (h.Builtin != "redis-subscribe" && h.Builtin != "mqtt-subscribe") || s.registry.IsDisabled(h.Name) {
+	if (h.Builtin != "redis-subscribe" && h.Builtin != "mqtt-subscribe" && h.Builtin != "nats-subscribe") || s.registry.IsDisabled(h.Name) {
 		return
 	}
 
@@ -1067,6 +1067,8 @@ func (s *Server) startSourceHandler(h handler.Handler, ctx context.Context) {
 		go s.runRedisSubscribe(sourceCtx, &handlerCopy)
 	} else if h.Builtin == "mqtt-subscribe" {
 		go s.runMQTTSubscribe(sourceCtx, &handlerCopy)
+	} else if h.Builtin == "nats-subscribe" {
+		go s.runNATSSubscribe(sourceCtx, &handlerCopy)
 	}
 }
 
@@ -1091,7 +1093,9 @@ func (s *Server) stopSourceHandler(name string) {
 }
 
 func (s *Server) runRedisSubscribe(ctx context.Context, h *handler.Handler) {
-	s.logf("  [source:%s] starting redis-subscribe on %q\n", h.Name, h.Channel)
+	if s.opts.Verbose {
+		s.logf("  [source:%s] starting redis-subscribe on %q\n", h.Name, h.Channel)
+	}
 
 	baseInterval := 2 * time.Second
 	if h.ReconnectInterval != "" {
@@ -1149,7 +1153,9 @@ func (s *Server) runRedisSubscribe(ctx context.Context, h *handler.Handler) {
 			}
 		}
 
-		s.logf("  [source:%s] subscribed to %q\n", h.Name, h.Channel)
+		if s.opts.Verbose {
+			s.logf("  [source:%s] subscribed to %q\n", h.Name, h.Channel)
+		}
 		attempt = 0 // Reset on success
 
 		// Message loop
@@ -1268,7 +1274,9 @@ func (s *Server) handleRedisMessage(h *handler.Handler, msg *redis.Message) {
 }
 
 func (s *Server) runMQTTSubscribe(ctx context.Context, h *handler.Handler) {
-	s.logf("  [source:%s] starting mqtt-subscribe on %s topic %q\n", h.Name, h.BrokerURL, h.Topic)
+	if s.opts.Verbose {
+		s.logf("  [source:%s] starting mqtt-subscribe on %s topic %q\n", h.Name, h.BrokerURL, h.Topic)
+	}
 
 	baseInterval := 2 * time.Second
 	if h.ReconnectInterval != "" {
@@ -1381,6 +1389,139 @@ func (s *Server) handleMQTTMessage(h *handler.Handler, topic string, payload []b
 		// For mqtt-subscribe, h.Topic is BOTH the source and potentially the target.
 		// To avoid confusion, let's say if h.Topic is set, we broadcast to that WS topic.
 		
+		topicName, err := s.opts.TemplateEngine.Execute("topic", h.Topic, tmplCtx)
+		if err != nil {
+			s.errorf("  [source:%s] error rendering topic template: %v\n", h.Name, err)
+			return
+		}
+		topicName = strings.TrimSpace(topicName)
+		if topicName != "" {
+			delivered, _ := s.topics.Publish(topicName, wsMsg)
+			if s.opts.Verbose {
+				s.logf("  [source:%s] delivered to topic %q (%d clients)\n", h.Name, topicName, delivered)
+			}
+		}
+	} else if h.Target != "" {
+		target, err := s.opts.TemplateEngine.Execute("target", h.Target, tmplCtx)
+		if err != nil {
+			s.errorf("  [source:%s] error rendering target template: %v\n", h.Name, err)
+			return
+		}
+		target = strings.TrimSpace(target)
+		if target != "" {
+			if err := s.Send(target, wsMsg); err != nil && s.opts.Verbose {
+				s.errorf("  [source:%s] failed to send to client %q: %v\n", h.Name, target, err)
+			}
+		}
+	} else {
+		// Broadcast to all
+		count := s.Broadcast(wsMsg)
+		if s.opts.Verbose {
+			s.logf("  [source:%s] broadcasted to %d clients\n", h.Name, count)
+		}
+	}
+}
+
+func (s *Server) runNATSSubscribe(ctx context.Context, h *handler.Handler) {
+	if s.opts.Verbose {
+		s.logf("  [source:%s] starting nats-subscribe on %s subject %q\n", h.Name, h.NatsURL, h.Subject)
+	}
+
+	baseInterval := 2 * time.Second
+	if h.ReconnectInterval != "" {
+		if d, err := time.ParseDuration(h.ReconnectInterval); err == nil {
+			baseInterval = d
+		}
+	}
+
+	attempt := 0
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		unsubscribe, err := s.natsMgr.Subscribe(h.NatsURL, h.Subject, func(subject string, payload []byte) {
+			s.handleNATSMessage(h, subject, payload)
+		})
+
+		if err == nil {
+			// Subscription is active. Wait for context cancellation.
+			if s.opts.Verbose {
+				s.logf("  [source:%s] nats-subscribe active on %s\n", h.Name, h.Subject)
+			}
+			<-ctx.Done()
+			unsubscribe()
+			return
+		}
+
+		s.errorf("  [source:%s] NATS subscription error for %s: %v, retrying...\n", h.Name, h.NatsURL, err)
+		if h.OnErrorMsg != "" {
+			s.broadcastSourceError(h)
+		}
+
+		// Exponential backoff
+		attempt++
+		wait := baseInterval * time.Duration(1<<(uint(attempt-1)))
+		if wait > 30*time.Second {
+			wait = 30 * time.Second
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(wait):
+			continue
+		}
+	}
+}
+
+func (s *Server) handleNATSMessage(h *handler.Handler, subject string, payload []byte) {
+	if s.opts.Verbose {
+		s.logf("  [source:%s] received NATS message on %q: %s\n", h.Name, subject, string(payload))
+	}
+
+	tmplCtx := template.NewContext()
+	tmplCtx.Message = string(payload)
+	tmplCtx.MessageBytes = payload
+	tmplCtx.NatsSubject = subject
+	tmplCtx.Source = "nats"
+	tmplCtx.Vars["Message"] = string(payload)
+	tmplCtx.Vars["Source"] = "nats"
+	tmplCtx.Vars["NatsSubject"] = subject
+
+	// Add server context
+	uptime := s.GetUptime()
+	tmplCtx.Server = &template.ServerContext{
+		ClientCount:     s.GetClientCount(),
+		Clients:         s.GetClients(),
+		Uptime:          uptime,
+		UptimeFormatted: template.FormatUptime(uptime),
+	}
+
+	// 1. Transform message if respond: is set
+	processedPayload := string(payload)
+	if h.Respond != "" {
+		res, err := s.opts.TemplateEngine.Execute("respond", h.Respond, tmplCtx)
+		if err != nil {
+			s.errorf("  [source:%s] error rendering respond template: %v\n", h.Name, err)
+			return
+		}
+		processedPayload = res
+	}
+
+	wsMsg := &ws.Message{
+		Type: ws.TextMessage,
+		Data: []byte(processedPayload),
+		Metadata: ws.MessageMetadata{
+			Direction: "sent",
+			Timestamp: time.Now(),
+		},
+	}
+
+	// 2. Deliver message
+	if h.Topic != "" && h.Builtin != "nats-subscribe" {
 		topicName, err := s.opts.TemplateEngine.Execute("topic", h.Topic, tmplCtx)
 		if err != nil {
 			s.errorf("  [source:%s] error rendering topic template: %v\n", h.Name, err)

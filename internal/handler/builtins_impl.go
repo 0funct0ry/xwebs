@@ -84,6 +84,7 @@ func init() {
 	MustRegister(&MQTTPublishBuiltin{})
 	MustRegister(&MQTTSubscribeBuiltin{})
 	MustRegister(&NATSPublishBuiltin{})
+	MustRegister(&NATSSubscribeBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -4312,4 +4313,32 @@ func (b *NATSPublishBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Acti
 		d.errorf("  [handler] nats-publish: %s -> %s (subject: %q)\n", natsURL, msgStr, subject)
 	}
 	return nil
+}
+
+// NATSSubscribeBuiltin subscribes to a NATS subject and delivers messages to WebSocket clients.
+type NATSSubscribeBuiltin struct{}
+
+func (b *NATSSubscribeBuiltin) Name() string { return "nats-subscribe" }
+func (b *NATSSubscribeBuiltin) Description() string {
+	return "Subscribe to a NATS subject and deliver messages to WebSocket clients."
+}
+func (b *NATSSubscribeBuiltin) Scope() BuiltinScope { return ServerOnly }
+
+func (b *NATSSubscribeBuiltin) Validate(a Action) error {
+	if a.NatsURL == "" {
+		return fmt.Errorf("builtin nats-subscribe missing nats_url")
+	}
+	if a.Subject == "" {
+		return fmt.Errorf("builtin nats-subscribe missing subject")
+	}
+	if a.ReconnectInterval != "" {
+		if _, err := time.ParseDuration(a.ReconnectInterval); err != nil {
+			return fmt.Errorf("invalid reconnect_interval %q: %w", a.ReconnectInterval, err)
+		}
+	}
+	return nil
+}
+
+func (b *NATSSubscribeBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	return fmt.Errorf("builtin %q is a source action and cannot be executed in a reactive flow", b.Name())
 }

@@ -30,6 +30,24 @@ func (m *natsManager) Publish(ctx context.Context, natsURL, subject, message str
 	return nc.Publish(subject, []byte(message))
 }
 
+func (m *natsManager) Subscribe(natsURL, subject string, callback func(subject string, payload []byte)) (func(), error) {
+	nc, err := m.getOrCreateConn(natsURL)
+	if err != nil {
+		return nil, err
+	}
+
+	sub, err := nc.Subscribe(subject, func(msg *nats.Msg) {
+		callback(msg.Subject, msg.Data)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("subscribing to %s: %w", subject, err)
+	}
+
+	return func() {
+		_ = sub.Unsubscribe()
+	}, nil
+}
+
 func (m *natsManager) getOrCreateConn(natsURL string) (*nats.Conn, error) {
 	m.mu.RLock()
 	nc, ok := m.conns[natsURL]

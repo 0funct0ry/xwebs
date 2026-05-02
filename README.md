@@ -624,7 +624,9 @@ Topics are created automatically when the first client subscribes and removed wh
 | `ollama-embed` | Shared | Generates an embedding vector for a message using Ollama; available in `{{.Embedding}}`. |
 | `openai-chat` | Shared | Maintains a per-connection chat history with an OpenAI-compatible API; result in `{{.OpenAIReply}}`. |
 | `mqtt-publish` | Shared | Publishes a message to an MQTT broker topic (supports templates, QoS, and retain). |
+| `mqtt-subscribe`| Server | Subscribes to an MQTT topic and bridges messages to WebSocket clients. |
 | `nats-publish` | Shared | Publishes a message to a NATS subject (supports templates and connection pooling). |
+| `nats-subscribe`| Server | Subscribes to a NATS subject and bridges messages to WebSocket clients. |
 
 **Validation Features:**
 - **Unknown Builtins**: Using an unknown builtin name in handler configuration causes an immediate startup error.
@@ -798,6 +800,15 @@ handlers:
       Content-Type: "application/json"
     body: '{"text": "Notification: {{.Message | trimPrefix \"notify:\"}}"}'
     respond: "Slack notified: {{.HttpStatus}}"
+
+  # NATS Integration Examples
+  - name: bridge-nats
+    builtin: nats-subscribe
+    nats_url: "nats://localhost:4222"
+    subject: "events.>"
+    respond: '{"source":"nats","subject":"{{.NatsSubject}}","data":{{.Message}}}'
+    # Optional: Deliver to specific WebSocket topic instead of broadcast
+    topic: "raw-events"
   
   # Ollama Classification Example
   - name: route-intent

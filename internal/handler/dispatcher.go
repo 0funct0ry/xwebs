@@ -97,6 +97,7 @@ type MQTTManager interface {
 
 type NATSManager interface {
 	Publish(ctx context.Context, natsURL, subject, message string) error
+	Subscribe(natsURL, subject string, callback func(subject string, payload []byte)) (func(), error)
 	Close() error
 }
 
