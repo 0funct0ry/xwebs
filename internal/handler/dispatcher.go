@@ -91,6 +91,7 @@ type RedisManager interface {
 
 type MQTTManager interface {
 	Publish(ctx context.Context, brokerURL, topic, message string, qos byte, retain bool) error
+	Subscribe(brokerURL, topic string, qos byte, callback func(topic string, payload []byte)) (func(), error)
 	Close() error
 }
 

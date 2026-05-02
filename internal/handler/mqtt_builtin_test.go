@@ -18,6 +18,11 @@ func (m *MockMQTTManager) Publish(ctx context.Context, brokerURL, topic, message
 	return args.Error(0)
 }
 
+func (m *MockMQTTManager) Subscribe(brokerURL, topic string, qos byte, callback func(topic string, payload []byte)) (func(), error) {
+	args := m.Called(brokerURL, topic, qos, callback)
+	return args.Get(0).(func()), args.Error(1)
+}
+
 func (m *MockMQTTManager) Close() error {
 	args := m.Called()
 	return args.Error(0)

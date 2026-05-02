@@ -44,6 +44,27 @@ func (m *mqttManager) Publish(ctx context.Context, brokerURL, topic, message str
 	}
 }
 
+func (m *mqttManager) Subscribe(brokerURL, topic string, qos byte, callback func(topic string, payload []byte)) (func(), error) {
+	client, err := m.getOrCreateClient(brokerURL)
+	if err != nil {
+		return nil, err
+	}
+
+	token := client.Subscribe(topic, qos, func(c mqtt.Client, msg mqtt.Message) {
+		callback(msg.Topic(), msg.Payload())
+	})
+
+	if token.Wait() && token.Error() != nil {
+		return nil, fmt.Errorf("subscribing to %s on %s: %w", topic, brokerURL, token.Error())
+	}
+
+	unsubscribe := func() {
+		client.Unsubscribe(topic)
+	}
+
+	return unsubscribe, nil
+}
+
 func (m *mqttManager) getOrCreateClient(brokerURL string) (mqtt.Client, error) {
 	m.mu.RLock()
 	client, ok := m.clients[brokerURL]

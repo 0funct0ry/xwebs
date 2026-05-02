@@ -82,6 +82,7 @@ func init() {
 	MustRegister(&WebhookBuiltin{})
 	MustRegister(&WebhookHMACBuiltin{})
 	MustRegister(&MQTTPublishBuiltin{})
+	MustRegister(&MQTTSubscribeBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.
@@ -4210,4 +4211,33 @@ func (b *MQTTPublishBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Acti
 		d.errorf("  [handler] mqtt-publish: %s -> %s (topic: %q, qos: %d, retain: %v)\n", brokerURL, msgStr, topic, qos, a.Retain)
 	}
 	return nil
+}
+
+// MQTTSubscribeBuiltin subscribes to an MQTT topic and broadcasts messages.
+// This is a source builtin, meaning it is started by the server at load time.
+type MQTTSubscribeBuiltin struct{}
+
+func (b *MQTTSubscribeBuiltin) Name() string { return "mqtt-subscribe" }
+func (b *MQTTSubscribeBuiltin) Description() string {
+	return "Subscribe to an MQTT topic and deliver messages to WebSocket clients."
+}
+func (b *MQTTSubscribeBuiltin) Scope() BuiltinScope { return ServerOnly }
+
+func (b *MQTTSubscribeBuiltin) Validate(a Action) error {
+	if a.BrokerURL == "" {
+		return fmt.Errorf("builtin mqtt-subscribe missing broker_url")
+	}
+	if a.Topic == "" {
+		return fmt.Errorf("builtin mqtt-subscribe missing topic")
+	}
+	if a.ReconnectInterval != "" {
+		if _, err := time.ParseDuration(a.ReconnectInterval); err != nil {
+			return fmt.Errorf("invalid reconnect_interval %q: %w", a.ReconnectInterval, err)
+		}
+	}
+	return nil
+}
+
+func (b *MQTTSubscribeBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	return fmt.Errorf("builtin %q is a source action and cannot be executed in a reactive flow", b.Name())
 }

@@ -409,10 +409,10 @@ func (c *Config) Validate(mode RegistryMode) error {
 		hasExecution := len(h.Actions) > 0 || h.Run != "" || h.Respond != "" ||
 			h.Builtin != "" || len(h.Pipeline) > 0 || h.Script != "" || h.File != ""
 
-		// redis-subscribe is a source builtin and doesn't require a match condition
-		isRedisSubscribe := h.Builtin == "redis-subscribe"
+		// source builtins don't require a match condition
+		isSourceBuiltin := h.Builtin == "redis-subscribe" || h.Builtin == "mqtt-subscribe"
 
-		if !hasMatch && hasExecution && !isRedisSubscribe {
+		if !hasMatch && hasExecution && !isSourceBuiltin {
 			return fmt.Errorf("handler %q is missing a match condition (pattern, regex, jq, json_path, json_schema, template, binary, all, or any)", h.Name)
 		}
 

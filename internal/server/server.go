@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1027,7 +1028,7 @@ func (s *Server) startSourceHandlers(ctx context.Context) {
 }
 
 func (s *Server) startSourceHandler(h handler.Handler, ctx context.Context) {
-	if h.Builtin != "redis-subscribe" || s.registry.IsDisabled(h.Name) {
+	if (h.Builtin != "redis-subscribe" && h.Builtin != "mqtt-subscribe") || s.registry.IsDisabled(h.Name) {
 		return
 	}
 
@@ -1039,22 +1040,28 @@ func (s *Server) startSourceHandler(h handler.Handler, ctx context.Context) {
 		return
 	}
 
-	if s.redisMgr == nil {
-		// Default to localhost if not configured
-		mgr, err := handler.NewRedisManager("redis://localhost:6379")
-		if err != nil {
-			s.errorf("  [server] error initializing default redis for %q: %v\n", h.Name, err)
-			return
-		}
-		s.redisMgr = mgr
-		s.logf("  [server] initialized default Redis: redis://localhost:6379\n")
-	}
-
 	// Capture handler for closure
 	handlerCopy := h
 	sourceCtx, cancel := context.WithCancel(ctx)
 	s.sourceCancels[h.Name] = cancel
-	go s.runRedisSubscribe(sourceCtx, &handlerCopy)
+
+	if h.Builtin == "redis-subscribe" {
+		if s.redisMgr == nil {
+			// Default to localhost if not configured
+			mgr, err := handler.NewRedisManager("redis://localhost:6379")
+			if err != nil {
+				s.errorf("  [server] error initializing default redis for %q: %v\n", h.Name, err)
+				cancel()
+				delete(s.sourceCancels, h.Name)
+				return
+			}
+			s.redisMgr = mgr
+			s.logf("  [server] initialized default Redis: redis://localhost:6379\n")
+		}
+		go s.runRedisSubscribe(sourceCtx, &handlerCopy)
+	} else if h.Builtin == "mqtt-subscribe" {
+		go s.runMQTTSubscribe(sourceCtx, &handlerCopy)
+	}
 }
 
 func (s *Server) stopSourceHandlers() {
@@ -1231,6 +1238,153 @@ func (s *Server) handleRedisMessage(h *handler.Handler, msg *redis.Message) {
 			delivered, _ := s.topics.Publish(topic, wsMsg)
 			if s.opts.Verbose {
 				s.logf("  [source:%s] delivered to topic %q (%d clients)\n", h.Name, topic, delivered)
+			}
+		}
+	} else if h.Target != "" {
+		target, err := s.opts.TemplateEngine.Execute("target", h.Target, tmplCtx)
+		if err != nil {
+			s.errorf("  [source:%s] error rendering target template: %v\n", h.Name, err)
+			return
+		}
+		target = strings.TrimSpace(target)
+		if target != "" {
+			if err := s.Send(target, wsMsg); err != nil && s.opts.Verbose {
+				s.errorf("  [source:%s] failed to send to client %q: %v\n", h.Name, target, err)
+			}
+		}
+	} else {
+		// Broadcast to all
+		count := s.Broadcast(wsMsg)
+		if s.opts.Verbose {
+			s.logf("  [source:%s] broadcasted to %d clients\n", h.Name, count)
+		}
+	}
+}
+
+func (s *Server) runMQTTSubscribe(ctx context.Context, h *handler.Handler) {
+	s.logf("  [source:%s] starting mqtt-subscribe on %s topic %q\n", h.Name, h.BrokerURL, h.Topic)
+
+	baseInterval := 2 * time.Second
+	if h.ReconnectInterval != "" {
+		if d, err := time.ParseDuration(h.ReconnectInterval); err == nil {
+			baseInterval = d
+		}
+	}
+
+	attempt := 0
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		qos := byte(0)
+		if h.QoS != "" {
+			// Evaluate QoS with an empty context (since we don't have a message yet)
+			res, err := s.opts.TemplateEngine.Execute("qos", h.QoS, template.NewContext())
+			if err == nil {
+				if val, err := strconv.Atoi(strings.TrimSpace(res)); err == nil {
+					qos = byte(val)
+				}
+			}
+		}
+
+		unsubscribe, err := s.mqttMgr.Subscribe(h.BrokerURL, h.Topic, qos, func(topic string, payload []byte) {
+			s.handleMQTTMessage(h, topic, payload)
+		})
+
+		if err == nil {
+			// Subscription is active. Wait for context cancellation.
+			<-ctx.Done()
+			unsubscribe()
+			return
+		}
+
+		s.errorf("  [source:%s] MQTT subscription error for %s: %v, retrying...\n", h.Name, h.BrokerURL, err)
+		if h.OnErrorMsg != "" {
+			s.broadcastSourceError(h)
+		}
+
+		// Exponential backoff
+		attempt++
+		wait := baseInterval * time.Duration(1<<(uint(attempt-1)))
+		if wait > 30*time.Second {
+			wait = 30 * time.Second
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(wait):
+			continue
+		}
+	}
+}
+
+func (s *Server) handleMQTTMessage(h *handler.Handler, topic string, payload []byte) {
+	if s.opts.Verbose {
+		s.logf("  [source:%s] received MQTT message on %q: %s\n", h.Name, topic, string(payload))
+	}
+
+	tmplCtx := template.NewContext()
+	tmplCtx.Message = string(payload)
+	tmplCtx.MessageBytes = payload
+	tmplCtx.MqttTopic = topic
+	tmplCtx.Source = "mqtt"
+	tmplCtx.Vars["Message"] = string(payload)
+	tmplCtx.Vars["Source"] = "mqtt"
+	tmplCtx.Vars["MqttTopic"] = topic
+
+	// Add server context
+	uptime := s.GetUptime()
+	tmplCtx.Server = &template.ServerContext{
+		ClientCount:     s.GetClientCount(),
+		Clients:         s.GetClients(),
+		Uptime:          uptime,
+		UptimeFormatted: template.FormatUptime(uptime),
+	}
+
+	// 1. Transform message if respond: is set
+	processedPayload := string(payload)
+	if h.Respond != "" {
+		res, err := s.opts.TemplateEngine.Execute("respond", h.Respond, tmplCtx)
+		if err != nil {
+			s.errorf("  [source:%s] error rendering respond template: %v\n", h.Name, err)
+			return
+		}
+		processedPayload = res
+	}
+
+	wsMsg := &ws.Message{
+		Type: ws.TextMessage,
+		Data: []byte(processedPayload),
+		Metadata: ws.MessageMetadata{
+			Direction: "sent",
+			Timestamp: time.Now(),
+		},
+	}
+
+	// 2. Deliver message
+	if h.Topic != "" && h.Builtin != "mqtt-subscribe" {
+		// This branch handles cases where a target topic is specified for the WS broadcast
+		// But for mqtt-subscribe, h.Topic is the SOURCE topic.
+		// So we only use h.Topic as a TARGET if it's explicitly intended.
+		// Wait, in redis-subscribe, h.Topic is used as TARGET topic if present.
+		// But h.Channel is the source.
+		// For mqtt-subscribe, h.Topic is BOTH the source and potentially the target.
+		// To avoid confusion, let's say if h.Topic is set, we broadcast to that WS topic.
+		
+		topicName, err := s.opts.TemplateEngine.Execute("topic", h.Topic, tmplCtx)
+		if err != nil {
+			s.errorf("  [source:%s] error rendering topic template: %v\n", h.Name, err)
+			return
+		}
+		topicName = strings.TrimSpace(topicName)
+		if topicName != "" {
+			delivered, _ := s.topics.Publish(topicName, wsMsg)
+			if s.opts.Verbose {
+				s.logf("  [source:%s] delivered to topic %q (%d clients)\n", h.Name, topicName, delivered)
 			}
 		}
 	} else if h.Target != "" {

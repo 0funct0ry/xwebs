@@ -1615,7 +1615,7 @@ func (r *REPL) RegisterCommonCommands() {
 			}
 
 			// Validation
-			if match == "" && builtin != "redis-subscribe" {
+			if match == "" && builtin != "redis-subscribe" && builtin != "mqtt-subscribe" {
 				return fmt.Errorf("--match is required")
 			}
 

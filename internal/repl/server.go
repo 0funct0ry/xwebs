@@ -894,7 +894,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					return fmt.Errorf("parsing flags: %w", err)
 				}
 
-				if match == "" && builtin != "redis-subscribe" {
+				if match == "" && builtin != "redis-subscribe" && builtin != "mqtt-subscribe" {
 					return fmt.Errorf("-m/--match is required")
 				}
 
