@@ -53,6 +53,7 @@ type Options struct {
 	RedisManager handler.RedisManager
 	MQTTManager  handler.MQTTManager
 	NATSManager  handler.NATSManager
+	KafkaManager handler.KafkaManager
 	OllamaURL    string
 }
 
@@ -279,6 +280,13 @@ func WithSSEStreams(streams []handler.SSEStreamConfig) Option {
 func WithNATSManager(m handler.NATSManager) Option {
 	return func(o *Options) {
 		o.NATSManager = m
+	}
+}
+
+// WithKafkaManager sets the Kafka manager.
+func WithKafkaManager(m handler.KafkaManager) Option {
+	return func(o *Options) {
+		o.KafkaManager = m
 	}
 }
 

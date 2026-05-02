@@ -47,6 +47,7 @@ type Server struct {
 	redisMgr    handler.RedisManager
 	mqttMgr     handler.MQTTManager
 	natsMgr     handler.NATSManager
+	kafkaMgr    handler.KafkaManager
 	sseManager  *SSEManager
 	httpMocks   map[string]template.HTTPMockResponse
 	httpMocksMu sync.RWMutex
@@ -78,6 +79,7 @@ func New(opts ...Option) (*Server, error) {
 		redisMgr:    options.RedisManager,
 		mqttMgr:     options.MQTTManager,
 		natsMgr:     options.NATSManager,
+		kafkaMgr:    options.KafkaManager,
 		httpMocks:   make(map[string]template.HTTPMockResponse),
 	}
 
@@ -86,6 +88,9 @@ func New(opts ...Option) (*Server, error) {
 	}
 	if s.natsMgr == nil {
 		s.natsMgr = handler.NewNATSManager()
+	}
+	if s.kafkaMgr == nil {
+		s.kafkaMgr = handler.NewKafkaManager()
 	}
 
 	var logf func(string, ...interface{})
@@ -430,6 +435,7 @@ func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
 			s.redisMgr,
 			s.mqttMgr,
 			s.natsMgr,
+			s.kafkaMgr,
 			s.opts.OllamaURL,
 		)
 

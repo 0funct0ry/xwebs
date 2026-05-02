@@ -85,6 +85,7 @@ func init() {
 	MustRegister(&MQTTSubscribeBuiltin{})
 	MustRegister(&NATSPublishBuiltin{})
 	MustRegister(&NATSSubscribeBuiltin{})
+	MustRegister(&KafkaProduceBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.

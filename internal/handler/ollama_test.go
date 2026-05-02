@@ -45,7 +45,7 @@ func TestOllamaGenerateBuiltin(t *testing.T) {
 	// Mock connection
 	mockConn := &mockConn{}
 
-	d := NewDispatcher(reg, mockConn, engine, true, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, server.URL+"/api/generate")
+	d := NewDispatcher(reg, mockConn, engine, true, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, nil, server.URL+"/api/generate")
 
 	t.Run("non-streaming", func(t *testing.T) {
 		tmplCtx := template.NewContext()
@@ -114,7 +114,7 @@ func TestOllamaChatBuiltin(t *testing.T) {
 	reg := NewRegistry(ClientMode)
 	mockConn := &mockConn{}
 
-	d := NewDispatcher(reg, mockConn, engine, true, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, server.URL+"/api/chat")
+	d := NewDispatcher(reg, mockConn, engine, true, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, nil, server.URL+"/api/chat")
 
 	builtin := &OllamaChatBuiltin{}
 
@@ -206,7 +206,7 @@ func TestOllamaEmbedBuiltin(t *testing.T) {
 	reg := NewRegistry(ClientMode)
 	mockConn := &mockConn{}
 
-	d := NewDispatcher(reg, mockConn, engine, true, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, server.URL+"/api/embeddings")
+	d := NewDispatcher(reg, mockConn, engine, true, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, nil, server.URL+"/api/embeddings")
 
 	builtin := &OllamaEmbedBuiltin{}
 

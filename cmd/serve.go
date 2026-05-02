@@ -241,6 +241,8 @@ Available Builtin Actions (Server):
   echo           Reflect the incoming message back to the sender.
   file-write     Write the message or a template-rendered variant to a file.
   forward        Forward the current message to an upstream WebSocket server.
+  http-mock-respond Register a canned HTTP response at a specific path.
+  kafka-produce  Produce a message to a Kafka topic.
   kv-del         Delete a key from the server's shared key-value store.
   kv-get         Retrieve a value from the server's shared key-value store into .KvValue.
   kv-list        Retrieve all keys from the server's shared key-value store into .KvKeys.

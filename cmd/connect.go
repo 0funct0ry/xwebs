@@ -178,6 +178,7 @@ Available Builtin Actions (Client):
 			}
 		}
 		natsMgr := handler.NewNATSManager()
+		kafkaMgr := handler.NewKafkaManager()
 
 		// Set colors based on global settings
 		colorsEnabled := true
@@ -727,7 +728,7 @@ Available Builtin Actions (Client):
 						if cc.repl != nil {
 							sessionVars = cc.repl.GetVars()
 						}
-						tempDispatcher := handler.NewDispatcher(reg, nil, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist, nil, nil, nil, redisMgr, nil, natsMgr, ollamaURL)
+						tempDispatcher := handler.NewDispatcher(reg, nil, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist, nil, nil, nil, redisMgr, nil, natsMgr, kafkaMgr, ollamaURL)
 						if isInteractive && r != nil {
 
 							tempDispatcher.Log = func(f string, a ...interface{}) { r.Printf(f, a...) }
@@ -800,7 +801,7 @@ Available Builtin Actions (Client):
 					if cc.repl != nil {
 						sessionVars = cc.repl.GetVars()
 					}
-					dispatcher = handler.NewDispatcher(handlerReg, conn, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist, nil, nil, nil, redisMgr, nil, natsMgr, ollamaURL)
+					dispatcher = handler.NewDispatcher(handlerReg, conn, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist, nil, nil, nil, redisMgr, nil, natsMgr, kafkaMgr, ollamaURL)
 					cc.dispatcher = dispatcher
 					if isInteractive && r != nil {
 

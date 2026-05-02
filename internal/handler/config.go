@@ -164,6 +164,7 @@ type Handler struct {
 	Retain       bool                   `yaml:"retain,omitempty"`       // For mqtt-publish builtin
 	NatsURL      string                 `yaml:"nats_url,omitempty"`     // For nats-publish builtin (template)
 	Subject      string                 `yaml:"subject,omitempty"`      // For nats-publish builtin (template)
+	Brokers      []string               `yaml:"brokers,omitempty"`      // For kafka-produce builtin
 	BaseDir      string                 `yaml:"-"`                      // Directory from which the handler was loaded
 }
 
@@ -252,6 +253,7 @@ type PipelineStep struct {
 	Retain      bool              `yaml:"retain,omitempty"`       // For mqtt-publish builtin
 	NatsURL     string            `yaml:"nats_url,omitempty"`     // For nats-publish builtin (template)
 	Subject     string            `yaml:"subject,omitempty"`      // For nats-publish builtin (template)
+	Brokers     []string          `yaml:"brokers,omitempty"`      // For kafka-produce builtin
 }
 
 // Matcher specifies how to match an incoming WebSocket message.
@@ -369,6 +371,7 @@ type Action struct {
 	Retain      bool              `yaml:"retain,omitempty"`      // For mqtt-publish builtin
 	NatsURL     string            `yaml:"nats_url,omitempty"`    // For nats-publish builtin (template)
 	Subject     string            `yaml:"subject,omitempty"`     // For nats-publish builtin (template)
+	Brokers     []string          `yaml:"brokers,omitempty"`     // For kafka-produce builtin
 	BaseDir     string            `yaml:"-"`                    // For relative path resolution in builtins
 	HandlerName string            `yaml:"-"`                    // Internal use only
 }
@@ -560,6 +563,7 @@ func (c *Config) Validate(mode RegistryMode) error {
 				Retain:      h.Retain,
 				NatsURL:     h.NatsURL,
 				Subject:     h.Subject,
+				Brokers:     h.Brokers,
 			}
 			if err := bh.Validate(tmpAction); err != nil {
 				return fmt.Errorf("handler %q: %w", h.Name, err)

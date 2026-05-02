@@ -44,7 +44,7 @@ func TestSequenceBuiltin(t *testing.T) {
 	engine := template.New(false)
 
 	conn := &mockConnection{ID: "client-1"}
-	dispatcher := NewDispatcher(registry, conn, engine, false, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, "")
+	dispatcher := NewDispatcher(registry, conn, engine, false, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, nil, "")
 
 	action := &Action{
 		Command:     "sequence",
@@ -103,8 +103,8 @@ func TestSequenceBuiltinPerClient(t *testing.T) {
 	conn1 := &mockConnection{ID: "client-1"}
 	conn2 := &mockConnection{ID: "client-2"}
 
-	d1 := NewDispatcher(registry, conn1, engine, false, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, "")
-	d2 := NewDispatcher(registry, conn2, engine, false, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, "")
+	d1 := NewDispatcher(registry, conn1, engine, false, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, nil, "")
+	d2 := NewDispatcher(registry, conn2, engine, false, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, nil, "")
 
 	action := &Action{
 		Command:     "sequence",

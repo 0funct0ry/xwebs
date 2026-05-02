@@ -101,6 +101,11 @@ type NATSManager interface {
 	Close() error
 }
 
+type KafkaManager interface {
+	Produce(ctx context.Context, brokers []string, topic, key, message string) error
+	Close() error
+}
+
 // Dispatcher coordinates the execution of handlers for a connection.
 type Dispatcher struct {
 	registry       *Registry
@@ -125,13 +130,14 @@ type Dispatcher struct {
 	redisManager    RedisManager
 	mqttManager     MQTTManager
 	natsManager     NATSManager
+	kafkaManager    KafkaManager
  
 	bufferMu sync.Mutex
 	buffer   []*ws.Message
 }
 
 // NewDispatcher creates a new dispatcher.
-func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine, verbose bool, vars map[string]interface{}, session map[string]interface{}, sandbox bool, allowlist []string, serverStats ServerStatProvider, topicManager TopicManager, kvManager KVManager, redisManager RedisManager, mqttManager MQTTManager, natsManager NATSManager, ollamaURL string) *Dispatcher {
+func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine, verbose bool, vars map[string]interface{}, session map[string]interface{}, sandbox bool, allowlist []string, serverStats ServerStatProvider, topicManager TopicManager, kvManager KVManager, redisManager RedisManager, mqttManager MQTTManager, natsManager NATSManager, kafkaManager KafkaManager, ollamaURL string) *Dispatcher {
 
 	// Initialize system environment
 	env := make(map[string]string)
@@ -157,6 +163,7 @@ func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine,
 		redisManager:     redisManager,
 		mqttManager:      mqttManager,
 		natsManager:      natsManager,
+		kafkaManager:     kafkaManager,
 		ollamaURL:        ollamaURL,
 		systemEnv:        env,
 		Log: func(f string, a ...interface{}) {
@@ -567,6 +574,7 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 				NatsURL:     h.NatsURL,
 				Subject:     h.Subject,
 				BufferSize:  h.BufferSize,
+				Brokers:     h.Brokers,
 				BaseDir:     h.BaseDir,
 				HandlerName: h.Name,
 			}
@@ -648,6 +656,7 @@ func (d *Dispatcher) executePipeline(ctx context.Context, handlerName string, pi
 			action.File = step.File
 			action.Path = step.Path
 			action.Content = step.Content
+			action.Brokers = step.Brokers
 			action.Mode = step.Mode
 			action.Rate = step.Rate
 			action.Burst = step.Burst

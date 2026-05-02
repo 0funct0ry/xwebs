@@ -1312,7 +1312,7 @@ func (r *REPL) RegisterCommonCommands() {
 				r.Printf("  --priority <n>        Numeric priority (higher runs first)\n")
 				r.Printf("  --run <cmd>           Shell command to run on match\n")
 				r.Printf("  --respond <tmpl>      Response template to send after run\n")
-				r.Printf("  -B, --builtin <name>  Builtin action (noop, redis-subscribe, mqtt-subscribe, mqtt-publish, nats-subscribe, nats-publish, ollama-classify, ollama-generate, ollama-chat, ollama-embed, openai-chat)\n")
+				r.Printf("  -B, --builtin <name>  Builtin action (subscribe, unsubscribe, publish, forward, redis-subscribe, mqtt-subscribe, mqtt-publish, nats-subscribe, nats-publish, kafka-produce, ollama-classify, ollama-generate, ollama-chat, ollama-embed, openai-chat)\n")
 				r.Printf("  --topic <template>    Topic name template for builtin actions\n")
 				r.Printf("  --exclusive           Stop further matching if this handler matches\n")
 				r.Printf("  --sequential          Run handler actions sequentially (disable concurrency)\n")
@@ -1354,6 +1354,7 @@ func (r *REPL) RegisterCommonCommands() {
 				r.Printf("  --stream-ollama       Enable streaming for 'ollama-generate'\n")
 				r.Printf("  --system <template>   System prompt for 'ollama-chat' or 'openai-chat'\n")
 				r.Printf("  --max-history <n>     Max message history to retain for 'ollama-chat' or 'openai-chat'\n")
+				r.Printf("  --brokers <list>      Kafka broker list (host:port,...) for 'kafka-produce'\n")
 				r.Printf("  -i, --input <template> Input template for 'ollama-embed'\n")
 				r.Printf("  --api-url <url>       API URL for 'openai-chat' (template)\n")
 				r.Printf("  --api-key <key>       API Key for 'openai-chat' (template)\n")
@@ -1614,6 +1615,10 @@ func (r *REPL) RegisterCommonCommands() {
 			// NATS flags
 			fs.StringVar(&natsURL, "nats-url", "nats://localhost:4222", "NATS server URL")
 			fs.StringVar(&natsSubject, "nats-subject", "", "NATS subject")
+ 
+			// Kafka flags
+			var brokers []string
+			fs.StringSliceVar(&brokers, "brokers", nil, "Kafka broker list (comma-separated or multiple flags)")
 
 			if err := fs.Parse(args[1:]); err != nil {
 				if errors.Is(err, pflag.ErrHelp) {
@@ -1735,6 +1740,7 @@ func (r *REPL) RegisterCommonCommands() {
 				Input:             input,
 				NatsURL:           natsURL,
 				Subject:           natsSubject,
+				Brokers:           brokers,
 			}
 			if streamOllama {
 				h.Stream = "true"

@@ -17,7 +17,7 @@ func TestDispatcher_ExecuteRetryLinear(t *testing.T) {
 	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
-	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, "")
+	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, nil, "")
 
 	// Create a temp file to track attempts
 	tmpFile := "/tmp/xwebs_retry_test_linear"
@@ -67,7 +67,7 @@ func TestDispatcher_ExecuteRetryExponential(t *testing.T) {
 	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
-	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, "")
+	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, nil, "")
 
 	h := &Handler{
 		Name: "retry-exponential",
@@ -103,7 +103,7 @@ func TestDispatcher_ExecuteRetryPipeline(t *testing.T) {
 	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
-	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, "")
+	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, nil, "")
 
 	tmpFile := "/tmp/xwebs_retry_test_pipeline"
 	os.Remove(tmpFile)

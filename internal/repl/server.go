@@ -709,7 +709,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("  -p, --priority <n>        Numeric priority (higher runs first)\n")
 				r.Printf("  -r, --run <cmd>           Shell command to run on match\n")
 				r.Printf("  -R, --respond <tmpl>      Response template to send back\n")
-				r.Printf("  -B, --builtin <name>      Builtin action (subscribe, unsubscribe, publish, forward, redis-subscribe, mqtt-subscribe, mqtt-publish, nats-subscribe, nats-publish, ollama-classify, ollama-generate, ollama-chat, ollama-embed, openai-chat)\n")
+				r.Printf("  -B, --builtin <name>      Builtin action (subscribe, unsubscribe, publish, forward, redis-subscribe, mqtt-subscribe, mqtt-publish, nats-subscribe, nats-publish, kafka-produce, ollama-classify, ollama-generate, ollama-chat, ollama-embed, openai-chat)\n")
 				r.Printf("      --topic <template>    Topic name template for builtin actions\n")
 				r.Printf("      --target <url>        Upstream target URL for 'forward' builtin\n")
 				r.Printf("  -M, --message <template>  Message template for broadcast or publish\n")
@@ -773,6 +773,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("      --stream-ollama       Enable streaming for 'ollama-generate'\n")
 				r.Printf("      --system <template>   System prompt for 'ollama-chat' or 'openai-chat'\n")
 				r.Printf("      --max-history <n>     Max message history to retain for 'ollama-chat' or 'openai-chat'\n")
+				r.Printf("      --brokers <list>      Kafka broker list (host:port,...) for 'kafka-produce'\n")
 				r.Printf("      --input <template>    Input template for 'ollama-embed'\n")
 				r.Printf("      --api-url <url>       API URL for 'openai-chat' (template)\n")
 				r.Printf("      --api-key <key>       API Key for 'openai-chat' (template)\n")
@@ -792,6 +793,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("      --retain              Set MQTT retain flag\n")
 				r.Printf("      --nats-url <url>      NATS server URL (default: nats://localhost:4222)\n")
 				r.Printf("      --nats-subject <name> NATS subject for 'nats-publish' or 'nats-subscribe'\n")
+				r.Printf("      --brokers <list>      Kafka brokers (comma-separated list) for 'kafka-produce'\n")
 				return nil
 			}
 
@@ -801,7 +803,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.SetOutput(r.Stdout())
 
 				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue, field, handlerA, handlerB, channel, reconnectInterval, by, secret, query, gqlVariables, sseStream, event, id, onNoConsumers, status, model, prompt, ollamaURL, system, input, apiKey, apiURL, brokerURL, mqttTopic, qos, natsURL, natsSubject string
-				var ruleWhens, ruleResponds, responses, headers, labels []string
+				var ruleWhens, ruleResponds, responses, headers, labels, brokers []string
 				var priority, burst, maxMemory, split, bufferSize, maxHistory int
 				var exclusive, sequential, loop, perClient, stickyBroadcast, streamOllama, retain bool
 				var temperature, topP float64
@@ -896,6 +898,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				// NATS flags
 				fs.StringVar(&natsURL, "nats-url", "nats://localhost:4222", "NATS server URL")
 				fs.StringVar(&natsSubject, "nats-subject", "", "NATS subject")
+				fs.StringSliceVar(&brokers, "brokers", nil, "Kafka brokers")
 
 				if err := fs.Parse(args[1:]); err != nil {
 					if errors.Is(err, pflag.ErrHelp) {
@@ -1017,6 +1020,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					Retain:            retain,
 					NatsURL:           natsURL,
 					Subject:           natsSubject,
+					Brokers:           brokers,
 					Temperature: func() *float64 {
 						if fs.Changed("temperature") {
 							return &temperature
