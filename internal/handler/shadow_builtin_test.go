@@ -47,7 +47,7 @@ func TestShadowBuiltin(t *testing.T) {
 	// 2. Setup dispatcher
 	engine := template.New(false)
 	conn := &mockConn{}
-	d := NewDispatcher(registry, conn, engine, true, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, nil, "")
+	d := NewDispatcher(registry, conn, engine, true, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, nil, nil, "")
 
 	// 3. Execute primary handler
 	msg := &ws.Message{

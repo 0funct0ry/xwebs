@@ -30,6 +30,10 @@ func HandlerFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&respondTemplate, "respond", "", "Default response template for inline handlers")
 	cmd.Flags().BoolVar(&sandboxEnabled, "sandbox", false, "Enable shell command allowlisting for handlers")
 	cmd.Flags().StringSliceVar(&allowlist, "allowlist", nil, "Comma-separated list of allowed shell commands")
+	cmd.Flags().StringVar(&handlerMatch, "match", "", "Match pattern for a quick SQLite or shell handler")
+	cmd.Flags().StringVar(&handlerDB, "db", "", "SQLite database path for a quick handler")
+	cmd.Flags().StringVar(&handlerSQL, "sql", "", "SQLite SQL query for a quick handler")
+	cmd.Flags().StringVar(&handlerInit, "init", "", "SQLite initialization SQL for a quick handler")
 }
 
 // ConnectionFlags registers flags specific to WebSocket connections.

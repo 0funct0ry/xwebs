@@ -16,7 +16,7 @@ func TestKVBuiltins_Integrated(t *testing.T) {
 	conn := &mockConn{}
 	kvm := &mockKVManager{store: make(map[string]interface{})}
 
-	d := NewDispatcher(reg, conn, engine, true, nil, nil, false, nil, nil, nil, kvm, nil, nil, nil, nil, "")
+	d := NewDispatcher(reg, conn, engine, true, nil, nil, false, nil, nil, nil, kvm, nil, nil, nil, nil, nil, "")
 
 	t.Run("KV Set with Capture Groups", func(t *testing.T) {
 		h := &Handler{

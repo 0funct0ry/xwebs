@@ -307,7 +307,24 @@ Available Builtin Actions (Server):
 			handlers = append(handlers, h)
 		}
 
-		if len(handlers) > 0 && !quiet && (len(onHandlers) > 0 || len(onMatchHandlers) > 0) {
+		if handlerDB != "" || handlerSQL != "" || handlerInit != "" {
+			m := handler.AutoDetectMatcher(handlerMatch)
+			if handlerMatch == "" {
+				m.Type = "glob"
+				m.Pattern = "*"
+			}
+			h := handler.Handler{
+				Name:    "quick-sqlite",
+				Match:   m,
+				DB:      handlerDB,
+				SQL:     handlerSQL,
+				Init:    handlerInit,
+				Respond: respondTemplate,
+			}
+			handlers = append(handlers, h)
+		}
+
+		if len(handlers) > 0 && !quiet && (len(onHandlers) > 0 || len(onMatchHandlers) > 0 || handlerDB != "") {
 			fmt.Fprintf(os.Stderr, "✓ Added %d inline handlers\n", len(onHandlers)+len(onMatchHandlers))
 		}
 

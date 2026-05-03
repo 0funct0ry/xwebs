@@ -167,6 +167,9 @@ type Handler struct {
 	Brokers      []string               `yaml:"brokers,omitempty"`      // For kafka-produce builtin
 	GroupID      string                 `yaml:"group_id,omitempty"`     // For kafka-consume builtin
 	Offset       string                 `yaml:"offset,omitempty"`       // For kafka-consume builtin
+	DB           string                 `yaml:"db,omitempty"`           // For sqlite builtin (template)
+	SQL          string                 `yaml:"sql,omitempty"`          // For sqlite builtin (template)
+	Init         string                 `yaml:"init,omitempty"`         // For sqlite builtin (initialization SQL)
 	BaseDir      string                 `yaml:"-"`                      // Directory from which the handler was loaded
 }
 
@@ -258,6 +261,9 @@ type PipelineStep struct {
 	Brokers     []string          `yaml:"brokers,omitempty"`      // For kafka-produce builtin
 	GroupID     string            `yaml:"group_id,omitempty"`     // For kafka-consume builtin
 	Offset      string            `yaml:"offset,omitempty"`       // For kafka-consume builtin
+	DB          string            `yaml:"db,omitempty"`           // For sqlite builtin (template)
+	SQL         string            `yaml:"sql,omitempty"`          // For sqlite builtin (template)
+	Init        string            `yaml:"init,omitempty"`         // For sqlite builtin (initialization SQL)
 }
 
 // Matcher specifies how to match an incoming WebSocket message.
@@ -378,6 +384,9 @@ type Action struct {
 	Brokers     []string          `yaml:"brokers,omitempty"`     // For kafka-produce builtin
 	GroupID     string            `yaml:"group_id,omitempty"`    // For kafka-consume builtin
 	Offset      string            `yaml:"offset,omitempty"`      // For kafka-consume builtin
+	DB          string            `yaml:"db,omitempty"`          // For sqlite builtin (template)
+	SQL         string            `yaml:"sql,omitempty"`         // For sqlite builtin (template)
+	Init        string            `yaml:"init,omitempty"`        // For sqlite builtin (initialization SQL)
 	BaseDir     string            `yaml:"-"`                    // For relative path resolution in builtins
 	HandlerName string            `yaml:"-"`                    // Internal use only
 }
@@ -404,6 +413,9 @@ func (a *Action) UnmarshalYAML(value *yaml.Node) error {
 		} else if a.Log != "" {
 			a.Type = "log"
 			a.Message = a.Log
+		} else if a.DB != "" || a.SQL != "" || a.Init != "" {
+			a.Type = "builtin"
+			a.Command = "sqlite"
 		}
 	}
 	return nil

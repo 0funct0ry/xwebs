@@ -31,6 +31,10 @@ var (
 	allowlist       []string
 	redisURL        string
 	ollamaURL       string
+	handlerMatch    string
+	handlerDB       string
+	handlerSQL      string
+	handlerInit     string
 )
 
 var validLogLevels = []string{"debug", "info", "warn", "error"}
@@ -129,6 +133,10 @@ func initConfig() {
 		syncFlag("sandbox", &sandboxEnabled)
 		syncFlag("redis-url", &redisURL)
 		syncFlag("ollama-url", &ollamaURL)
+		syncFlag("match", &handlerMatch)
+		syncFlag("db", &handlerDB)
+		syncFlag("sql", &handlerSQL)
+		syncFlag("init", &handlerInit)
 
 		// String slices need manual syncing from Viper if not set via flags
 		if !activeCmd.Flags().Changed("on") && viper.IsSet("on") {

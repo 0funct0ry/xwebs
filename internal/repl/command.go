@@ -1366,6 +1366,9 @@ func (r *REPL) RegisterCommonCommands() {
 				r.Printf("  --retain              Set MQTT retain flag\n")
 				r.Printf("  --nats-url <url>      NATS server URL (default: nats://localhost:4222)\n")
 				r.Printf("  --nats-subject <name> NATS subject for 'nats-publish' or 'nats-subscribe'\n")
+				r.Printf("  --db <path>           SQLite database path\n")
+				r.Printf("  --sql <query>         SQLite SQL query (parameterized)\n")
+				r.Printf("  --init <sql>          SQLite initialization SQL (runs once)\n")
 				return nil
 			}
 
@@ -1530,7 +1533,7 @@ func (r *REPL) RegisterCommonCommands() {
 			fs.SetOutput(nil) // Suppress automatic usage printing on error
 
 			var name, match, matchType, run, respond, builtin, topic, rateLimit, debounce, code, reason, message, target, script, targets, window, scope, channel, reconnectInterval, onError string
-			var key, value, ttl, by, model, prompt, ollamaURL, system, input, apiKey, apiURL, brokerURL, mqttTopic, qos, natsURL, natsSubject string
+			var key, value, ttl, by, model, prompt, ollamaURL, system, input, apiKey, apiURL, brokerURL, mqttTopic, qos, natsURL, natsSubject, db, sql, initSQL string
 			var retain bool
 			var labels []string
 			var priority, maxMemory, maxHistory int
@@ -1619,6 +1622,9 @@ func (r *REPL) RegisterCommonCommands() {
 			// Kafka flags
 			var brokers []string
 			fs.StringSliceVar(&brokers, "brokers", nil, "Kafka broker list (comma-separated or multiple flags)")
+			fs.StringVar(&db, "db", "", "SQLite database path")
+			fs.StringVar(&sql, "sql", "", "SQLite SQL query")
+			fs.StringVar(&initSQL, "init", "", "SQLite initialization SQL")
 
 			if err := fs.Parse(args[1:]); err != nil {
 				if errors.Is(err, pflag.ErrHelp) {
@@ -1679,6 +1685,9 @@ func (r *REPL) RegisterCommonCommands() {
 				BrokerURL: brokerURL,
 				QoS:       qos,
 				Retain:    retain,
+				DB:        db,
+				SQL:       sql,
+				Init:      initSQL,
 				Temperature: func() *float64 {
 					if fs.Changed("temperature") {
 						return &temperature

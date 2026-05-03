@@ -179,6 +179,8 @@ Available Builtin Actions (Client):
 		}
 		natsMgr := handler.NewNATSManager()
 		kafkaMgr := handler.NewKafkaManager()
+		sqliteMgr := handler.NewSQLiteManager()
+		defer sqliteMgr.Close()
 
 		// Set colors based on global settings
 		colorsEnabled := true
@@ -239,6 +241,23 @@ Available Builtin Actions (Client):
 			}
 			if respondTemplate != "" && h.Respond == "" {
 				h.Respond = respondTemplate
+			}
+			handlers = append(handlers, h)
+		}
+
+		if handlerDB != "" || handlerSQL != "" || handlerInit != "" {
+			m := handler.AutoDetectMatcher(handlerMatch)
+			if handlerMatch == "" {
+				m.Type = "glob"
+				m.Pattern = "*"
+			}
+			h := handler.Handler{
+				Name:    "quick-sqlite",
+				Match:   m,
+				DB:      handlerDB,
+				SQL:     handlerSQL,
+				Init:    handlerInit,
+				Respond: respondTemplate,
 			}
 			handlers = append(handlers, h)
 		}
@@ -728,7 +747,7 @@ Available Builtin Actions (Client):
 						if cc.repl != nil {
 							sessionVars = cc.repl.GetVars()
 						}
-						tempDispatcher := handler.NewDispatcher(reg, nil, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist, nil, nil, nil, redisMgr, nil, natsMgr, kafkaMgr, ollamaURL)
+						tempDispatcher := handler.NewDispatcher(reg, nil, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist, nil, nil, nil, redisMgr, nil, natsMgr, kafkaMgr, sqliteMgr, ollamaURL)
 						if isInteractive && r != nil {
 
 							tempDispatcher.Log = func(f string, a ...interface{}) { r.Printf(f, a...) }
@@ -801,7 +820,7 @@ Available Builtin Actions (Client):
 					if cc.repl != nil {
 						sessionVars = cc.repl.GetVars()
 					}
-					dispatcher = handler.NewDispatcher(handlerReg, conn, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist, nil, nil, nil, redisMgr, nil, natsMgr, kafkaMgr, ollamaURL)
+					dispatcher = handler.NewDispatcher(handlerReg, conn, tmplEngine, verbose, handlerVars, sessionVars, sandboxEnabled, allowlist, nil, nil, nil, redisMgr, nil, natsMgr, kafkaMgr, sqliteMgr, ollamaURL)
 					cc.dispatcher = dispatcher
 					if isInteractive && r != nil {
 

@@ -54,6 +54,7 @@ type Options struct {
 	MQTTManager  handler.MQTTManager
 	NATSManager  handler.NATSManager
 	KafkaManager handler.KafkaManager
+	SQLiteManager handler.SQLiteManager
 	OllamaURL    string
 }
 
@@ -294,5 +295,12 @@ func WithKafkaManager(m handler.KafkaManager) Option {
 func WithOllamaURL(url string) Option {
 	return func(o *Options) {
 		o.OllamaURL = url
+	}
+}
+
+// WithSQLiteManager sets the SQLite manager.
+func WithSQLiteManager(m handler.SQLiteManager) Option {
+	return func(o *Options) {
+		o.SQLiteManager = m
 	}
 }

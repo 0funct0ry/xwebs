@@ -796,6 +796,9 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("      --brokers <list>      Kafka brokers (comma-separated list) for 'kafka-produce' or 'kafka-consume'\n")
 				r.Printf("      --group-id <name>     Kafka consumer group ID for 'kafka-consume'\n")
 				r.Printf("      --offset <type>       Kafka start offset for 'kafka-consume' (earliest|latest)\n")
+				r.Printf("      --db <path>           SQLite database path\n")
+				r.Printf("      --sql <query>         SQLite SQL query (parameterized)\n")
+				r.Printf("      --init <sql>          SQLite initialization SQL (runs once)\n")
 				return nil
 			}
 
@@ -804,7 +807,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 				fs.SetOutput(r.Stdout())
 
-				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue, field, handlerA, handlerB, channel, reconnectInterval, by, secret, query, gqlVariables, sseStream, event, id, onNoConsumers, status, model, prompt, ollamaURL, system, input, apiKey, apiURL, brokerURL, mqttTopic, qos, natsURL, natsSubject, groupId, offset string
+				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue, field, handlerA, handlerB, channel, reconnectInterval, by, secret, query, gqlVariables, sseStream, event, id, onNoConsumers, status, model, prompt, ollamaURL, system, input, apiKey, apiURL, brokerURL, mqttTopic, qos, natsURL, natsSubject, groupId, offset, db, sql, initSQL string
 				var ruleWhens, ruleResponds, responses, headers, labels, brokers []string
 				var priority, burst, maxMemory, split, bufferSize, maxHistory int
 				var exclusive, sequential, loop, perClient, stickyBroadcast, streamOllama, retain bool
@@ -903,6 +906,11 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.StringSliceVar(&brokers, "brokers", nil, "Kafka brokers")
 				fs.StringVar(&groupId, "group-id", "", "Kafka consumer group ID")
 				fs.StringVar(&offset, "offset", "latest", "Kafka start offset (earliest|latest)")
+
+				// SQLite flags
+				fs.StringVar(&db, "db", "", "SQLite database path")
+				fs.StringVar(&sql, "sql", "", "SQLite SQL query")
+				fs.StringVar(&initSQL, "init", "", "SQLite initialization SQL")
 
 				if err := fs.Parse(args[1:]); err != nil {
 					if errors.Is(err, pflag.ErrHelp) {
@@ -1027,6 +1035,9 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					Brokers:           brokers,
 					GroupID:           groupId,
 					Offset:            offset,
+					DB:                db,
+					SQL:               sql,
+					Init:              initSQL,
 					Temperature: func() *float64 {
 						if fs.Changed("temperature") {
 							return &temperature

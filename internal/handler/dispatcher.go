@@ -106,6 +106,11 @@ type KafkaManager interface {
 	Consume(ctx context.Context, brokers []string, topic, groupID, offset string, callback func(topic string, offset int64, key, message []byte)) error
 	Close() error
 }
+ 
+type SQLiteManager interface {
+	Execute(ctx context.Context, dbPath, sql, init string) ([]map[string]interface{}, int, error)
+	Close() error
+}
 
 // Dispatcher coordinates the execution of handlers for a connection.
 type Dispatcher struct {
@@ -132,13 +137,14 @@ type Dispatcher struct {
 	mqttManager     MQTTManager
 	natsManager     NATSManager
 	kafkaManager    KafkaManager
+	sqliteManager   SQLiteManager
  
 	bufferMu sync.Mutex
 	buffer   []*ws.Message
 }
 
 // NewDispatcher creates a new dispatcher.
-func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine, verbose bool, vars map[string]interface{}, session map[string]interface{}, sandbox bool, allowlist []string, serverStats ServerStatProvider, topicManager TopicManager, kvManager KVManager, redisManager RedisManager, mqttManager MQTTManager, natsManager NATSManager, kafkaManager KafkaManager, ollamaURL string) *Dispatcher {
+func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine, verbose bool, vars map[string]interface{}, session map[string]interface{}, sandbox bool, allowlist []string, serverStats ServerStatProvider, topicManager TopicManager, kvManager KVManager, redisManager RedisManager, mqttManager MQTTManager, natsManager NATSManager, kafkaManager KafkaManager, sqliteManager SQLiteManager, ollamaURL string) *Dispatcher {
 
 	// Initialize system environment
 	env := make(map[string]string)
@@ -165,6 +171,7 @@ func NewDispatcher(registry *Registry, conn Connection, engine *template.Engine,
 		mqttManager:      mqttManager,
 		natsManager:      natsManager,
 		kafkaManager:     kafkaManager,
+		sqliteManager:    sqliteManager,
 		ollamaURL:        ollamaURL,
 		systemEnv:        env,
 		Log: func(f string, a ...interface{}) {
@@ -453,7 +460,7 @@ func (d *Dispatcher) Execute(ctx context.Context, h *Handler, msg *ws.Message, m
 	// NOTE: For concise handlers (h.Run or h.Builtin), Respond is now handled
 	// INSIDE ExecuteAction to maintain consistency. We only send here if it's
 	// NOT a concise handler and we have a top-level Respond to send.
-	isConcise := h.Run != "" || h.Builtin != ""
+	isConcise := h.Run != "" || h.Builtin != "" || h.DB != "" || h.SQL != ""
 	if h.Respond != "" && !isConcise && (lastErr == nil) {
 		action := Action{Type: "send", Message: h.Respond}
 		if err := d.ExecuteAction(ctx, &action, tmplCtx, msg); err != nil {
@@ -594,6 +601,20 @@ func (d *Dispatcher) executeMainActions(ctx context.Context, h *Handler, tmplCtx
 				HandlerName: h.Name,
 			}
 			return d.ExecuteAction(ctx, &action, tmplCtx, msg)
+		} else if h.DB != "" || h.SQL != "" {
+			action := Action{
+				Type:        "builtin",
+				Command:     "sqlite",
+				DB:          h.DB,
+				SQL:         h.SQL,
+				Init:        h.Init,
+				Timeout:     h.Timeout,
+				Delay:       h.Delay,
+				Respond:     h.Respond,
+				BaseDir:     h.BaseDir,
+				HandlerName: h.Name,
+			}
+			return d.ExecuteAction(ctx, &action, tmplCtx, msg)
 		}
 	}
 	return nil
@@ -689,9 +710,10 @@ func (d *Dispatcher) executePipeline(ctx context.Context, handlerName string, pi
 			action.Rules = step.Rules
 			action.Query = step.Query
 			action.Variables = step.Variables
-			action.Model = step.Model
 			action.Prompt = step.Prompt
 			action.OllamaURL = step.OllamaURL
+			action.DB = step.DB
+			action.SQL = step.SQL
 			action.Stream = step.Stream
 			action.Event = step.Event
 			action.ID = step.ID
@@ -708,6 +730,14 @@ func (d *Dispatcher) executePipeline(ctx context.Context, handlerName string, pi
 			action.NatsURL = step.NatsURL
 			action.Subject = step.Subject
 			action.BufferSize = step.BufferSize
+			action.BaseDir = d.registry.GetHandlerBaseDir(handlerName)
+			action.HandlerName = handlerName
+		} else if step.DB != "" || step.SQL != "" {
+			action.Type = "builtin"
+			action.Command = "sqlite"
+			action.DB = step.DB
+			action.SQL = step.SQL
+			action.Init = step.Init
 			action.BaseDir = d.registry.GetHandlerBaseDir(handlerName)
 			action.HandlerName = handlerName
 		}
@@ -1249,5 +1279,10 @@ func (d *Dispatcher) cloneWithConn(conn Connection) *Dispatcher {
 		topicManager:     d.topicManager,
 		kvManager:        d.kvManager,
 		redisManager:     d.redisManager,
+		mqttManager:      d.mqttManager,
+		natsManager:      d.natsManager,
+		kafkaManager:     d.kafkaManager,
+		sqliteManager:    d.sqliteManager,
+		ollamaURL:        d.ollamaURL,
 	}
 }

@@ -13,7 +13,7 @@ func TestABTestBuiltin(t *testing.T) {
 	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
-	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, nil, "")
+	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, nil, nil, "")
 
 	// Register two mock handlers
 	handlerA := Handler{Name: "a", Match: Matcher{Pattern: "a"}, Respond: "Response A"}
@@ -109,7 +109,7 @@ func TestABTestBuiltin_NonExistentHandler(t *testing.T) {
 	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
-	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, nil, "")
+	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, nil, nil, "")
 
 	split := 50
 	action := &Action{
@@ -133,7 +133,7 @@ func TestABTestBuiltin_InvalidJQ(t *testing.T) {
 	reg := NewRegistry(ServerMode)
 	engine := template.New(false)
 	conn := &mockConn{}
-	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, nil, "")
+	d := NewDispatcher(reg, conn, engine, false, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, nil, nil, "")
 
 	split := 50
 	action := &Action{

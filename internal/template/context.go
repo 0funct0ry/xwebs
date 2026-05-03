@@ -221,6 +221,10 @@ type TemplateContext struct {
 	KafkaOffset int64  `json:"kafka_offset,omitempty"`
 	KafkaKey    string `json:"kafka_key,omitempty"`
 	Key         string `json:"key,omitempty"` // Convenience alias for Kafka/MQTT keys
+
+	// SQLite Builtin
+	Rows     []map[string]interface{} `json:"rows,omitempty"`
+	RowCount int                      `json:"row_count,omitempty"`
 }
 
 // NewContext creates a new TemplateContext with initialized maps.

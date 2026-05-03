@@ -48,6 +48,7 @@ type Server struct {
 	mqttMgr     handler.MQTTManager
 	natsMgr     handler.NATSManager
 	kafkaMgr    handler.KafkaManager
+	sqliteMgr   handler.SQLiteManager
 	sseManager  *SSEManager
 	httpMocks   map[string]template.HTTPMockResponse
 	httpMocksMu sync.RWMutex
@@ -80,6 +81,7 @@ func New(opts ...Option) (*Server, error) {
 		mqttMgr:     options.MQTTManager,
 		natsMgr:     options.NATSManager,
 		kafkaMgr:    options.KafkaManager,
+		sqliteMgr:   options.SQLiteManager,
 		httpMocks:   make(map[string]template.HTTPMockResponse),
 	}
 
@@ -91,6 +93,9 @@ func New(opts ...Option) (*Server, error) {
 	}
 	if s.kafkaMgr == nil {
 		s.kafkaMgr = handler.NewKafkaManager()
+	}
+	if s.sqliteMgr == nil {
+		s.sqliteMgr = handler.NewSQLiteManager()
 	}
 
 	var logf func(string, ...interface{})
@@ -321,6 +326,10 @@ func (s *Server) Stop() error {
 	// Stop all source handlers
 	s.stopSourceHandlers()
 
+	if s.sqliteMgr != nil {
+		_ = s.sqliteMgr.Close()
+	}
+
 	// Wait for all connections to finish cleaning up
 	s.wg.Wait()
 
@@ -436,6 +445,7 @@ func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
 			s.mqttMgr,
 			s.natsMgr,
 			s.kafkaMgr,
+			s.sqliteMgr,
 			s.opts.OllamaURL,
 		)
 

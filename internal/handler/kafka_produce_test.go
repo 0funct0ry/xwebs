@@ -45,7 +45,7 @@ func TestKafkaProduceBuiltin(t *testing.T) {
 		conn := &mockConn{}
 		engine := template.New(false)
 		
-		d := NewDispatcher(reg, conn, engine, true, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, m, "")
+		d := NewDispatcher(reg, conn, engine, true, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, m, nil, "")
 		
 		a := &Action{
 			Brokers: []string{"localhost:9092"},
@@ -70,7 +70,7 @@ func TestKafkaProduceBuiltin(t *testing.T) {
 		reg := NewRegistry(ServerMode)
 		conn := &mockConn{}
 		engine := template.New(false)
-		d := NewDispatcher(reg, conn, engine, true, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, m, "")
+		d := NewDispatcher(reg, conn, engine, true, nil, nil, false, nil, nil, nil, nil, nil, nil, nil, m, nil, "")
 		
 		a := &Action{
 			Brokers: nil, // Should default to localhost:9092
