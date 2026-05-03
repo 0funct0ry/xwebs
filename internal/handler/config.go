@@ -165,6 +165,8 @@ type Handler struct {
 	NatsURL      string                 `yaml:"nats_url,omitempty"`     // For nats-publish builtin (template)
 	Subject      string                 `yaml:"subject,omitempty"`      // For nats-publish builtin (template)
 	Brokers      []string               `yaml:"brokers,omitempty"`      // For kafka-produce builtin
+	GroupID      string                 `yaml:"group_id,omitempty"`     // For kafka-consume builtin
+	Offset       string                 `yaml:"offset,omitempty"`       // For kafka-consume builtin
 	BaseDir      string                 `yaml:"-"`                      // Directory from which the handler was loaded
 }
 
@@ -254,6 +256,8 @@ type PipelineStep struct {
 	NatsURL     string            `yaml:"nats_url,omitempty"`     // For nats-publish builtin (template)
 	Subject     string            `yaml:"subject,omitempty"`      // For nats-publish builtin (template)
 	Brokers     []string          `yaml:"brokers,omitempty"`      // For kafka-produce builtin
+	GroupID     string            `yaml:"group_id,omitempty"`     // For kafka-consume builtin
+	Offset      string            `yaml:"offset,omitempty"`       // For kafka-consume builtin
 }
 
 // Matcher specifies how to match an incoming WebSocket message.
@@ -372,6 +376,8 @@ type Action struct {
 	NatsURL     string            `yaml:"nats_url,omitempty"`    // For nats-publish builtin (template)
 	Subject     string            `yaml:"subject,omitempty"`     // For nats-publish builtin (template)
 	Brokers     []string          `yaml:"brokers,omitempty"`     // For kafka-produce builtin
+	GroupID     string            `yaml:"group_id,omitempty"`    // For kafka-consume builtin
+	Offset      string            `yaml:"offset,omitempty"`      // For kafka-consume builtin
 	BaseDir     string            `yaml:"-"`                    // For relative path resolution in builtins
 	HandlerName string            `yaml:"-"`                    // Internal use only
 }
@@ -419,7 +425,7 @@ func (c *Config) Validate(mode RegistryMode) error {
 			h.Builtin != "" || len(h.Pipeline) > 0 || h.Script != "" || h.File != ""
 
 		// source builtins don't require a match condition
-		isSourceBuiltin := h.Builtin == "redis-subscribe" || h.Builtin == "mqtt-subscribe" || h.Builtin == "nats-subscribe"
+		isSourceBuiltin := h.Builtin == "redis-subscribe" || h.Builtin == "mqtt-subscribe" || h.Builtin == "nats-subscribe" || h.Builtin == "kafka-consume"
 
 		if !hasMatch && hasExecution && !isSourceBuiltin {
 			return fmt.Errorf("handler %q is missing a match condition (pattern, regex, jq, json_path, json_schema, template, binary, all, or any)", h.Name)
@@ -564,6 +570,8 @@ func (c *Config) Validate(mode RegistryMode) error {
 				NatsURL:     h.NatsURL,
 				Subject:     h.Subject,
 				Brokers:     h.Brokers,
+				GroupID:     h.GroupID,
+				Offset:      h.Offset,
 			}
 			if err := bh.Validate(tmpAction); err != nil {
 				return fmt.Errorf("handler %q: %w", h.Name, err)

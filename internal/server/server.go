@@ -1040,7 +1040,7 @@ func (s *Server) startSourceHandlers(ctx context.Context) {
 }
 
 func (s *Server) startSourceHandler(h handler.Handler, ctx context.Context) {
-	if (h.Builtin != "redis-subscribe" && h.Builtin != "mqtt-subscribe" && h.Builtin != "nats-subscribe") || s.registry.IsDisabled(h.Name) {
+	if (h.Builtin != "redis-subscribe" && h.Builtin != "mqtt-subscribe" && h.Builtin != "nats-subscribe" && h.Builtin != "kafka-consume") || s.registry.IsDisabled(h.Name) {
 		return
 	}
 
@@ -1057,6 +1057,9 @@ func (s *Server) startSourceHandler(h handler.Handler, ctx context.Context) {
 	sourceCtx, cancel := context.WithCancel(ctx)
 	s.sourceCancels[h.Name] = cancel
 
+	if s.opts.Verbose {
+		s.logf("✓ Starting source handler %q (%s)\n", h.Name, h.Builtin)
+	}
 	if h.Builtin == "redis-subscribe" {
 		if s.redisMgr == nil {
 			// Default to localhost if not configured
@@ -1075,6 +1078,8 @@ func (s *Server) startSourceHandler(h handler.Handler, ctx context.Context) {
 		go s.runMQTTSubscribe(sourceCtx, &handlerCopy)
 	} else if h.Builtin == "nats-subscribe" {
 		go s.runNATSSubscribe(sourceCtx, &handlerCopy)
+	} else if h.Builtin == "kafka-consume" {
+		go s.runKafkaConsume(sourceCtx, &handlerCopy)
 	}
 }
 
@@ -1386,15 +1391,117 @@ func (s *Server) handleMQTTMessage(h *handler.Handler, topic string, payload []b
 	}
 
 	// 2. Deliver message
-	if h.Topic != "" && h.Builtin != "mqtt-subscribe" {
-		// This branch handles cases where a target topic is specified for the WS broadcast
-		// But for mqtt-subscribe, h.Topic is the SOURCE topic.
-		// So we only use h.Topic as a TARGET if it's explicitly intended.
-		// Wait, in redis-subscribe, h.Topic is used as TARGET topic if present.
-		// But h.Channel is the source.
-		// For mqtt-subscribe, h.Topic is BOTH the source and potentially the target.
-		// To avoid confusion, let's say if h.Topic is set, we broadcast to that WS topic.
-		
+	s.deliverSourceMessage(h, tmplCtx, wsMsg)
+}
+
+func (s *Server) runKafkaConsume(ctx context.Context, h *handler.Handler) {
+	if s.opts.Verbose {
+		s.logf("  [source:%s] starting kafka-consume on %v topic %q group %q\n", h.Name, h.Brokers, h.Topic, h.GroupID)
+	}
+
+	baseInterval := 2 * time.Second
+	if h.ReconnectInterval != "" {
+		if d, err := time.ParseDuration(h.ReconnectInterval); err == nil {
+			baseInterval = d
+		}
+	}
+
+	attempt := 0
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		brokers := h.Brokers
+		if len(brokers) == 0 {
+			brokers = []string{"localhost:9092"}
+		}
+
+		err := s.kafkaMgr.Consume(ctx, brokers, h.Topic, h.GroupID, h.Offset, func(topic string, offset int64, key, payload []byte) {
+			s.handleKafkaMessage(h, topic, offset, key, payload)
+		})
+
+		if err == nil {
+			// Consumption is active or finished cleanly
+			return
+		}
+
+		s.errorf("  [source:%s] Kafka consumption error for %v: %v, retrying...\n", h.Name, brokers, err)
+		if h.OnErrorMsg != "" {
+			s.broadcastSourceError(h)
+		}
+
+		// Exponential backoff
+		attempt++
+		wait := baseInterval * time.Duration(1<<(uint(attempt-1)))
+		if wait > 30*time.Second {
+			wait = 30 * time.Second
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(wait):
+			continue
+		}
+	}
+}
+
+func (s *Server) handleKafkaMessage(h *handler.Handler, topic string, offset int64, key, payload []byte) {
+	if s.opts.Verbose {
+		s.logf("  [source:%s] received Kafka message on %q offset %d: %s\n", h.Name, topic, offset, string(payload))
+	}
+
+	tmplCtx := template.NewContext()
+	tmplCtx.Message = string(payload)
+	tmplCtx.MessageBytes = payload
+	tmplCtx.KafkaTopic = topic
+	tmplCtx.KafkaOffset = offset
+	tmplCtx.KafkaKey = string(key)
+	tmplCtx.Key = string(key)
+	tmplCtx.Source = "kafka"
+	tmplCtx.Vars["Message"] = string(payload)
+	tmplCtx.Vars["Source"] = "kafka"
+	tmplCtx.Vars["KafkaTopic"] = topic
+	tmplCtx.Vars["KafkaOffset"] = offset
+
+	// Add server context
+	uptime := s.GetUptime()
+	tmplCtx.Server = &template.ServerContext{
+		ClientCount:     s.GetClientCount(),
+		Clients:         s.GetClients(),
+		Uptime:          uptime,
+		UptimeFormatted: template.FormatUptime(uptime),
+	}
+
+	// 1. Transform message if respond: is set
+	processedPayload := string(payload)
+	if h.Respond != "" {
+		res, err := s.opts.TemplateEngine.Execute("respond", h.Respond, tmplCtx)
+		if err != nil {
+			s.errorf("  [source:%s] error rendering respond template: %v\n", h.Name, err)
+			return
+		}
+		processedPayload = res
+	}
+
+	wsMsg := &ws.Message{
+		Type: ws.TextMessage,
+		Data: []byte(processedPayload),
+		Metadata: ws.MessageMetadata{
+			Direction: "sent",
+			Timestamp: time.Now(),
+		},
+	}
+
+	// 2. Deliver message
+	s.deliverSourceMessage(h, tmplCtx, wsMsg)
+}
+
+func (s *Server) deliverSourceMessage(h *handler.Handler, tmplCtx *template.TemplateContext, wsMsg *ws.Message) {
+	if h.Topic != "" && h.Builtin != "mqtt-subscribe" && h.Builtin != "kafka-consume" {
 		topicName, err := s.opts.TemplateEngine.Execute("topic", h.Topic, tmplCtx)
 		if err != nil {
 			s.errorf("  [source:%s] error rendering topic template: %v\n", h.Name, err)

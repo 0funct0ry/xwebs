@@ -497,7 +497,7 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `--priority <n>`        | `-p`  | Execution priority (higher runs first)                                     |
 | `--run <cmd>`           | `-r`  | Shell command to execute on match                                          |
 | `--respond <tmpl>`      | `-R`  | Response template sent back to the client                                  |
-| `--builtin <name>`      | `-B`  | Builtin action: `subscribe`, `unsubscribe`, `publish`, `template`, `kv-*`, `sequence`, `redis-*`, `redis-publish`, `webhook-hmac`, `sse-forward`. |
+| `--builtin <name>`      | `-B`  | Builtin action: `subscribe`, `unsubscribe`, `publish`, `template`, `kv-*`, `sequence`, `redis-*`, `redis-publish`, `mqtt-*`, `nats-*`, `kafka-*`, `webhook-hmac`, `sse-forward`. |
 | `--topic <template>`    |       | Topic name template for builtin actions (required for `subscribe`, `unsubscribe`, `publish`) |
 | `--file <path>`         |       | Template file path for `template` builtin (can include template expressions) |
 | `--exclusive`           | `-e`  | Stop further handler matching after this one fires                         |
@@ -546,6 +546,11 @@ When started with `--interactive` (or `-i`), the server provides a dedicated set
 | `--event <template>`   |       | Event type template for `sse-forward` builtin                             |
 | `--on-no-consumers`    |       | Strategy when no consumers are connected (`drop` or `buffer`)              |
 | `--buffer-size <n>`    |       | Buffer size for `sse-forward` when strategy is `buffer`                   |
+| `--brokers <list>`     |       | List of Kafka brokers (comma-separated, supports templates)                |
+| `--group-id <id>`      |       | Kafka consumer group ID (for `kafka-consume`, supports templates)          |
+| `--offset <val>`       |       | Kafka start offset: `earliest` or `latest` (default `latest`)              |
+| `--nats-url <url>`     |       | NATS server URL (supports templates)                                      |
+| `--nats-subject <id>`  |       | NATS subject (supports templates)                                         |
 
 Example — add pub-sub handlers directly from the REPL:
 
@@ -618,6 +623,10 @@ Topics are created automatically when the first client subscribes and removed wh
 | `ab-test`     | Server | Routes messages to one of two handlers based on a deterministic hash of a message field. |
 | `sse-forward` | Server | Forwards WebSocket messages to a named SSE stream served at `/sse/<name>`. |
 | `shadow`      | Server | Forwards messages to another handler asynchronously and silently. |
+| `nats-publish` | Shared | Publishes a message to a NATS subject. |
+| `nats-subscribe` | Server | [Source] Subscribes to a NATS subject and injects messages into the pipeline. |
+| `kafka-produce` | Shared | Produces a message to a Kafka topic. |
+| `kafka-consume` | Server | [Source] Consumes from a Kafka topic and injects messages into the pipeline. |
 | `ollama-generate` | Shared | Sends a prompt to a local Ollama model and returns the response in `{{.OllamaReply}}`. |
 | `ollama-chat` | Shared | Maintains a per-connection chat history with an Ollama model; latest reply in `{{.OllamaReply}}`. |
 | `ollama-classify` | Shared | Categorizes a message into a set of labels using Ollama; result in `{{.Label}}` and `{{.Confidence}}`. |
@@ -2039,6 +2048,12 @@ The root context (`.`) available in templates provides access to connection, mes
 | `.RemoteAddr`| Remote client address (Server mode only)            | `{{ .RemoteAddr }}`         |
 | `.Session` | Persistent key-value store for the current session     | `{{ index .Session "id" }}` |
 | `.Env`     | Environment variables (if not sandboxed)               | `{{ .Env.PATH }}`           |
+| `.KafkaTopic`| Kafka topic of the incoming message (Kafka source)    | `{{ .KafkaTopic }}`         |
+| `.KafkaOffset`| Kafka offset of the incoming message (Kafka source)   | `{{ .KafkaOffset }}`        |
+| `.KafkaKey`   | Kafka key of the incoming message (Kafka source)      | `{{ .KafkaKey }}`           |
+| `.MqttTopic` | MQTT topic of the incoming message (MQTT source)      | `{{ .MqttTopic }}`          |
+| `.NatsSubject`| NATS subject of the incoming message (NATS source)    | `{{ .NatsSubject }}`        |
+| `.Key`        | General key for Kafka/MQTT messages                   | `{{ .Key }}`                |
 
 #### Context Management Functions
 

@@ -103,6 +103,7 @@ type NATSManager interface {
 
 type KafkaManager interface {
 	Produce(ctx context.Context, brokers []string, topic, key, message string) error
+	Consume(ctx context.Context, brokers []string, topic, groupID, offset string, callback func(topic string, offset int64, key, message []byte)) error
 	Close() error
 }
 

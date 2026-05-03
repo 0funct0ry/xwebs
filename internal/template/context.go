@@ -215,6 +215,12 @@ type TemplateContext struct {
 	// NATS Publish
 	NatsSubject string `json:"nats_subject,omitempty"`
 	NatsMessage string `json:"nats_message,omitempty"`
+
+	// Kafka Consume
+	KafkaTopic  string `json:"kafka_topic,omitempty"`
+	KafkaOffset int64  `json:"kafka_offset,omitempty"`
+	KafkaKey    string `json:"kafka_key,omitempty"`
+	Key         string `json:"key,omitempty"` // Convenience alias for Kafka/MQTT keys
 }
 
 // NewContext creates a new TemplateContext with initialized maps.

@@ -88,3 +88,29 @@ func (b *KafkaProduceBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Act
 
 	return nil
 }
+
+// KafkaConsumeBuiltin consumes messages from a Kafka topic.
+type KafkaConsumeBuiltin struct{}
+
+func (b *KafkaConsumeBuiltin) Name() string { return "kafka-consume" }
+func (b *KafkaConsumeBuiltin) Description() string {
+	return "Consume messages from a Kafka topic and broadcast them to WebSocket clients."
+}
+func (b *KafkaConsumeBuiltin) Scope() BuiltinScope { return ServerOnly }
+
+func (b *KafkaConsumeBuiltin) Validate(a Action) error {
+	if a.Topic == "" {
+		return fmt.Errorf("builtin kafka-consume missing topic")
+	}
+	if a.Offset != "" {
+		o := strings.ToLower(a.Offset)
+		if o != "earliest" && o != "latest" {
+			return fmt.Errorf("builtin kafka-consume: invalid offset %q (must be 'earliest' or 'latest')", a.Offset)
+		}
+	}
+	return nil
+}
+
+func (b *KafkaConsumeBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
+	return fmt.Errorf("builtin %q is a source action and cannot be executed in a reactive flow", b.Name())
+}

@@ -86,6 +86,7 @@ func init() {
 	MustRegister(&NATSPublishBuiltin{})
 	MustRegister(&NATSSubscribeBuiltin{})
 	MustRegister(&KafkaProduceBuiltin{})
+	MustRegister(&KafkaConsumeBuiltin{})
 }
 
 // SubscribeBuiltin subscribes the current connection to a pub/sub topic.

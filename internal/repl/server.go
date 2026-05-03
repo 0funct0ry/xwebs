@@ -709,7 +709,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("  -p, --priority <n>        Numeric priority (higher runs first)\n")
 				r.Printf("  -r, --run <cmd>           Shell command to run on match\n")
 				r.Printf("  -R, --respond <tmpl>      Response template to send back\n")
-				r.Printf("  -B, --builtin <name>      Builtin action (subscribe, unsubscribe, publish, forward, redis-subscribe, mqtt-subscribe, mqtt-publish, nats-subscribe, nats-publish, kafka-produce, ollama-classify, ollama-generate, ollama-chat, ollama-embed, openai-chat)\n")
+				r.Printf("  -B, --builtin <name>      Builtin action (subscribe, unsubscribe, publish, forward, redis-subscribe, mqtt-subscribe, mqtt-publish, nats-subscribe, nats-publish, kafka-produce, kafka-consume, ollama-classify, ollama-generate, ollama-chat, ollama-embed, openai-chat)\n")
 				r.Printf("      --topic <template>    Topic name template for builtin actions\n")
 				r.Printf("      --target <url>        Upstream target URL for 'forward' builtin\n")
 				r.Printf("  -M, --message <template>  Message template for broadcast or publish\n")
@@ -793,7 +793,9 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				r.Printf("      --retain              Set MQTT retain flag\n")
 				r.Printf("      --nats-url <url>      NATS server URL (default: nats://localhost:4222)\n")
 				r.Printf("      --nats-subject <name> NATS subject for 'nats-publish' or 'nats-subscribe'\n")
-				r.Printf("      --brokers <list>      Kafka brokers (comma-separated list) for 'kafka-produce'\n")
+				r.Printf("      --brokers <list>      Kafka brokers (comma-separated list) for 'kafka-produce' or 'kafka-consume'\n")
+				r.Printf("      --group-id <name>     Kafka consumer group ID for 'kafka-consume'\n")
+				r.Printf("      --offset <type>       Kafka start offset for 'kafka-consume' (earliest|latest)\n")
 				return nil
 			}
 
@@ -802,7 +804,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs := pflag.NewFlagSet("handler add", pflag.ContinueOnError)
 				fs.SetOutput(r.Stdout())
 
-				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue, field, handlerA, handlerB, channel, reconnectInterval, by, secret, query, gqlVariables, sseStream, event, id, onNoConsumers, status, model, prompt, ollamaURL, system, input, apiKey, apiURL, brokerURL, mqttTopic, qos, natsURL, natsSubject string
+				var name, match, matchType, run, respond, builtin, topic, message, target, rateLimit, debounce, onError, file, path, content, mode, rate, scope, onLimit, duration, max, code, reason, url, method, body, timeout, script, window, targets, pool, onEmpty, expect, onClosed, key, value, ttl, defaultValue, field, handlerA, handlerB, channel, reconnectInterval, by, secret, query, gqlVariables, sseStream, event, id, onNoConsumers, status, model, prompt, ollamaURL, system, input, apiKey, apiURL, brokerURL, mqttTopic, qos, natsURL, natsSubject, groupId, offset string
 				var ruleWhens, ruleResponds, responses, headers, labels, brokers []string
 				var priority, burst, maxMemory, split, bufferSize, maxHistory int
 				var exclusive, sequential, loop, perClient, stickyBroadcast, streamOllama, retain bool
@@ -899,6 +901,8 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 				fs.StringVar(&natsURL, "nats-url", "nats://localhost:4222", "NATS server URL")
 				fs.StringVar(&natsSubject, "nats-subject", "", "NATS subject")
 				fs.StringSliceVar(&brokers, "brokers", nil, "Kafka brokers")
+				fs.StringVar(&groupId, "group-id", "", "Kafka consumer group ID")
+				fs.StringVar(&offset, "offset", "latest", "Kafka start offset (earliest|latest)")
 
 				if err := fs.Parse(args[1:]); err != nil {
 					if errors.Is(err, pflag.ErrHelp) {
@@ -907,7 +911,7 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					return fmt.Errorf("parsing flags: %w", err)
 				}
 
-				if match == "" && builtin != "redis-subscribe" && builtin != "mqtt-subscribe" && builtin != "nats-subscribe" {
+				if match == "" && builtin != "redis-subscribe" && builtin != "mqtt-subscribe" && builtin != "nats-subscribe" && builtin != "kafka-consume" {
 					return fmt.Errorf("-m/--match is required")
 				}
 
@@ -1021,6 +1025,8 @@ func (r *REPL) RegisterServerCommands(sc ServerContext) {
 					NatsURL:           natsURL,
 					Subject:           natsSubject,
 					Brokers:           brokers,
+					GroupID:           groupId,
+					Offset:            offset,
 					Temperature: func() *float64 {
 						if fs.Changed("temperature") {
 							return &temperature

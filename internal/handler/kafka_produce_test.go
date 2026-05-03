@@ -18,6 +18,11 @@ func (m *mockKafkaManager) Produce(ctx context.Context, brokers []string, topic,
 	return args.Error(0)
 }
 
+func (m *mockKafkaManager) Consume(ctx context.Context, brokers []string, topic, groupID, offset string, callback func(topic string, offset int64, key, payload []byte)) error {
+	args := m.Called(ctx, brokers, topic, groupID, offset, callback)
+	return args.Error(0)
+}
+
 func (m *mockKafkaManager) Close() error {
 	return nil
 }
