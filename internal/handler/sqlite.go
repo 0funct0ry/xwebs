@@ -158,6 +158,23 @@ func (b *SQLiteBuiltin) Description() string {
 }
 func (b *SQLiteBuiltin) Scope() BuiltinScope { return Shared }
 
+func (b *SQLiteBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Execute a parameterized SQL statement against an embedded SQLite database.",
+		Fields: []BuiltinField{
+			{Name: "db", Type: "string", Required: true, Description: "Path to SQLite database file (supports templates)."},
+			{Name: "sql", Type: "string", Required: true, Description: "SQL statement to execute (supports templates)."},
+			{Name: "init", Type: "string", Required: false, Description: "Optional SQL to run once on first connection (e.g. DDL)."},
+		},
+		TemplateVars: map[string]string{
+			".Rows":     "Slice of maps containing query results",
+			".RowCount": "Number of rows affected or returned",
+		},
+		YAMLReplExample: "builtin: sqlite\ndb: 'messages.db'\ninit: 'CREATE TABLE IF NOT EXISTS msgs (data TEXT)'\nsql: 'INSERT INTO msgs (data) VALUES ({{.Message | quote}})'",
+		REPLAddExample:  ":handler add -m '*' --builtin sqlite --db 'data.db' --sql 'SELECT count(*) as total FROM users' -R 'Total users: {{index .Rows 0 \"total\"}}'",
+	}
+}
+
 func (b *SQLiteBuiltin) Validate(a Action) error {
 	if a.DB == "" {
 		return fmt.Errorf("builtin sqlite: missing 'db'")

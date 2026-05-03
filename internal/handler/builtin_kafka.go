@@ -18,6 +18,20 @@ func (b *KafkaProduceBuiltin) Description() string {
 }
 func (b *KafkaProduceBuiltin) Scope() BuiltinScope { return Shared }
 
+func (b *KafkaProduceBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Produce a message to a Kafka topic.",
+		Fields: []BuiltinField{
+			{Name: "brokers", Type: "[]string", Required: false, Description: "Kafka brokers (default: localhost:9092)."},
+			{Name: "topic", Type: "string", Required: true, Description: "Kafka topic (supports templates)."},
+			{Name: "message", Type: "string", Required: true, Description: "Message content (supports templates)."},
+			{Name: "key", Type: "string", Required: false, Description: "Message key (supports templates)."},
+		},
+		YAMLReplExample: "builtin: kafka-produce\nbrokers: ['localhost:9092']\ntopic: 'logs.web'\nmessage: '{{.Message}}'",
+		REPLAddExample:  ":handler add -m '*' --builtin kafka-produce --topic 'events' --message '{{.Message}}'",
+	}
+}
+
 func (b *KafkaProduceBuiltin) Validate(a Action) error {
 	if a.Topic == "" {
 		return fmt.Errorf("builtin kafka-produce missing topic")
@@ -97,6 +111,20 @@ func (b *KafkaConsumeBuiltin) Description() string {
 	return "Consume messages from a Kafka topic and broadcast them to WebSocket clients."
 }
 func (b *KafkaConsumeBuiltin) Scope() BuiltinScope { return ServerOnly }
+
+func (b *KafkaConsumeBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Consume messages from a Kafka topic and broadcast them to WebSocket clients.",
+		Fields: []BuiltinField{
+			{Name: "brokers", Type: "[]string", Required: false, Description: "Kafka brokers (default: localhost:9092)."},
+			{Name: "topic", Type: "string", Required: true, Description: "Kafka topic (supports templates)."},
+			{Name: "group_id", Type: "string", Required: false, Description: "Consumer group ID."},
+			{Name: "offset", Type: "string", Default: "latest", Required: false, Description: "earliest | latest"},
+		},
+		YAMLReplExample: "- builtin: kafka-consume\n  topic: 'orders'\n  respond: '{\"source\":\"kafka\",\"order\":{{.Message}}}'",
+		REPLAddExample:  ":handler add --builtin kafka-consume --topic 'alerts'",
+	}
+}
 
 func (b *KafkaConsumeBuiltin) Validate(a Action) error {
 	if a.Topic == "" {

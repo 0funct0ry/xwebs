@@ -32,11 +32,36 @@ const (
 	ServerOnly BuiltinScope = "ServerOnly"
 )
 
+// BuiltinField defines a single configuration field for a builtin action.
+type BuiltinField struct {
+	Name        string `json:"name"`
+	Type        string `json:"type"`
+	Default     string `json:"default,omitempty"`
+	Required    bool   `json:"required"`
+	Description string `json:"description"`
+}
+
+// BuiltinHelp contains detailed documentation and examples for a builtin action.
+type BuiltinHelp struct {
+	Description     string            `json:"description"`
+	Fields          []BuiltinField    `json:"fields,omitempty"`
+	TemplateVars    map[string]string `json:"template_vars,omitempty"`
+	YAMLReplExample string            `json:"yaml_example,omitempty"`
+	REPLAddExample  string            `json:"repl_example,omitempty"`
+}
+
+// DocumentedBuiltin is an optional interface for builtins that provide rich documentation.
+type DocumentedBuiltin interface {
+	BuiltinHandler
+	Help() BuiltinHelp
+}
+
 // BuiltinMetadata contains documentation and scoping for a builtin action.
 type BuiltinMetadata struct {
-	Name        string
-	Description string
-	Scope       BuiltinScope
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Scope       BuiltinScope   `json:"scope"`
+	Fields      []BuiltinField `json:"fields,omitempty"`
 }
 
 // BuiltinHandler defines the interface for all built-in actions.
@@ -103,6 +128,11 @@ func ListBuiltins(mode RegistryMode) []BuiltinMetadata {
 			Name:        h.Name(),
 			Description: h.Description(),
 			Scope:       h.Scope(),
+		}
+
+		if db, ok := h.(DocumentedBuiltin); ok {
+			help := db.Help()
+			m.Fields = help.Fields
 		}
 
 		allowed := false

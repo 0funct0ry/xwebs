@@ -23,6 +23,21 @@ func (b *ForwardBuiltin) Description() string {
 }
 func (b *ForwardBuiltin) Scope() BuiltinScope { return ServerOnly }
 
+func (b *ForwardBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Relay the incoming message to another WebSocket endpoint and capture the reply.",
+		Fields: []BuiltinField{
+			{Name: "target", Type: "string", Required: true, Description: "Upstream WebSocket URL (supports templates)."},
+			{Name: "timeout", Type: "string", Default: "30s", Required: false, Description: "Time to wait for upstream response."},
+		},
+		TemplateVars: map[string]string{
+			".ForwardReply": "Captured response body from upstream",
+		},
+		YAMLReplExample: "builtin: forward\ntarget: 'ws://echo.websocket.org'\nrespond: 'Relayed: {{.ForwardReply}}'",
+		REPLAddExample:  ":handler add -m '*' --builtin forward --target 'ws://echo.websocket.org' -R 'Echo: {{.ForwardReply}}'",
+	}
+}
+
 func (b *ForwardBuiltin) Validate(a Action) error {
 	if a.Target == "" {
 		return fmt.Errorf("builtin forward missing target")

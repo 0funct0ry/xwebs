@@ -41,6 +41,13 @@ const (
 	ServerMode
 )
 
+func (m Mode) String() string {
+	if m == ServerMode {
+		return "server"
+	}
+	return "client"
+}
+
 // REPL is the core engine for interactive CLI handling.
 type REPL struct {
 	mode          Mode

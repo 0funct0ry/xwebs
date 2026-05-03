@@ -105,6 +105,17 @@ func (b *SubscribeBuiltin) Validate(a Action) error {
 	return nil
 }
 
+func (b *SubscribeBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Subscribe the current connection to a pub/sub topic.",
+		Fields: []BuiltinField{
+			{Name: "topic", Type: "string", Required: true, Description: "Topic name (supports templates)."},
+		},
+		YAMLReplExample: "builtin: subscribe\ntopic: updates",
+		REPLAddExample:  ":handler add -m '*' --builtin subscribe --topic updates",
+	}
+}
+
 func (b *SubscribeBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
 	if d.topicManager == nil {
 		return fmt.Errorf("builtin subscribe: topic manager not available")
@@ -132,6 +143,17 @@ func (b *UnsubscribeBuiltin) Description() string {
 	return "Unsubscribe the current connection from a pub/sub topic."
 }
 func (b *UnsubscribeBuiltin) Scope() BuiltinScope { return ServerOnly }
+
+func (b *UnsubscribeBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Unsubscribe the current connection from a pub/sub topic.",
+		Fields: []BuiltinField{
+			{Name: "topic", Type: "string", Required: true, Description: "Topic name (supports templates)."},
+		},
+		YAMLReplExample: "builtin: unsubscribe\ntopic: updates",
+		REPLAddExample:  ":handler add --builtin unsubscribe --topic updates",
+	}
+}
 
 func (b *UnsubscribeBuiltin) Validate(a Action) error {
 	if a.Topic == "" {
@@ -165,6 +187,18 @@ type PublishBuiltin struct{}
 func (b *PublishBuiltin) Name() string        { return "publish" }
 func (b *PublishBuiltin) Description() string { return "Publish a message to a pub/sub topic." }
 func (b *PublishBuiltin) Scope() BuiltinScope { return ServerOnly }
+
+func (b *PublishBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Publish a message to a pub/sub topic.",
+		Fields: []BuiltinField{
+			{Name: "topic", Type: "string", Required: true, Description: "Topic name (supports templates)."},
+			{Name: "message", Type: "string", Required: true, Description: "Message to publish (supports templates)."},
+		},
+		YAMLReplExample: "builtin: publish\ntopic: updates\nmessage: 'New data: {{.Message}}'",
+		REPLAddExample:  ":handler add -m 'broadcast *' --builtin publish --topic updates --message '{{.Message}}'",
+	}
+}
 
 func (b *PublishBuiltin) Validate(a Action) error {
 	if a.Topic == "" {
@@ -233,6 +267,19 @@ func (b *KVSetBuiltin) Validate(a Action) error {
 	return nil
 }
 
+func (b *KVSetBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Store a value in the server's shared key-value store.",
+		Fields: []BuiltinField{
+			{Name: "key", Type: "string", Required: true, Description: "Key (supports templates)."},
+			{Name: "value", Type: "string", Required: true, Description: "Value (supports templates)."},
+			{Name: "ttl", Type: "string", Required: false, Description: "TTL duration (e.g. 1h, 30s)."},
+		},
+		YAMLReplExample: "builtin: kv-set\nkey: 'user:{{.ConnID}}'\nvalue: 'online'\nttl: 5m",
+		REPLAddExample:  ":handler add -m '*' --builtin kv-set --key 'user:{{.ConnID}}' --value 'online' --ttl 5m",
+	}
+}
+
 func (b *KVSetBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
 	if d.kvManager == nil {
 		return fmt.Errorf("builtin kv-set: kv manager not available")
@@ -276,6 +323,19 @@ func (b *RedisSetBuiltin) Description() string {
 	return "Store a key-value pair in Redis with optional TTL."
 }
 func (b *RedisSetBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *RedisSetBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Store a key-value pair in Redis with optional TTL.",
+		Fields: []BuiltinField{
+			{Name: "key", Type: "string", Required: true, Description: "Redis key (supports templates)."},
+			{Name: "value", Type: "string", Required: true, Description: "Value to store (supports templates)."},
+			{Name: "ttl", Type: "duration", Required: false, Description: "Optional expiration time (e.g. 1h)."},
+		},
+		YAMLReplExample: "builtin: redis-set\nkey: 'user:{{.ConnectionID}}'\nvalue: '{{.Message}}'\nttl: 24h",
+		REPLAddExample:  ":handler add -m 'save *' --builtin redis-set --key 'data' --value '{{.Message}}'",
+	}
+}
 
 func (b *RedisSetBuiltin) Validate(a Action) error {
 	if a.Key == "" {
@@ -334,6 +394,20 @@ func (b *RedisGetBuiltin) Description() string {
 }
 func (b *RedisGetBuiltin) Scope() BuiltinScope { return Shared }
 
+func (b *RedisGetBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Fetch a value from Redis and store it in .RedisValue.",
+		Fields: []BuiltinField{
+			{Name: "key", Type: "string", Required: true, Description: "Redis key (supports templates)."},
+		},
+		TemplateVars: map[string]string{
+			".RedisValue": "The value fetched from Redis.",
+		},
+		YAMLReplExample: "builtin: redis-get\nkey: 'config:global'\nrespond: 'Current config: {{.RedisValue}}'",
+		REPLAddExample:  ":handler add -m 'get *' --builtin redis-get --key '{{.Message}}' -R 'Value: {{.RedisValue}}'",
+	}
+}
+
 func (b *RedisGetBuiltin) Validate(a Action) error {
 	if a.Key == "" {
 		return fmt.Errorf("builtin redis-get missing key")
@@ -386,6 +460,17 @@ func (b *RedisDelBuiltin) Name() string        { return "redis-del" }
 func (b *RedisDelBuiltin) Description() string { return "Delete a key from Redis." }
 func (b *RedisDelBuiltin) Scope() BuiltinScope { return Shared }
 
+func (b *RedisDelBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Delete a key from Redis.",
+		Fields: []BuiltinField{
+			{Name: "key", Type: "string", Required: true, Description: "Redis key (supports templates)."},
+		},
+		YAMLReplExample: "builtin: redis-del\nkey: 'session:{{.ConnectionID}}'",
+		REPLAddExample:  ":handler add -m 'clear' --builtin redis-del --key 'cache'",
+	}
+}
+
 func (b *RedisDelBuiltin) Validate(a Action) error {
 	if a.Key == "" {
 		return fmt.Errorf("builtin redis-del missing key")
@@ -421,6 +506,18 @@ func (b *RedisPublishBuiltin) Description() string {
 	return "Publish a message to a Redis Pub/Sub channel."
 }
 func (b *RedisPublishBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *RedisPublishBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Publish a message to a Redis Pub/Sub channel.",
+		Fields: []BuiltinField{
+			{Name: "channel", Type: "string", Required: true, Description: "Redis channel (supports templates)."},
+			{Name: "message", Type: "string", Required: true, Description: "Message to publish (supports templates)."},
+		},
+		YAMLReplExample: "builtin: redis-publish\nchannel: 'events'\nmessage: '{{.Message}}'",
+		REPLAddExample:  ":handler add -m 'notify *' --builtin redis-publish --channel 'alerts' --message '{{.Message}}'",
+	}
+}
  
 func (b *RedisPublishBuiltin) Validate(a Action) error {
 	if a.Channel == "" {
@@ -465,6 +562,18 @@ func (b *RedisLPushBuiltin) Description() string {
 }
 func (b *RedisLPushBuiltin) Scope() BuiltinScope { return Shared }
 
+func (b *RedisLPushBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Push a value onto the left of a Redis list.",
+		Fields: []BuiltinField{
+			{Name: "key", Type: "string", Required: true, Description: "Redis list key (supports templates)."},
+			{Name: "value", Type: "string", Required: true, Description: "Value to push (supports templates)."},
+		},
+		YAMLReplExample: "builtin: redis-lpush\nkey: 'history'\nvalue: '{{.Message}}'",
+		REPLAddExample:  ":handler add -m 'log *' --builtin redis-lpush --key 'audit' --value '{{.Message}}'",
+	}
+}
+
 func (b *RedisLPushBuiltin) Validate(a Action) error {
 	if a.Key == "" {
 		return fmt.Errorf("builtin redis-lpush missing key")
@@ -507,6 +616,20 @@ func (b *RedisRPopBuiltin) Description() string {
 	return "Pop a value from the right of a Redis list into .RedisValue."
 }
 func (b *RedisRPopBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *RedisRPopBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Pop a value from the right of a Redis list into .RedisValue.",
+		Fields: []BuiltinField{
+			{Name: "key", Type: "string", Required: true, Description: "Redis list key (supports templates)."},
+		},
+		TemplateVars: map[string]string{
+			".RedisValue": "The value popped from Redis.",
+		},
+		YAMLReplExample: "builtin: redis-rpop\nkey: 'queue'\nrespond: 'Processing: {{.RedisValue}}'",
+		REPLAddExample:  ":handler add -m 'next' --builtin redis-rpop --key 'work' -R 'Task: {{.RedisValue}}'",
+	}
+}
 
 func (b *RedisRPopBuiltin) Validate(a Action) error {
 	if a.Key == "" {
@@ -562,6 +685,21 @@ func (b *RedisIncrBuiltin) Description() string {
 }
 func (b *RedisIncrBuiltin) Scope() BuiltinScope { return Shared }
 
+func (b *RedisIncrBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Atomically increment a Redis key by 1 or by a specified value.",
+		Fields: []BuiltinField{
+			{Name: "key", Type: "string", Required: true, Description: "Redis key (supports templates)."},
+			{Name: "by", Type: "int", Default: "1", Required: false, Description: "Increment amount."},
+		},
+		TemplateVars: map[string]string{
+			".RedisValue": "The new value after increment.",
+		},
+		YAMLReplExample: "builtin: redis-incr\nkey: 'counter:{{.Message}}'\nby: 5",
+		REPLAddExample:  ":handler add -m 'hits' --builtin redis-incr --key 'total_hits'",
+	}
+}
+
 func (b *RedisIncrBuiltin) Validate(a Action) error {
 	if a.Key == "" {
 		return fmt.Errorf("builtin redis-incr missing key")
@@ -615,6 +753,17 @@ func (b *RedisSubscribeBuiltin) Description() string {
 }
 func (b *RedisSubscribeBuiltin) Scope() BuiltinScope { return ServerOnly }
 
+func (b *RedisSubscribeBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Subscribe to a Redis channel and deliver messages to WebSocket clients.",
+		Fields: []BuiltinField{
+			{Name: "channel", Type: "string", Required: true, Description: "Redis channel (supports templates)."},
+		},
+		YAMLReplExample: "- builtin: redis-subscribe\n  channel: 'broadcast'\n  respond: '{\"source\":\"redis\",\"data\":{{.Message}}}'",
+		REPLAddExample:  ":handler add --builtin redis-subscribe --channel 'live-updates'",
+	}
+}
+
 func (b *RedisSubscribeBuiltin) Validate(a Action) error {
 	if a.Channel == "" {
 		return fmt.Errorf("builtin redis-subscribe missing channel")
@@ -640,6 +789,20 @@ func (b *KVGetBuiltin) Description() string {
 	return "Retrieve a value from the server's shared key-value store into .KvValue."
 }
 func (b *KVGetBuiltin) Scope() BuiltinScope { return ServerOnly }
+
+func (b *KVGetBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Retrieve a value from the server's shared key-value store.",
+		Fields: []BuiltinField{
+			{Name: "key", Type: "string", Required: true, Description: "KV key (supports templates)."},
+		},
+		TemplateVars: map[string]string{
+			".KVValue": "The value retrieved from KV store.",
+		},
+		YAMLReplExample: "builtin: kv-get\nkey: 'user:{{.ConnectionID}}'\nrespond: 'Hello {{.KVValue}}'",
+		REPLAddExample:  ":handler add -m 'whoami' --builtin kv-get --key 'user:{{.ConnectionID}}'",
+	}
+}
 
 func (b *KVGetBuiltin) Validate(a Action) error {
 	if a.Key == "" {
@@ -685,6 +848,17 @@ func (b *KVDelBuiltin) Description() string {
 }
 func (b *KVDelBuiltin) Scope() BuiltinScope { return ServerOnly }
 
+func (b *KVDelBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Delete a key from the server's shared key-value store.",
+		Fields: []BuiltinField{
+			{Name: "key", Type: "string", Required: true, Description: "KV key (supports templates)."},
+		},
+		YAMLReplExample: "builtin: kv-del\nkey: 'temp:{{.ConnectionID}}'",
+		REPLAddExample:  ":handler add -m 'logout' --builtin kv-del --key 'session:{{.ConnectionID}}'",
+	}
+}
+
 func (b *KVDelBuiltin) Validate(a Action) error {
 	if a.Key == "" {
 		return fmt.Errorf("builtin kv-del missing key")
@@ -717,6 +891,17 @@ func (b *KVListBuiltin) Description() string {
 }
 func (b *KVListBuiltin) Scope() BuiltinScope { return ServerOnly }
 
+func (b *KVListBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Retrieve all keys from the server's shared key-value store.",
+		TemplateVars: map[string]string{
+			".KV": "Map of all key-value pairs.",
+		},
+		YAMLReplExample: "builtin: kv-list\nrespond: 'All keys: {{range $k, $v := .KV}}{{$k}}, {{end}}'",
+		REPLAddExample:  ":handler add -m 'list' --builtin kv-list",
+	}
+}
+
 func (b *KVListBuiltin) Validate(a Action) error { return nil }
 
 func (b *KVListBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
@@ -746,6 +931,18 @@ func (b *GateBuiltin) Description() string {
 	return "Check a KV key against an expected value. Drops message if they don't match."
 }
 func (b *GateBuiltin) Scope() BuiltinScope { return ServerOnly }
+
+func (b *GateBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Check a KV key against an expected value. Drops message if it doesn't match.",
+		Fields: []BuiltinField{
+			{Name: "key", Type: "string", Required: true, Description: "KV key to check."},
+			{Name: "value", Type: "string", Required: true, Description: "Expected value (supports templates)."},
+		},
+		YAMLReplExample: "builtin: gate\nkey: 'maintenance_mode'\nvalue: 'false'",
+		REPLAddExample:  ":handler add -m '*' --builtin gate --key 'allow_chat' --value 'true'",
+	}
+}
 
 func (b *GateBuiltin) Validate(a Action) error {
 	if a.Key == "" {
@@ -818,6 +1015,14 @@ func (b *NoopBuiltin) Description() string {
 }
 func (b *NoopBuiltin) Scope() BuiltinScope { return Shared }
 
+func (b *NoopBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "A shared builtin that does nothing (useful for testing or disabling actions).",
+		YAMLReplExample: "builtin: noop",
+		REPLAddExample:  ":handler add --builtin noop",
+	}
+}
+
 func (b *NoopBuiltin) Validate(a Action) error { return nil }
 
 func (b *NoopBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
@@ -833,6 +1038,14 @@ type EchoBuiltin struct{}
 func (b *EchoBuiltin) Name() string        { return "echo" }
 func (b *EchoBuiltin) Description() string { return "Reflect the incoming message back to the sender." }
 func (b *EchoBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *EchoBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description:     "Reflect the current message back to the sender.",
+		YAMLReplExample: "builtin: echo",
+		REPLAddExample:  ":handler add -m '*' --builtin echo",
+	}
+}
 
 func (b *EchoBuiltin) Validate(a Action) error { return nil }
 
@@ -872,6 +1085,17 @@ type BroadcastBuiltin struct{}
 func (b *BroadcastBuiltin) Name() string        { return "broadcast" }
 func (b *BroadcastBuiltin) Description() string { return "Send a message to all connected clients." }
 func (b *BroadcastBuiltin) Scope() BuiltinScope { return ServerOnly }
+
+func (b *BroadcastBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Fan-out a message to all connected clients.",
+		Fields: []BuiltinField{
+			{Name: "message", Type: "string", Required: true, Description: "Message content (supports templates)."},
+		},
+		YAMLReplExample: "builtin: broadcast\nmessage: 'Hello everyone!'",
+		REPLAddExample:  ":handler add -m 'announce *' --builtin broadcast --message 'System: {{.Matches.0}}'",
+	}
+}
 
 func (b *BroadcastBuiltin) Validate(a Action) error {
 	return nil // message or respond is optional; defaults to incoming message
@@ -938,6 +1162,17 @@ func (b *BroadcastOthersBuiltin) Description() string {
 }
 func (b *BroadcastOthersBuiltin) Scope() BuiltinScope { return ServerOnly }
 
+func (b *BroadcastOthersBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Fan-out a message to all connected clients except the sender.",
+		Fields: []BuiltinField{
+			{Name: "message", Type: "string", Required: true, Description: "Message content (supports templates)."},
+		},
+		YAMLReplExample: "builtin: broadcast-others\nmessage: '{{.ConnID}} joined the chat'",
+		REPLAddExample:  ":handler add -m '*' --builtin broadcast-others --message 'User {{.ConnID}} says: {{.Message}}'",
+	}
+}
+
 func (b *BroadcastOthersBuiltin) Validate(a Action) error { return nil }
 
 func (b *BroadcastOthersBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
@@ -1003,6 +1238,17 @@ func (b *SequenceBuiltin) Name() string        { return "sequence" }
 func (b *SequenceBuiltin) Description() string { return "Cycle through a list of responses in order." }
 func (b *SequenceBuiltin) Scope() BuiltinScope { return Shared }
 
+func (b *SequenceBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Cycle through a list of responses in order.",
+		Fields: []BuiltinField{
+			{Name: "responses", Type: "[]string", Required: true, Description: "List of response templates to cycle through."},
+		},
+		YAMLReplExample: "builtin: sequence\nresponses:\n  - 'First response'\n  - 'Second response'\n  - 'Third response'",
+		REPLAddExample:  ":handler add -m 'ping' --builtin sequence --responses 'pong,pang,pung'",
+	}
+}
+
 func (b *SequenceBuiltin) Validate(a Action) error {
 	if len(a.Responses) == 0 {
 		return fmt.Errorf("builtin sequence: responses list is required and cannot be empty")
@@ -1046,6 +1292,17 @@ func (b *TemplateBuiltin) Description() string {
 	return "Render a response from an external template file."
 }
 func (b *TemplateBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *TemplateBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Render a response from an external template file.",
+		Fields: []BuiltinField{
+			{Name: "path", Type: "string", Required: true, Description: "Path to the .tmpl file."},
+		},
+		YAMLReplExample: "builtin: template\npath: 'templates/welcome.tmpl'",
+		REPLAddExample:  ":handler add -m '*' --builtin template --path 'msg.tmpl'",
+	}
+}
 
 func (b *TemplateBuiltin) Validate(a Action) error {
 	if a.File == "" {
@@ -1109,6 +1366,17 @@ func (b *FileSendBuiltin) Description() string {
 	return "Send the contents of a local file as a WebSocket message."
 }
 func (b *FileSendBuiltin) Scope() BuiltinScope { return ClientOnly }
+
+func (b *FileSendBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Read a file from disk and send its contents as a message.",
+		Fields: []BuiltinField{
+			{Name: "path", Type: "string", Required: true, Description: "Path to the file (supports templates)."},
+		},
+		YAMLReplExample: "builtin: file-send\npath: 'responses/{{.Message}}.json'",
+		REPLAddExample:  ":handler add -m 'read *' --builtin file-send --path 'data/{{.Message}}.txt'",
+	}
+}
 
 func (b *FileSendBuiltin) Validate(a Action) error {
 	if a.File == "" {
@@ -1179,6 +1447,19 @@ func (b *FileWriteBuiltin) Description() string {
 	return "Write the message or a template-rendered variant to a file."
 }
 func (b *FileWriteBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *FileWriteBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Write the message or a template-rendered variant to a file.",
+		Fields: []BuiltinField{
+			{Name: "path", Type: "string", Required: true, Description: "Path to the output file (supports templates)."},
+			{Name: "append", Type: "bool", Default: "false", Required: false, Description: "Append to file instead of overwriting."},
+			{Name: "body", Type: "string", Required: false, Description: "Content to write (defaults to raw message)."},
+		},
+		YAMLReplExample: "builtin: file-write\npath: 'logs/incoming.log'\nappend: true\nbody: '{{now}}: {{.Message}}\n'",
+		REPLAddExample:  ":handler add -m '*' --builtin file-write --path 'data.txt' --append",
+	}
+}
 
 func (b *FileWriteBuiltin) Validate(a Action) error {
 	if a.Path == "" {
@@ -1276,6 +1557,26 @@ func (b *RateLimitBuiltin) Validate(a Action) error {
 		}
 	}
 	return nil
+}
+
+func (b *RateLimitBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Enforce a per-client, global, or handler-level message rate.",
+		Fields: []BuiltinField{
+			{Name: "rate", Type: "string", Required: true, Description: "Token rate: N/s, N/m, N/h. Supports templates."},
+			{Name: "burst", Type: "int", Required: false, Description: "Max burst size (default: N from rate)."},
+			{Name: "scope", Type: "string", Default: "client", Required: false, Description: "client | global | handler"},
+			{Name: "on_limit", Type: "tmpl", Required: false, Description: "Response on limit exceeded. Omit to drop silently."},
+		},
+		TemplateVars: map[string]string{
+			".RetryAfter":   "seconds until next token (float64)",
+			".RetryAfterMs": "milliseconds until next token (int)",
+			".RateLimit":    "configured rate string",
+			".LimitScope":   "effective scope",
+		},
+		YAMLReplExample: "- name: api-throttle\n  match: { jq: '.type == \"query\"' }\n  builtin: rate-limit\n  rate: 10/s\n  scope: client\n  on_limit: '{\"error\":\"rate_limited\",\"retry_after\":{{.RetryAfter}}}'",
+		REPLAddExample:  ":handler add -m '.type == \"query\"' --builtin rate-limit --rate 10/s --scope client --on-limit '{\"error\":\"rate_limited\"}'",
+	}
 }
 
 func (b *RateLimitBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
@@ -1395,6 +1696,18 @@ func (b *DelayBuiltin) Validate(a Action) error {
 	return nil
 }
 
+func (b *DelayBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Pause handler execution for a configurable duration before sending a response.",
+		Fields: []BuiltinField{
+			{Name: "duration", Type: "string", Required: true, Description: "Duration to pause (supports templates, e.g. 500ms, 1s)."},
+			{Name: "max", Type: "string", Required: false, Description: "Hard cap on duration (e.g. 5s)."},
+		},
+		YAMLReplExample: "builtin: delay\nduration: 1s",
+		REPLAddExample:  ":handler add -m '*' --builtin delay --duration 1s",
+	}
+}
+
 func (b *DelayBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
 	// 1. Render the duration field (may be a template expression)
 	durStr, err := d.templateEngine.Execute("delay-duration", a.Duration, tmplCtx)
@@ -1452,6 +1765,14 @@ func (b *DropBuiltin) Description() string {
 }
 func (b *DropBuiltin) Scope() BuiltinScope { return Shared }
 
+func (b *DropBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description:     "Silently discard a message and stop further handler execution.",
+		YAMLReplExample: "builtin: drop",
+		REPLAddExample:  ":handler add -m 'ignore me' --builtin drop",
+	}
+}
+
 func (b *DropBuiltin) Validate(a Action) error { return nil }
 
 func (b *DropBuiltin) Execute(ctx context.Context, d *Dispatcher, a *Action, tmplCtx *template.TemplateContext) error {
@@ -1469,6 +1790,18 @@ func (b *CloseBuiltin) Description() string {
 	return "Terminate the connection with an optional code and reason."
 }
 func (b *CloseBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *CloseBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Close the current WebSocket connection.",
+		Fields: []BuiltinField{
+			{Name: "code", Type: "int", Required: false, Description: "WebSocket close code (default: 1000)."},
+			{Name: "reason", Type: "string", Required: false, Description: "Close reason (supports templates)."},
+		},
+		YAMLReplExample: "builtin: close\ncode: 1001\nreason: 'Going away'",
+		REPLAddExample:  ":handler add -m 'bye' --builtin close --reason 'User requested exit'",
+	}
+}
 
 func (b *CloseBuiltin) Validate(a Action) error { return nil }
 
@@ -1508,6 +1841,24 @@ func (b *HttpBuiltin) Description() string {
 	return "Make an outbound HTTP request."
 }
 func (b *HttpBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *HttpBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Make an outbound HTTP request.",
+		Fields: []BuiltinField{
+			{Name: "url", Type: "string", Required: true, Description: "Target URL (supports templates)."},
+			{Name: "method", Type: "string", Default: "GET", Required: false, Description: "HTTP method (GET, POST, etc.)."},
+			{Name: "headers", Type: "map", Required: false, Description: "Custom HTTP headers."},
+			{Name: "body", Type: "string", Required: false, Description: "Request body (supports templates)."},
+		},
+		TemplateVars: map[string]string{
+			".HttpResponse": "Raw body of the HTTP response.",
+			".HttpStatus":   "HTTP status code (int).",
+		},
+		YAMLReplExample: "builtin: http\nurl: 'https://api.example.com/data'\nmethod: POST\nbody: '{\"input\":\"{{.Message}}\"}'\nrespond: 'API says: {{.HttpResponse}}'",
+		REPLAddExample:  ":handler add -m 'check' --builtin http --url 'https://status.io/api' -R 'Status: {{.HttpResponse}}'",
+	}
+}
 
 func (b *HttpBuiltin) Validate(a Action) error {
 	if a.URL == "" {
@@ -1683,6 +2034,23 @@ func (b *OllamaGenerateBuiltin) Description() string {
 }
 func (b *OllamaGenerateBuiltin) Scope() BuiltinScope { return Shared }
 
+func (b *OllamaGenerateBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Send a prompt to a local Ollama model and return the generated text.",
+		Fields: []BuiltinField{
+			{Name: "model", Type: "string", Default: "llama2", Required: false, Description: "Ollama model name."},
+			{Name: "prompt", Type: "string", Required: true, Description: "The prompt to send (supports templates)."},
+			{Name: "system", Type: "string", Required: false, Description: "System prompt for the model."},
+			{Name: "options", Type: "map", Required: false, Description: "Model parameters (temperature, num_predict, etc.)."},
+		},
+		TemplateVars: map[string]string{
+			".OllamaResponse": "The generated text from Ollama.",
+		},
+		YAMLReplExample: "builtin: ollama-generate\nmodel: mistral\nprompt: 'Summarize this: {{.Message}}'",
+		REPLAddExample:  ":handler add -m 'ask *' --builtin ollama-generate --model mistral --prompt '{{.Message}}' -R '{{.OllamaResponse}}'",
+	}
+}
+
 func (b *OllamaGenerateBuiltin) Validate(a Action) error {
 	if a.Model == "" {
 		return fmt.Errorf("builtin ollama-generate missing model")
@@ -1841,6 +2209,22 @@ func (b *OllamaChatBuiltin) Description() string {
 	return "Maintain a per-connection chat history and send the next message to Ollama."
 }
 func (b *OllamaChatBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *OllamaChatBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Maintain a per-connection chat history and send the next message to Ollama.",
+		Fields: []BuiltinField{
+			{Name: "model", Type: "string", Default: "llama2", Required: false, Description: "Ollama model name."},
+			{Name: "system", Type: "string", Required: false, Description: "System prompt for the conversation."},
+			{Name: "max_history", Type: "int", Default: "10", Required: false, Description: "Number of past messages to retain."},
+		},
+		TemplateVars: map[string]string{
+			".OllamaResponse": "The AI's response message.",
+		},
+		YAMLReplExample: "builtin: ollama-chat\nmodel: gemma\nsystem: 'You are a helpful assistant.'\nmax_history: 20",
+		REPLAddExample:  ":handler add -m '*' --builtin ollama-chat --model gemma -R '{{.OllamaResponse}}'",
+	}
+}
 
 func (b *OllamaChatBuiltin) Validate(a Action) error {
 	if a.Model == "" {
@@ -2044,6 +2428,24 @@ func (b *OpenAIChatBuiltin) Description() string {
 	return "Maintain a per-connection chat history and send the next message to an OpenAI-compatible API."
 }
 func (b *OpenAIChatBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *OpenAIChatBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Maintain a per-connection chat history and send the next message to an OpenAI-compatible API.",
+		Fields: []BuiltinField{
+			{Name: "model", Type: "string", Default: "gpt-3.5-turbo", Required: false, Description: "Model ID."},
+			{Name: "api_key", Type: "string", Required: true, Description: "OpenAI API Key (or env var OPENAI_API_KEY)."},
+			{Name: "api_url", Type: "string", Default: "https://api.openai.com/v1", Required: false, Description: "Base URL for the API."},
+			{Name: "system", Type: "string", Required: false, Description: "System prompt."},
+			{Name: "max_history", Type: "int", Default: "10", Required: false, Description: "Number of past messages to retain."},
+		},
+		TemplateVars: map[string]string{
+			".AIResponse": "The AI's response message.",
+		},
+		YAMLReplExample: "builtin: openai-chat\napi_key: '${OPENAI_API_KEY}'\nsystem: 'You are a sarcastic bot.'",
+		REPLAddExample:  ":handler add -m '*' --builtin openai-chat --api-key 'sk-...' -R '{{.AIResponse}}'",
+	}
+}
 
 func (b *OpenAIChatBuiltin) Validate(a Action) error {
 	if a.Model == "" {
@@ -2278,6 +2680,21 @@ func (b *OllamaEmbedBuiltin) Description() string {
 }
 func (b *OllamaEmbedBuiltin) Scope() BuiltinScope { return Shared }
 
+func (b *OllamaEmbedBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Generate an embedding vector for a message using Ollama.",
+		Fields: []BuiltinField{
+			{Name: "model", Type: "string", Default: "llama2", Required: false, Description: "Embedding model name."},
+			{Name: "input", Type: "string", Required: true, Description: "Text to embed (supports templates)."},
+		},
+		TemplateVars: map[string]string{
+			".OllamaEmbedding": "The embedding vector (JSON float array).",
+		},
+		YAMLReplExample: "builtin: ollama-embed\ninput: '{{.Message}}'\nrespond: '{\"vector\": {{.OllamaEmbedding}}}'",
+		REPLAddExample:  ":handler add -m 'vectorize *' --builtin ollama-embed --input '{{.Message}}'",
+	}
+}
+
 func (b *OllamaEmbedBuiltin) Validate(a Action) error {
 	if a.Model == "" {
 		return fmt.Errorf("builtin ollama-embed missing model")
@@ -2401,6 +2818,22 @@ func (b *OllamaClassifyBuiltin) Description() string {
 	return "Classify a message into one of the provided labels using an Ollama model."
 }
 func (b *OllamaClassifyBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *OllamaClassifyBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Classify a message into one of the provided labels using Ollama.",
+		Fields: []BuiltinField{
+			{Name: "model", Type: "string", Default: "llama2", Required: false, Description: "Model name."},
+			{Name: "labels", Type: "[]string", Required: true, Description: "List of allowed classification labels."},
+			{Name: "input", Type: "string", Required: true, Description: "Text to classify (supports templates)."},
+		},
+		TemplateVars: map[string]string{
+			".OllamaLabel": "The predicted label from the list.",
+		},
+		YAMLReplExample: "builtin: ollama-classify\nlabels: [\"spam\", \"ham\"]\ninput: '{{.Message}}'",
+		REPLAddExample:  ":handler add -m '*' --builtin ollama-classify --labels 'spam,ham' -R 'Class: {{.OllamaLabel}}'",
+	}
+}
 
 func (b *OllamaClassifyBuiltin) Validate(a Action) error {
 	if len(a.Labels.List) == 0 {
@@ -2552,6 +2985,22 @@ func (b *HttpGetBuiltin) Description() string {
 }
 func (b *HttpGetBuiltin) Scope() BuiltinScope { return Shared }
 
+func (b *HttpGetBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Make an outbound HTTP GET request (shorthand for http builtin).",
+		Fields: []BuiltinField{
+			{Name: "url", Type: "string", Required: true, Description: "Target URL (supports templates)."},
+			{Name: "headers", Type: "map", Required: false, Description: "Custom HTTP headers."},
+		},
+		TemplateVars: map[string]string{
+			".HttpResponse": "Raw body of the HTTP response.",
+			".HttpStatus":   "HTTP status code (int).",
+		},
+		YAMLReplExample: "builtin: http-get\nurl: 'https://wttr.in/London?format=3'",
+		REPLAddExample:  ":handler add -m 'weather' --builtin http-get --url 'https://wttr.in/London?format=3'",
+	}
+}
+
 func (b *HttpGetBuiltin) Validate(a Action) error {
 	if a.URL == "" {
 		return fmt.Errorf("builtin http-get missing url")
@@ -2573,6 +3022,23 @@ func (b *HttpGraphQLBuiltin) Description() string {
 	return "Make an outbound GraphQL POST request."
 }
 func (b *HttpGraphQLBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *HttpGraphQLBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Make an outbound GraphQL POST request.",
+		Fields: []BuiltinField{
+			{Name: "url", Type: "string", Required: true, Description: "GraphQL endpoint URL."},
+			{Name: "query", Type: "string", Required: true, Description: "GraphQL query string (supports templates)."},
+			{Name: "variables", Type: "map", Required: false, Description: "GraphQL variables (values support templates)."},
+			{Name: "headers", Type: "map", Required: false, Description: "Custom HTTP headers."},
+		},
+		TemplateVars: map[string]string{
+			".HttpResponse": "Raw JSON response from the GraphQL server.",
+		},
+		YAMLReplExample: "builtin: http-graphql\nurl: 'https://countries.trevorblades.com/'\nquery: 'query($code: ID!) { country(code: $code) { name emoji } }'\nvariables: { code: \"{{.Message}}\" }",
+		REPLAddExample:  ":handler add -m 'country *' --builtin http-graphql --url 'https://countries.trevorblades.com/' --query '...' --variables '{\"code\":\"{{.Message}}\"}'",
+	}
+}
 
 func (b *HttpGraphQLBuiltin) Validate(a Action) error {
 	if a.URL == "" {
@@ -2709,6 +3175,20 @@ func (b *HttpMockRespondBuiltin) Description() string {
 }
 func (b *HttpMockRespondBuiltin) Scope() BuiltinScope { return ServerOnly }
 
+func (b *HttpMockRespondBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Register a canned HTTP response at a specific path (for mock servers).",
+		Fields: []BuiltinField{
+			{Name: "path", Type: "string", Required: true, Description: "HTTP path to mock (e.g. /api/health)."},
+			{Name: "status", Type: "int", Default: "200", Required: false, Description: "HTTP status code."},
+			{Name: "body", Type: "string", Required: false, Description: "Response body (supports templates)."},
+			{Name: "content_type", Type: "string", Default: "application/json", Required: false, Description: "Content-Type header."},
+		},
+		YAMLReplExample: "- builtin: http-mock-respond\n  path: '/v1/status'\n  status: 200\n  body: '{\"status\":\"ok\",\"time\":\"{{now}}\"}'",
+		REPLAddExample:  ":handler add --builtin http-mock-respond --path '/ping' --body 'pong'",
+	}
+}
+
 func (b *HttpMockRespondBuiltin) Validate(a Action) error {
 	if a.Path == "" {
 		return fmt.Errorf("builtin http-mock-respond missing path")
@@ -2783,6 +3263,18 @@ func (b *LogBuiltin) Description() string {
 	return "Write a structured JSONL log entry to stdout, a file, or both."
 }
 func (b *LogBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *LogBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Print a message to the server/client console or a file.",
+		Fields: []BuiltinField{
+			{Name: "message", Type: "string", Required: true, Description: "Log message (supports templates)."},
+			{Name: "target", Type: "string", Default: "stderr", Required: false, Description: "Output target (stdout, stderr, or filename)."},
+		},
+		YAMLReplExample: "builtin: log\nmessage: 'Received message from {{.ConnID}}'\ntarget: 'activity.log'",
+		REPLAddExample:  ":handler add -m '*' --builtin log --message 'DEBUG: {{.Message}}'",
+	}
+}
 
 func (b *LogBuiltin) Validate(a Action) error {
 	if a.Message == "" {
@@ -2894,6 +3386,19 @@ func (b *MetricBuiltin) Name() string        { return "metric" }
 func (b *MetricBuiltin) Description() string { return "Increment a Prometheus counter." }
 func (b *MetricBuiltin) Scope() BuiltinScope { return Shared }
 
+func (b *MetricBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Increment a Prometheus counter.",
+		Fields: []BuiltinField{
+			{Name: "name", Type: "string", Required: true, Description: "Metric name."},
+			{Name: "help", Type: "string", Required: false, Description: "Help text for the metric."},
+			{Name: "labels", Type: "map", Required: false, Description: "Label names and template values."},
+		},
+		YAMLReplExample: "builtin: metric\nname: 'messages_total'\nhelp: 'Total messages received'\nlabels: { type: \"{{.Type}}\" }",
+		REPLAddExample:  ":handler add -m '*' --builtin metric --name 'hits'",
+	}
+}
+
 func (b *MetricBuiltin) Validate(a Action) error {
 	if a.Name == "" {
 		return fmt.Errorf("builtin metric: missing 'name'")
@@ -2950,6 +3455,18 @@ func (b *ThrottleBroadcastBuiltin) Description() string {
 	return "Deliver a message to all clients except those who received one from this handler too recently."
 }
 func (b *ThrottleBroadcastBuiltin) Scope() BuiltinScope { return ServerOnly }
+
+func (b *ThrottleBroadcastBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Deliver a message to all clients except those who received it recently via this handler.",
+		Fields: []BuiltinField{
+			{Name: "message", Type: "string", Required: true, Description: "Message to broadcast."},
+			{Name: "rate", Type: "string", Required: true, Description: "Max rate per client (e.g. 1/s)."},
+		},
+		YAMLReplExample: "builtin: throttle-broadcast\nmessage: '{{.Message}}'\nrate: 1/s",
+		REPLAddExample:  ":handler add --builtin throttle-broadcast --message '...' --rate '1/s'",
+	}
+}
 
 func (b *ThrottleBroadcastBuiltin) Validate(a Action) error {
 	if a.Window == "" {
@@ -3055,6 +3572,18 @@ func (b *MulticastBuiltin) Description() string {
 	return "Send a message to a specific list of client IDs."
 }
 func (b *MulticastBuiltin) Scope() BuiltinScope { return ServerOnly }
+
+func (b *MulticastBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Send a message to a specific list of client IDs.",
+		Fields: []BuiltinField{
+			{Name: "clients", Type: "[]string", Required: true, Description: "List of client IDs (supports templates)."},
+			{Name: "message", Type: "string", Required: true, Description: "Message to send."},
+		},
+		YAMLReplExample: "builtin: multicast\nclients: ['{{.Session.target_id}}']\nmessage: 'Hello!'",
+		REPLAddExample:  ":handler add --builtin multicast --clients 'ID1,ID2' --message 'Hello'",
+	}
+}
 
 func (b *MulticastBuiltin) Validate(a Action) error {
 	if a.Targets == "" {
@@ -3175,6 +3704,18 @@ func (b *StickyBroadcastBuiltin) Description() string {
 }
 func (b *StickyBroadcastBuiltin) Scope() BuiltinScope { return ServerOnly }
 
+func (b *StickyBroadcastBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Broadcast and retain a message for a topic. New clients joining the topic will receive it immediately.",
+		Fields: []BuiltinField{
+			{Name: "topic", Type: "string", Required: true, Description: "Topic name."},
+			{Name: "message", Type: "string", Required: true, Description: "Message to retain."},
+		},
+		YAMLReplExample: "builtin: sticky-broadcast\ntopic: 'system-status'\nmessage: 'ONLINE'",
+		REPLAddExample:  ":handler add --builtin sticky-broadcast --topic 'motd' --message 'Welcome!'",
+	}
+}
+
 func (b *StickyBroadcastBuiltin) Validate(a Action) error {
 	if a.Topic == "" {
 		return fmt.Errorf("builtin sticky-broadcast missing topic")
@@ -3240,6 +3781,18 @@ func (b *RoundRobinBuiltin) Description() string {
 	return "Cycle messages across a pool of client IDs."
 }
 func (b *RoundRobinBuiltin) Scope() BuiltinScope { return ServerOnly }
+
+func (b *RoundRobinBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Cycle messages across a pool of client IDs.",
+		Fields: []BuiltinField{
+			{Name: "clients", Type: "[]string", Required: true, Description: "List of target client IDs."},
+			{Name: "message", Type: "string", Required: true, Description: "Message to send."},
+		},
+		YAMLReplExample: "builtin: round-robin\nclients: ['worker-1', 'worker-2']\nmessage: '{{.Message}}'",
+		REPLAddExample:  ":handler add --builtin round-robin --clients 'w1,w2' --message 'task'",
+	}
+}
 
 func (b *RoundRobinBuiltin) Validate(a Action) error {
 	if a.Pool == "" {
@@ -3354,6 +3907,19 @@ func (b *ABTestBuiltin) Description() string {
 }
 func (b *ABTestBuiltin) Scope() BuiltinScope { return ServerOnly }
 
+func (b *ABTestBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Route messages to one of two handlers based on a deterministic hash of the connection ID.",
+		Fields: []BuiltinField{
+			{Name: "a", Type: "string", Required: true, Description: "Handler for Group A."},
+			{Name: "b", Type: "string", Required: true, Description: "Handler for Group B."},
+			{Name: "split", Type: "float", Default: "0.5", Required: false, Description: "Probability of Group A (0.0 to 1.0)."},
+		},
+		YAMLReplExample: "builtin: ab-test\na: 'new-ui-handler'\nb: 'legacy-handler'\nsplit: 0.2",
+		REPLAddExample:  ":handler add --builtin ab-test --a 'v1' --b 'v2'",
+	}
+}
+
 func (b *ABTestBuiltin) Validate(a Action) error {
 	if a.Field == "" {
 		return fmt.Errorf("builtin ab-test: missing 'field' (jq expression)")
@@ -3466,6 +4032,17 @@ func (b *SampleBuiltin) Description() string {
 }
 func (b *SampleBuiltin) Scope() BuiltinScope { return Shared }
 
+func (b *SampleBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Pass every Nth message and drop the rest.",
+		Fields: []BuiltinField{
+			{Name: "rate", Type: "int", Required: true, Description: "Sampling rate (e.g. 10 means 1 in 10 messages)."},
+		},
+		YAMLReplExample: "builtin: sample\nrate: 100",
+		REPLAddExample:  ":handler add --builtin sample --rate 5",
+	}
+}
+
 func (b *SampleBuiltin) Validate(a Action) error {
 	if a.Rate == "" {
 		return fmt.Errorf("builtin sample: missing 'rate' (number of messages)")
@@ -3525,6 +4102,17 @@ func (b *OnceBuiltin) Description() string {
 }
 func (b *OnceBuiltin) Scope() BuiltinScope { return ServerOnly }
 
+func (b *OnceBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Executes its respond template once and then permanently disables itself for that connection.",
+		Fields: []BuiltinField{
+			{Name: "respond", Type: "tmpl", Required: true, Description: "Response to send once."},
+		},
+		YAMLReplExample: "builtin: once\nrespond: '{\"welcome\": true}'",
+		REPLAddExample:  ":handler add --builtin once --respond 'Welcome!'",
+	}
+}
+
 func (b *OnceBuiltin) Validate(a Action) error {
 	return nil
 }
@@ -3561,6 +4149,18 @@ func (b *DebounceBuiltin) Description() string {
 	return "Suppress repeated matching messages within a time window and only process the last one."
 }
 func (b *DebounceBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *DebounceBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Suppress repeated matching messages within a time window. Only the first message is passed.",
+		Fields: []BuiltinField{
+			{Name: "duration", Type: "duration", Required: true, Description: "Quiet period (e.g. 500ms)."},
+			{Name: "key", Type: "string", Required: false, Description: "Grouping key (supports templates)."},
+		},
+		YAMLReplExample: "builtin: debounce\nduration: 1s\nkey: '{{.Message}}'",
+		REPLAddExample:  ":handler add --builtin debounce --duration 1s",
+	}
+}
 
 func (b *DebounceBuiltin) Validate(a Action) error {
 	if a.Window == "" && a.Duration == "" && a.Delay == "" {
@@ -3689,6 +4289,17 @@ func (b *ShadowBuiltin) Description() string {
 }
 func (b *ShadowBuiltin) Scope() BuiltinScope { return ServerOnly }
 
+func (b *ShadowBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Forward messages to another handler asynchronously and silently (fire-and-forget).",
+		Fields: []BuiltinField{
+			{Name: "handler", Type: "string", Required: true, Description: "Name of the target handler."},
+		},
+		YAMLReplExample: "builtin: shadow\nhandler: 'logger-pipeline'",
+		REPLAddExample:  ":handler add -m '*' --builtin shadow --handler 'analytics'",
+	}
+}
+
 func (b *ShadowBuiltin) Validate(a Action) error {
 	if a.Target == "" {
 		return fmt.Errorf("builtin shadow: missing 'target' (handler name)")
@@ -3748,6 +4359,17 @@ func (b *RuleEngineBuiltin) Description() string {
 	return "Evaluate a list of rules in order and execute the first match."
 }
 func (b *RuleEngineBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *RuleEngineBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Evaluate a list of rules in order and execute the first matching rule's actions.",
+		Fields: []BuiltinField{
+			{Name: "rules", Type: "[]Rule", Required: true, Description: "List of rules with 'match' and 'actions'."},
+		},
+		YAMLReplExample: "builtin: rule-engine\nrules:\n  - match: { jq: '.type == \"alert\"' }\n    actions: [{ builtin: log, message: \"Alert!\" }]\n  - match: { glob: \"*\" }\n    actions: [{ builtin: echo }]",
+		REPLAddExample:  ":handler add --builtin rule-engine",
+	}
+}
 
 func (b *RuleEngineBuiltin) Validate(a Action) error {
 	if len(a.Rules) == 0 {
@@ -3828,6 +4450,18 @@ func (b *WebhookBuiltin) Description() string {
 	return "POST a message to an HTTP endpoint (defaults to raw message body)."
 }
 func (b *WebhookBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *WebhookBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "POST a message to an HTTP endpoint (shorthand for http POST).",
+		Fields: []BuiltinField{
+			{Name: "url", Type: "string", Required: true, Description: "Webhook URL (supports templates)."},
+			{Name: "body", Type: "string", Required: false, Description: "Custom payload (defaults to raw message)."},
+		},
+		YAMLReplExample: "builtin: webhook\nurl: 'https://hooks.slack.com/services/...' \nbody: '{\"text\":\"{{.Message}}\"}'",
+		REPLAddExample:  ":handler add -m 'alert *' --builtin webhook --url '...' --body '{\"alert\":\"{{.Message}}\"}'",
+	}
+}
 
 func (b *WebhookBuiltin) Validate(a Action) error {
 	if a.URL == "" {
@@ -3933,6 +4567,20 @@ func (b *WebhookHMACBuiltin) Description() string {
 	return "POST a message to an HTTP endpoint with an HMAC-SHA256 signature (X-Hub-Signature-256)."
 }
 func (b *WebhookHMACBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *WebhookHMACBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "POST a message to an HTTP endpoint with an HMAC-SHA256 signature header.",
+		Fields: []BuiltinField{
+			{Name: "url", Type: "string", Required: true, Description: "Webhook URL."},
+			{Name: "secret", Type: "string", Required: true, Description: "HMAC secret key."},
+			{Name: "header", Type: "string", Default: "X-Hub-Signature-256", Required: false, Description: "Header name for signature."},
+			{Name: "body", Type: "string", Required: false, Description: "Custom payload."},
+		},
+		YAMLReplExample: "builtin: webhook-hmac\nurl: 'https://receiver.com/webhook'\nsecret: 'top-secret'\nbody: '{{.Message}}'",
+		REPLAddExample:  ":handler add -m '*' --builtin webhook-hmac --url '...' --secret '...' --body '{{.Message}}'",
+	}
+}
 
 func (b *WebhookHMACBuiltin) Validate(a Action) error {
 	if a.URL == "" {
@@ -4056,6 +4704,18 @@ func (b *SSEForwardBuiltin) Description() string {
 }
 func (b *SSEForwardBuiltin) Scope() BuiltinScope { return ServerOnly }
 
+func (b *SSEForwardBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Forward messages to a named Server-Sent Events (SSE) stream.",
+		Fields: []BuiltinField{
+			{Name: "stream", Type: "string", Required: true, Description: "Stream name (e.g. /events)."},
+			{Name: "event", Type: "string", Required: false, Description: "SSE event type."},
+		},
+		YAMLReplExample: "builtin: sse-forward\nstream: '/api/v1/stream'\nevent: 'message'",
+		REPLAddExample:  ":handler add --builtin sse-forward --stream '/live'",
+	}
+}
+
 func (b *SSEForwardBuiltin) Validate(a Action) error {
 	if a.Stream == "" {
 		return fmt.Errorf("builtin sse-forward missing stream")
@@ -4142,6 +4802,21 @@ func (b *MQTTPublishBuiltin) Description() string {
 }
 func (b *MQTTPublishBuiltin) Scope() BuiltinScope { return Shared }
 
+func (b *MQTTPublishBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Publish a message to an MQTT topic.",
+		Fields: []BuiltinField{
+			{Name: "broker_url", Type: "string", Required: true, Description: "MQTT broker URL (supports templates)."},
+			{Name: "topic", Type: "string", Required: true, Description: "MQTT topic (supports templates)."},
+			{Name: "message", Type: "string", Required: true, Description: "Message content (supports templates)."},
+			{Name: "qos", Type: "string", Default: "0", Required: false, Description: "QoS level (0, 1, 2)."},
+			{Name: "retain", Type: "bool", Default: "false", Required: false, Description: "Retain message."},
+		},
+		YAMLReplExample: "builtin: mqtt-publish\nbroker_url: 'tcp://localhost:1883'\ntopic: 'home/living-room/light'\nmessage: 'ON'",
+		REPLAddExample:  ":handler add -m 'light on' --builtin mqtt-publish --broker-url 'tcp://localhost:1883' --topic 'home/light' --message 'ON'",
+	}
+}
+
 func (b *MQTTPublishBuiltin) Validate(a Action) error {
 	if a.BrokerURL == "" {
 		return fmt.Errorf("builtin mqtt-publish missing broker_url")
@@ -4227,6 +4902,19 @@ func (b *MQTTSubscribeBuiltin) Description() string {
 }
 func (b *MQTTSubscribeBuiltin) Scope() BuiltinScope { return ServerOnly }
 
+func (b *MQTTSubscribeBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Subscribe to an MQTT topic and deliver messages to WebSocket clients.",
+		Fields: []BuiltinField{
+			{Name: "broker_url", Type: "string", Required: true, Description: "MQTT broker URL (supports templates)."},
+			{Name: "topic", Type: "string", Required: true, Description: "MQTT topic (supports templates)."},
+			{Name: "qos", Type: "string", Default: "0", Required: false, Description: "QoS level (0, 1, 2)."},
+		},
+		YAMLReplExample: "- builtin: mqtt-subscribe\n  broker_url: 'tcp://localhost:1883'\n  topic: 'sensors/#'\n  respond: '{\"mqtt_topic\":\"{{.Topic}}\",\"value\":{{.Message}}}'",
+		REPLAddExample:  ":handler add --builtin mqtt-subscribe --broker-url 'tcp://localhost:1883' --topic 'sensors/#'",
+	}
+}
+
 func (b *MQTTSubscribeBuiltin) Validate(a Action) error {
 	if a.BrokerURL == "" {
 		return fmt.Errorf("builtin mqtt-subscribe missing broker_url")
@@ -4254,6 +4942,19 @@ func (b *NATSPublishBuiltin) Description() string {
 	return "Publish a message to a NATS subject."
 }
 func (b *NATSPublishBuiltin) Scope() BuiltinScope { return Shared }
+
+func (b *NATSPublishBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Publish a message to a NATS subject.",
+		Fields: []BuiltinField{
+			{Name: "nats_url", Type: "string", Required: true, Description: "NATS server URL (supports templates)."},
+			{Name: "subject", Type: "string", Required: true, Description: "NATS subject (supports templates)."},
+			{Name: "message", Type: "string", Required: true, Description: "Message content (supports templates)."},
+		},
+		YAMLReplExample: "builtin: nats-publish\nnats_url: 'nats://localhost:4222'\nsubject: 'events.chat'\nmessage: '{{.Message}}'",
+		REPLAddExample:  ":handler add -m '*' --builtin nats-publish --nats-url 'nats://localhost:4222' --subject 'chat' --message '{{.Message}}'",
+	}
+}
 
 func (b *NATSPublishBuiltin) Validate(a Action) error {
 	if a.NatsURL == "" {
@@ -4325,6 +5026,18 @@ func (b *NATSSubscribeBuiltin) Description() string {
 	return "Subscribe to a NATS subject and deliver messages to WebSocket clients."
 }
 func (b *NATSSubscribeBuiltin) Scope() BuiltinScope { return ServerOnly }
+
+func (b *NATSSubscribeBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Subscribe to a NATS subject and deliver messages to WebSocket clients.",
+		Fields: []BuiltinField{
+			{Name: "nats_url", Type: "string", Required: true, Description: "NATS server URL (supports templates)."},
+			{Name: "subject", Type: "string", Required: true, Description: "NATS subject (supports templates)."},
+		},
+		YAMLReplExample: "- builtin: nats-subscribe\n  nats_url: 'nats://localhost:4222'\n  subject: 'broadcast.#'\n  respond: '{\"source\":\"nats\",\"data\":{{.Message}}}'",
+		REPLAddExample:  ":handler add --builtin nats-subscribe --nats-url 'nats://localhost:4222' --subject 'chat.*'",
+	}
+}
 
 func (b *NATSSubscribeBuiltin) Validate(a Action) error {
 	if a.NatsURL == "" {

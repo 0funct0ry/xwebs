@@ -100,6 +100,254 @@ func (r *REPL) RegisterCommonCommands() {
 	})
 
 	r.RegisterCommand(&BuiltinCommand{
+		name: "builtins",
+		help: "List or describe available builtin actions: :builtins [pattern] | :builtins help <name>",
+		handler: func(ctx context.Context, r *REPL, args []string) error {
+			mode := r.getHandlerMode()
+			allBuiltins := handler.ListBuiltins(mode)
+
+			// Handle JSON format
+			if r.Display.Format == FormatJSON {
+				if len(args) > 0 && args[0] == "help" && len(args) > 1 {
+					name := strings.ToLower(args[1])
+					h, ok := handler.GetBuiltin(name)
+					if !ok {
+						return fmt.Errorf("unknown builtin %q", name)
+					}
+					if db, ok := h.(handler.DocumentedBuiltin); ok {
+						jsonData, _ := json.MarshalIndent(db.Help(), "", "  ")
+						r.Printf("%s\n", string(jsonData))
+						return nil
+					}
+					// Fallback if not documented
+					meta := handler.BuiltinMetadata{
+						Name:        h.Name(),
+						Description: h.Description(),
+						Scope:       h.Scope(),
+					}
+					jsonData, _ := json.MarshalIndent(meta, "", "  ")
+					r.Printf("%s\n", string(jsonData))
+					return nil
+				}
+
+				// Filtering for JSON
+				filtered := allBuiltins
+				if len(args) > 0 && args[0] != "help" {
+					pattern := args[0]
+					filtered = nil
+					for _, b := range allBuiltins {
+						matched, _ := filepath.Match(pattern, b.Name)
+						if matched {
+							filtered = append(filtered, b)
+						}
+					}
+				}
+
+				jsonData, _ := json.MarshalIndent(filtered, "", "  ")
+				r.Printf("%s\n", string(jsonData))
+				return nil
+			}
+
+			// Detail view: :builtins help <name>
+			if len(args) > 0 && args[0] == "help" {
+				if len(args) < 2 {
+					return fmt.Errorf("usage: :builtins help <name>")
+				}
+				name := strings.ToLower(args[1])
+				h, ok := handler.GetBuiltin(name)
+				if !ok {
+					suggestion := r.suggestSimilarBuiltin(name, allBuiltins)
+					if suggestion != "" {
+						return fmt.Errorf("unknown builtin %q — did you mean %q?", name, suggestion)
+					}
+					return fmt.Errorf("unknown builtin %q", name)
+				}
+
+				// Check mode compatibility
+				allowed, _, scope := handler.IsBuiltinAllowed(name, mode)
+				if !allowed {
+					scopeStr := strings.ToLower(string(scope))
+					if strings.HasSuffix(scopeStr, "only") {
+						scopeStr = strings.TrimSuffix(scopeStr, "only") + "-only"
+					}
+					return fmt.Errorf("builtin %q is %s (current mode: %s)", name, scopeStr, r.mode)
+				}
+
+				r.Printf("\n%s", r.Display.colorizedText(h.Name(), "green"))
+				r.Printf("%s[%s]\n", strings.Repeat(" ", max(1, 60-len(h.Name()))), strings.ToLower(string(h.Scope())))
+
+				if db, ok := h.(handler.DocumentedBuiltin); ok {
+					help := db.Help()
+					r.Printf("  %s\n", help.Description)
+
+					if len(help.Fields) > 0 {
+						r.Printf("\n  Fields:\n")
+						for _, f := range help.Fields {
+							req := ""
+							if f.Required {
+								req = "required"
+							}
+							def := f.Default
+							if def == "" {
+								def = "—"
+							}
+							r.Printf("    %-10s %-7s %-10s %-10s %s\n", f.Name, f.Type, req, def, f.Description)
+						}
+					}
+
+					if len(help.TemplateVars) > 0 {
+						r.Printf("\n  Injected variables:\n")
+						keys := make([]string, 0, len(help.TemplateVars))
+						for k := range help.TemplateVars {
+							keys = append(keys, k)
+						}
+						sort.Strings(keys)
+						for _, k := range keys {
+							r.Printf("    %-18s %s\n", k, help.TemplateVars[k])
+						}
+					}
+
+					if help.YAMLReplExample != "" {
+						r.Printf("\n  handlers.yaml:\n")
+						lines := strings.Split(help.YAMLReplExample, "\n")
+						for _, line := range lines {
+							r.Printf("    %s\n", line)
+						}
+					}
+
+					if help.REPLAddExample != "" {
+						r.Printf("\n  :handler add:\n")
+						lines := strings.Split(help.REPLAddExample, "\n")
+						for _, line := range lines {
+							r.Printf("    %s\n", line)
+						}
+					}
+				} else {
+					r.Printf("  %s\n", h.Description())
+					r.Printf("\n  (Detailed documentation not available for this builtin)\n")
+				}
+				r.Printf("\n")
+				return nil
+			}
+
+			// Filtering logic: :builtins <pattern>
+			pattern := ""
+			if len(args) > 0 {
+				pattern = args[0]
+			}
+
+			var filtered []handler.BuiltinMetadata
+			for _, b := range allBuiltins {
+				if pattern != "" {
+					matched, _ := filepath.Match(pattern, b.Name)
+					if !matched {
+						continue
+					}
+				}
+				filtered = append(filtered, b)
+			}
+
+			if len(filtered) == 0 {
+				if pattern != "" {
+					return fmt.Errorf("no builtins match %q", pattern)
+				}
+				r.Printf("No builtins available in %s mode.\n", r.mode)
+				return nil
+			}
+
+			// If exactly one match and pattern was provided, show help
+			if len(filtered) == 1 && pattern != "" && pattern == filtered[0].Name {
+				return r.commands["builtins"].Execute(ctx, r, []string{"help", filtered[0].Name})
+			}
+
+			// Grouping
+			var shared, modeSpecific []handler.BuiltinMetadata
+			for _, b := range filtered {
+				if b.Scope == handler.Shared {
+					shared = append(shared, b)
+				} else {
+					modeSpecific = append(modeSpecific, b)
+				}
+			}
+
+			tw := table.NewWriter()
+			tw.SetOutputMirror(nil)
+			tw.AppendHeader(table.Row{"Name", "Description", "Required Fields"})
+
+			if len(modeSpecific) > 0 {
+				title := strings.ToUpper(r.mode.String()) + "-SPECIFIC"
+				tw.AppendRow(table.Row{title, "", ""}, table.RowConfig{AutoMerge: true})
+				for _, b := range modeSpecific {
+					fields := ""
+					if len(b.Fields) > 0 {
+						var req []string
+						for _, f := range b.Fields {
+							if f.Required {
+								req = append(req, f.Name+":")
+							}
+						}
+						fields = strings.Join(req, " ")
+					}
+					if fields == "" {
+						fields = "—"
+					}
+					desc := b.Description
+					if len(desc) > 60 {
+						desc = desc[:57] + "..."
+					}
+					tw.AppendRow(table.Row{b.Name, desc, fields})
+				}
+			}
+
+			if len(shared) > 0 {
+				tw.AppendRow(table.Row{"SHARED", "", ""}, table.RowConfig{AutoMerge: true})
+				for _, b := range shared {
+					fields := ""
+					if len(b.Fields) > 0 {
+						var req []string
+						for _, f := range b.Fields {
+							if f.Required {
+								req = append(req, f.Name+":")
+							}
+						}
+						fields = strings.Join(req, " ")
+					}
+					if fields == "" {
+						fields = "—"
+					}
+					desc := b.Description
+					if len(desc) > 60 {
+						desc = desc[:57] + "..."
+					}
+					tw.AppendRow(table.Row{b.Name, desc, fields})
+				}
+			}
+
+			tw.SetStyle(table.StyleLight)
+			tw.Style().Options.SeparateRows = false
+			tw.Style().Options.SeparateColumns = false
+			tw.Style().Options.DrawBorder = false
+			tw.Style().Box.PaddingLeft = "  "
+
+			// Adapt to terminal width
+			// (Future: can use terminal width for better formatting)
+
+			r.Printf("\n%s\n", tw.Render())
+
+			if pattern != "" {
+				r.Printf("\n  %d builtins match %q (%d shared, %d %s-only)\n",
+					len(filtered), pattern, len(shared), len(modeSpecific), mode)
+			} else {
+				r.Printf("\n  %d builtins available in %s mode (%d shared, %d %s-only)\n",
+					len(allBuiltins), mode, len(shared), len(modeSpecific), mode)
+			}
+			r.Printf("  Run :builtins help <name> for full reference.\n\n")
+
+			return nil
+		},
+	})
+
+	r.RegisterCommand(&BuiltinCommand{
 		name: "exit",
 		help: "Disconnect and exit",
 		handler: func(ctx context.Context, r *REPL, args []string) error {
@@ -2318,4 +2566,55 @@ func (r *REPL) highlightSearchTerm(text, term string) string {
 	// Write remaining text
 	result.WriteString(text[lastEnd:])
 	return result.String()
+}
+
+// suggestSimilarBuiltin finds the closest builtin name to the given input.
+func (r *REPL) suggestSimilarBuiltin(input string, builtins []handler.BuiltinMetadata) string {
+	if len(builtins) == 0 {
+		return ""
+	}
+
+	bestMatch := ""
+	minDist := 3 // Max distance for a suggestion
+
+	for _, b := range builtins {
+		dist := levenshtein(strings.ToLower(input), strings.ToLower(b.Name))
+		if dist < minDist {
+			minDist = dist
+			bestMatch = b.Name
+		}
+	}
+
+	return bestMatch
+}
+
+// levenshtein calculates the edit distance between two strings.
+func levenshtein(s, t string) int {
+	n, m := len(s), len(t)
+	if n == 0 {
+		return m
+	}
+	if m == 0 {
+		return n
+	}
+
+	d := make([][]int, n+1)
+	for i := range d {
+		d[i] = make([]int, m+1)
+		d[i][0] = i
+	}
+	for j := range d[0] {
+		d[0][j] = j
+	}
+
+	for i := 1; i <= n; i++ {
+		for j := 1; j <= m; j++ {
+			cost := 1
+			if s[i-1] == t[j-1] {
+				cost = 0
+			}
+			d[i][j] = min(d[i-1][j]+1, min(d[i][j-1]+1, d[i-1][j-1]+cost))
+		}
+	}
+	return d[n][m]
 }

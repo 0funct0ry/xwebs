@@ -27,6 +27,26 @@ func (b *LuaBuiltin) Name() string        { return "lua" }
 func (b *LuaBuiltin) Description() string { return "Run an embedded Lua script." }
 func (b *LuaBuiltin) Scope() BuiltinScope { return Shared }
 
+func (b *LuaBuiltin) Help() BuiltinHelp {
+	return BuiltinHelp{
+		Description: "Run an embedded Lua script for custom logic and transformations.",
+		Fields: []BuiltinField{
+			{Name: "script", Type: "string", Required: false, Description: "Inline Lua script content."},
+			{Name: "file", Type: "string", Required: false, Description: "Path to a Lua file (supports templates)."},
+			{Name: "timeout", Type: "duration", Default: "5s", Required: false, Description: "Execution timeout."},
+		},
+		TemplateVars: map[string]string{
+			"message":       "Incoming message body (string)",
+			"message_type":  "text | binary",
+			"connection_id": "Unique ID of the sender",
+			"vars":          "Table of session variables",
+			"state":         "Persistent mutable table for the handler",
+		},
+		YAMLReplExample: "builtin: lua\nscript: |\n  if string.find(message, 'secret') then\n    return false -- drop message\n  end\n  return 'REDACTED: ' .. message",
+		REPLAddExample:  ":handler add -m '*' --builtin lua --script 'return message:upper()'",
+	}
+}
+
 func (b *LuaBuiltin) Validate(a Action) error {
 	if a.Script == "" && a.File == "" {
 		return fmt.Errorf("builtin lua requires either 'script:' or 'file:'")
