@@ -14,6 +14,7 @@ import (
 
 // StaticConfig defines the configuration for a static file server.
 type StaticConfig struct {
+	Addr     string
 	Port     int
 	Root     string // Directory or file path
 	Path     string // URL path prefix
@@ -79,7 +80,7 @@ func (m *StaticManager) Start(config StaticConfig) error {
 
 	_, cancel := context.WithCancel(context.Background())
 
-	addr := fmt.Sprintf(":%d", config.Port)
+	addr := fmt.Sprintf("%s:%d", config.Addr, config.Port)
 	httpSrv := &http.Server{
 		Addr:    addr,
 		Handler: handler,

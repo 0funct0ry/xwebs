@@ -208,7 +208,7 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	s.httpSrv = &http.Server{
-		Addr:         fmt.Sprintf(":%d", s.opts.Port),
+		Addr:         fmt.Sprintf("%s:%d", s.opts.BindAddr, s.opts.Port),
 		Handler:      handler,
 		ReadTimeout:  s.opts.ReadTimeout,
 		WriteTimeout: s.opts.WriteTimeout,
@@ -216,11 +216,14 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	// Start initial static serving
-	// Start initial static serving
 	if s.opts.StaticServeDir != "" || s.opts.StaticServeFile != "" || s.opts.StaticGenerate {
 		port := s.opts.StaticServePort
 		if port == 0 {
 			port = 9090
+		}
+		addr := s.opts.StaticServeAddr
+		if addr == "" {
+			addr = s.opts.BindAddr // Use main server bind addr if not specified
 		}
 		path := s.opts.StaticServePath
 		if path == "" {
@@ -250,6 +253,7 @@ func (s *Server) Start(ctx context.Context) error {
 		}
 
 		if err := s.staticMgr.Start(StaticConfig{
+			Addr:  addr,
 			Port:  port,
 			Root:  root,
 			Path:  path,

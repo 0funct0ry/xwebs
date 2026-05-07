@@ -18,6 +18,9 @@ type Options struct {
 	Sandbox        bool
 	Allowlist      []string
 
+	// Bind address
+	BindAddr string
+
 	APIEnabled     bool
 	MetricsEnabled bool
 	UIEnabled      bool
@@ -46,6 +49,7 @@ type Options struct {
 	StaticServeFile     string
 	StaticServePath     string
 	StaticServePort     int
+	StaticServeAddr     string
 	StaticGenerate      bool
 	StaticGenerateStyle string
 	SSEStreams          []handler.SSEStreamConfig
@@ -70,12 +74,20 @@ type Option func(*Options)
 // DefaultOptions returns the default server configuration.
 func DefaultOptions() *Options {
 	return &Options{
+		BindAddr:     "localhost",
 		Port:         8080,
 		Paths:        []string{"/"},
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
 		APIEnabled:   true,
+	}
+}
+
+// WithBindAddr sets the listening bind address.
+func WithBindAddr(addr string) Option {
+	return func(o *Options) {
+		o.BindAddr = addr
 	}
 }
 
@@ -239,6 +251,13 @@ func WithStaticServePath(path string) Option {
 func WithStaticServePort(port int) Option {
 	return func(o *Options) {
 		o.StaticServePort = port
+	}
+}
+
+// WithStaticServeAddr sets the bind address to listen on for static content.
+func WithStaticServeAddr(addr string) Option {
+	return func(o *Options) {
+		o.StaticServeAddr = addr
 	}
 }
 

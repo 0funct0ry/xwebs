@@ -45,10 +45,11 @@ Every WebSocket tool does one thing: connect and send messages. That's the equiv
 - **Server Mode** — WebSocket server with multiple paths, handler support, graceful shutdown, and an interactive admin console for managing server state, connections, and handlers directly from the terminal.
 - **Server Administration REPL** — Interactive admin console for managing server state, connections, handlers, and pub-sub topics directly from the terminal.
 - **Pub-Sub Topics** — Internal pub-sub bus: clients subscribe to named topics via handler-dispatched builtins; operators publish and inspect subscriptions from the REPL with `:topics`, `:topic`, `:publish`, `:subscribe`, and `:unsubscribe`.
+- **Relay Mode** — MITM WebSocket proxy for inspection and transformation, supporting bi-directional piping, multiple paths, and upstream alias resolution.
 
 ### On the Roadmap (Planned)
 - **Web UI** — React-based dashboard for visual server monitoring and management (embedded via `go:embed`) (Planned)
-- **Relay & Broadcast** — MITM proxy and fan-out relay modes (Planned)
+- **Broadcast Mode** — Fan-out server with optional pub/sub topic routing (Planned)
 
 ## Installation
 
@@ -317,6 +318,7 @@ The `serve` command transforms `xwebs` into a WebSocket server. You can host mul
 
 | Flag | Description | Example |
 |------|-------------|---------|
+| `--addr`, `-a` | Address to listen on (default: `localhost`) | `--addr 0.0.0.0` |
 | `--port`, `-p` | Port to listen on (default: `8080`) | `--port 9000` |
 | `--path` | WebSocket path(s) to listen on (repeatable, default: `/`) | `--path /ws --path /events` |
 | `--handlers` | Path to handler configuration YAML | `--handlers echo.yaml` |
@@ -335,7 +337,8 @@ The `serve` command transforms `xwebs` into a WebSocket server. You can host mul
 | `--serve-dir`, `-D` | Directory to serve static files from | `-D ./dist` |
 | `--serve-file`, `-F` | Single file to serve | `-F index.html` |
 | `--serve-path`, `-A` | URL path prefix for static content | `-A /client` |
-| `--serve-port`, `-L` | Port to listen on for static content | `-L 9090` |
+| `--serve-addr`, `-H` | Address to listen on for static content (default: same as `--addr`) | `-H 127.0.0.1` |
+| `--serve-port`, `-L` | Port to listen on for static content (default: `9090`) | `-L 9091` |
 | `--generate`, `-g` | Generate a high-quality HTML client if it doesn't exist | `-g client.html` |
 | `--generate-style`, `-S` | Style for generating the HTML client | `-S cyberpunk` |
 | `--interactive`, `-i` | Enable interactive admin REPL | `--interactive` |
@@ -365,8 +368,8 @@ xwebs provides powerful built-in security controls to protect your server from u
 - **Rate Limiting**: Protect against DoS attacks with global and per-client rate limits using the token bucket algorithm. Use formats like `10/s`, `100/m`, or `5/h`.
 
 ```bash
-# Start a server restricted to local network and specific origin, with rate limiting
-xwebs serve --allow-ip 192.168.1.0/24 --allowed-origins https://myapp.example.com --rate-limit 5/s,50/s
+# Start a server accessible on the local network restricted to a specific origin
+xwebs serve --addr 192.168.1.10 --allow-ip 192.168.1.0/24 --allowed-origins https://myapp.example.com --rate-limit 5/s,50/s
 ```
 
 **Examples:**
@@ -572,6 +575,46 @@ xwebs> :handler add -n echo -m '*' -R 'echo:{{.Message}}'
 | `:unsubscribe <client-id> --all` | Remove a client from every topic it is currently subscribed to |
 
 Topics are created automatically when the first client subscribes and removed when the last subscriber leaves.  All topic commands support tab completion for both topic names and client IDs from live server state.
+
+### Relay Mode
+
+The `relay` command starts a WebSocket relay that acts as a MITM proxy. This is useful for inspecting traffic between a client and an upstream server, or for providing a stable local endpoint that proxies to a dynamic or remote upstream.
+
+**Features:**
+- **Transparent Proxying**: Bi-directional message piping between client and upstream.
+- **Alias Resolution**: Use named connections from your config as upstream targets.
+- **Multi-Path Support**: Listen on multiple local paths and relay them to the same upstream.
+- **Inspection**: Use `--verbose` to see all messages flowing through the relay.
+- **TLS & Security**: Supports TLS for both the local listener and the upstream connection.
+
+**Flags:**
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--addr`, `-a` | Address to listen on (default: `localhost`) | `--addr 0.0.0.0` |
+| `--port`, `-p` | Port to listen on (default: `8080`) | `--port 9090` |
+| `--upstream`, `-u` | **(Required)** Upstream WebSocket URL or alias | `-u wss://api.example.com` |
+| `--path` | WebSocket path(s) to listen on (repeatable, default: `/`) | `--path /ws1 --path /ws2` |
+| `--tls` | Enable TLS for the local relay listener | `--tls` |
+| `--cert` | Path to TLS certificate file | `--cert relay.crt` |
+| `--key` | Path to TLS private key file | `--key relay.key` |
+| `--ca` | Path to CA certificate for upstream verification | `--ca ca.crt` |
+| `--insecure` | Skip TLS verification for upstream | `--insecure` |
+| `--header` | Add custom headers to upstream requests (repeatable) | `--header "X-Relay: xwebs"` |
+| `--subprotocol`| Request specific subprotocols from upstream (repeatable) | `--subprotocol v1` |
+
+**Examples:**
+
+```bash
+# Basic relay to an echo server
+xwebs relay --port 9090 --upstream ws://localhost:8080
+
+# Relay with verbose inspection
+xwebs relay -p 9090 -u wss://api.example.com/ws --verbose
+
+# Relay using a named connection alias
+xwebs relay -p 9090 -u prod-api --insecure
+```
 
 ### Builtin Actions
 

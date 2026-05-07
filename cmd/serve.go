@@ -20,6 +20,7 @@ import (
 )
 
 var (
+	serveAddr           string
 	servePort           int
 	servePaths          []string
 	serveTLS            bool
@@ -38,6 +39,7 @@ var (
 	staticFile          string
 	staticPath          string
 	staticPort          int
+	staticAddr          string
 	staticGenerate      bool
 	staticGenerateStyle string
 )
@@ -256,6 +258,20 @@ Available Builtin Actions (Server):
   unsubscribe    Unsubscribe the current connection from a pub/sub topic.
 `,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Sync flags with Viper
+		if !cmd.Flags().Changed("addr") && viper.IsSet("addr") {
+			serveAddr = viper.GetString("addr")
+		}
+		if !cmd.Flags().Changed("port") && viper.IsSet("port") {
+			servePort = viper.GetInt("port")
+		}
+		if !cmd.Flags().Changed("serve-addr") && viper.IsSet("serve-addr") {
+			staticAddr = viper.GetString("serve-addr")
+		}
+		if !cmd.Flags().Changed("serve-port") && viper.IsSet("serve-port") {
+			staticPort = viper.GetInt("serve-port")
+		}
+
 		tmplEngine := template.New(noShellFunc)
 
 		var handlers []handler.Handler
@@ -381,6 +397,7 @@ Available Builtin Actions (Server):
 		}
 
 		srvOpts := []server.Option{
+			server.WithBindAddr(serveAddr),
 			server.WithPort(servePort),
 			server.WithPaths(servePaths),
 			server.WithHandlers(handlers),
@@ -401,6 +418,7 @@ Available Builtin Actions (Server):
 			server.WithUI(serveUI),
 			server.WithStaticServePath(staticPath),
 			server.WithStaticServePort(staticPort),
+			server.WithStaticServeAddr(staticAddr),
 			server.WithStaticGenerate(doGenerate),
 			server.WithStaticGenerateStyle(staticGenerateStyle),
 			server.WithRedisManager(redisMgr),
@@ -425,7 +443,7 @@ Available Builtin Actions (Server):
 			if serveTLS {
 				protocol = "wss"
 			}
-			fmt.Fprintf(os.Stderr, "✓ xwebs server starting on :%d (%s)\n", servePort, protocol)
+			fmt.Fprintf(os.Stderr, "✓ xwebs server starting on %s:%d (%s)\n", serveAddr, servePort, protocol)
 			if len(servePaths) == 1 {
 				fmt.Fprintf(os.Stderr, "✓ Listening on path: %s\n", servePaths[0])
 			} else {
@@ -495,6 +513,7 @@ func init() {
 	OutputFlags(serveCmd)
 	HandlerFlags(serveCmd)
 
+	serveCmd.Flags().StringVarP(&serveAddr, "addr", "a", "localhost", "address to listen on")
 	serveCmd.Flags().IntVarP(&servePort, "port", "p", 8080, "port to listen on")
 	serveCmd.Flags().StringArrayVar(&servePaths, "path", []string{"/"}, "WebSocket path(s) to listen on")
 	serveCmd.Flags().BoolVar(&serveTLS, "tls", false, "enable TLS (wss://)")
@@ -513,6 +532,7 @@ func init() {
 	serveCmd.Flags().StringVarP(&staticDir, "serve-dir", "D", "", "directory to serve static files from")
 	serveCmd.Flags().StringVarP(&staticFile, "serve-file", "F", "", "single file to serve")
 	serveCmd.Flags().StringVarP(&staticPath, "serve-path", "A", "/", "URL path prefix for static content")
+	serveCmd.Flags().StringVarP(&staticAddr, "serve-addr", "H", "", "address to listen on for static content (defaults to main server address)")
 	serveCmd.Flags().IntVarP(&staticPort, "serve-port", "L", 9090, "port to listen on for static content")
 	serveCmd.Flags().BoolVarP(&staticGenerate, "generate", "g", false, "generate a high-quality HTML client if it doesn't exist and serve it")
 	serveCmd.Flags().StringVarP(&staticGenerateStyle, "generate-style", "S", "", "style for the generated HTML client (e.g., modern, terminal, cyberpunk)")
